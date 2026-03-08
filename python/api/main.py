@@ -1,13 +1,14 @@
 """
 ENLACE API — Main Application
 
-FastAPI application with CORS middleware and health endpoint.
+FastAPI application with CORS middleware, geographic, market, and health routers.
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from python.api.config import settings
+from python.api.routers import geographic, market, health
 
 app = FastAPI(
     title="ENLACE API",
@@ -23,6 +24,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register routers
+app.include_router(geographic.router)
+app.include_router(market.router)
+app.include_router(health.router)
 
 
 @app.get("/health")
