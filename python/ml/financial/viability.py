@@ -120,7 +120,7 @@ def compute_financial_metrics(
     }
 
     logger.info(
-        "Financial metrics: NPV=R$%,.0f, IRR=%s, Payback=%s months",
+        "Financial metrics: NPV=R$%.0f, IRR=%s, Payback=%s months",
         npv,
         f"{irr_pct:.1f}%" if irr_pct is not None else "N/A",
         payback_month if payback_month else "never",
@@ -539,7 +539,7 @@ def run_full_analysis(
     }
 
     logger.info(
-        "Full analysis for %s (%s): verdict=%s, base NPV=R$%,.0f, IRR=%s",
+        "Full analysis for %s (%s): verdict=%s, base NPV=R$%.0f, IRR=%s",
         muni["name"],
         muni["code"],
         verdict,

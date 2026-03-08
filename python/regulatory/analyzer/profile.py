@@ -226,7 +226,7 @@ def analyze_profile(
 
     logger.info(
         "Compliance profile for '%s': score=%.1f, critical=%d, warnings=%d, "
-        "estimated cost=R$%,.2f",
+        "estimated cost=R$%.2f",
         provider_name,
         overall_score,
         critical_count,

@@ -379,7 +379,7 @@ def estimate_rural_cost(
 
     logger.info(
         "Rural cost estimate: %s, %s terrain (%.1fx), %d subs, %d sites — "
-        "CAPEX R$%,.0f, OPEX R$%,.0f/mo",
+        "CAPEX R$%.0f, OPEX R$%.0f/mo",
         tech_key,
         terrain_key,
         terrain_mult,

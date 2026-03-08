@@ -282,8 +282,8 @@ def estimate_capex(
     per_sub = total / target_subscribers if target_subscribers > 0 else 0
 
     logger.info(
-        "CAPEX estimate: %.1f km, %d subs, %s/%s, terrain=%.2fx -> R$%,.0f "
-        "(R$%,.0f/sub)",
+        "CAPEX estimate: %.1f km, %d subs, %s/%s, terrain=%.2fx -> R$%.0f "
+        "(R$%.0f/sub)",
         cable_length_km,
         target_subscribers,
         deploy,

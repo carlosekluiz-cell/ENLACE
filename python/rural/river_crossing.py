@@ -407,7 +407,7 @@ def design_crossing(
 
     if options:
         logger.info(
-            "River crossing options (%d feasible): cheapest = %s at R$%,.0f",
+            "River crossing options (%d feasible): cheapest = %s at R$%.0f",
             len(options),
             options[0].crossing_type,
             options[0].estimated_cost_brl,

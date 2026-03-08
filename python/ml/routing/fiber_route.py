@@ -409,7 +409,7 @@ def compute_fiber_route(
     }
 
     logger.info(
-        "Fiber route computed: %.2f km, %d nodes, R$%,.0f, ~%d premises",
+        "Fiber route computed: %.2f km, %d nodes, R$%.0f, ~%d premises",
         total_length_km,
         len(path),
         total_cost,

@@ -253,6 +253,7 @@ async def licensing_check(
 @router.get("/deadlines")
 async def deadlines(
     days_ahead: int = Query(365, ge=1, le=3650, description="Number of days ahead to search"),
+    user: dict = Depends(require_auth),
 ):
     """
     Get all upcoming regulatory deadlines within the specified window.
@@ -314,7 +315,7 @@ async def quality_check(
 
 
 @router.get("/regulations")
-async def list_regulations():
+async def list_regulations(user: dict = Depends(require_auth)):
     """
     Get all active regulations in the knowledge base.
 
@@ -326,7 +327,7 @@ async def list_regulations():
 
 
 @router.get("/regulations/{regulation_id}")
-async def get_regulation_detail(regulation_id: str):
+async def get_regulation_detail(regulation_id: str, user: dict = Depends(require_auth)):
     """
     Get detailed information about a specific regulation.
 

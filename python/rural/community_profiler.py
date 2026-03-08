@@ -202,7 +202,7 @@ def profile_community(
 
     logger.info(
         "Community demand profile: pop=%d, households=%d, adoption=%.0f%%, "
-        "subs=%d, bandwidth=%.1f Mbps, WTP=R$%.0f/mo, revenue=R$%,.0f/mo (%s confidence)",
+        "subs=%d, bandwidth=%.1f Mbps, WTP=R$%.0f/mo, revenue=R$%.0f/mo (%s confidence)",
         population,
         num_households,
         adoption_rate * 100,

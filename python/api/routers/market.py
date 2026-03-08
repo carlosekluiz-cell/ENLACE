@@ -274,26 +274,42 @@ async def market_heatmap(
 
     metric_col = metric_column_map[metric]
 
-    sql = text(f"""
-        SELECT
-            l2_id,
-            municipality_code,
-            municipality_name,
-            state_abbrev,
-            ST_Y(centroid) AS lat,
-            ST_X(centroid) AS lng,
-            {metric_col} AS metric_value,
-            total_subscribers,
-            provider_count
-        FROM mv_market_summary
-        WHERE country_code = :country
-          AND centroid IS NOT NULL
-          AND ST_Within(
-                centroid,
-                ST_MakeEnvelope(:west, :south, :east, :north, 4326)
-          )
-        ORDER BY {metric_col} DESC
-    """)
+    # metric_col is from a hardcoded whitelist above — safe to interpolate.
+    # Using string formatting only for the validated column name; all user
+    # values go through SQLAlchemy's :param binding.
+    _SQL_TEMPLATES = {
+        "broadband_penetration_pct": text("""
+            SELECT l2_id, municipality_code, municipality_name, state_abbrev,
+                   ST_Y(centroid) AS lat, ST_X(centroid) AS lng,
+                   broadband_penetration_pct AS metric_value,
+                   total_subscribers, provider_count
+            FROM mv_market_summary
+            WHERE country_code = :country AND centroid IS NOT NULL
+              AND ST_Within(centroid, ST_MakeEnvelope(:west, :south, :east, :north, 4326))
+            ORDER BY broadband_penetration_pct DESC
+        """),
+        "fiber_share_pct": text("""
+            SELECT l2_id, municipality_code, municipality_name, state_abbrev,
+                   ST_Y(centroid) AS lat, ST_X(centroid) AS lng,
+                   fiber_share_pct AS metric_value,
+                   total_subscribers, provider_count
+            FROM mv_market_summary
+            WHERE country_code = :country AND centroid IS NOT NULL
+              AND ST_Within(centroid, ST_MakeEnvelope(:west, :south, :east, :north, 4326))
+            ORDER BY fiber_share_pct DESC
+        """),
+        "total_subscribers": text("""
+            SELECT l2_id, municipality_code, municipality_name, state_abbrev,
+                   ST_Y(centroid) AS lat, ST_X(centroid) AS lng,
+                   total_subscribers AS metric_value,
+                   total_subscribers, provider_count
+            FROM mv_market_summary
+            WHERE country_code = :country AND centroid IS NOT NULL
+              AND ST_Within(centroid, ST_MakeEnvelope(:west, :south, :east, :north, 4326))
+            ORDER BY total_subscribers DESC
+        """),
+    }
+    sql = _SQL_TEMPLATES[metric_col]
 
     result = await db.execute(
         sql,

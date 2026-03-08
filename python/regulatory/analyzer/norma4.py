@@ -200,7 +200,7 @@ def calculate_impact(
     )
 
     logger.info(
-        "Norma4 impact for %s: R$%,.2f/month additional ICMS (%.1f%% of revenue), "
+        "Norma4 impact for %s: R$%.2f/month additional ICMS (%.1f%% of revenue), "
         "readiness=%.1f, recommended=%s",
         code,
         impact.additional_monthly_tax_brl,
@@ -262,7 +262,7 @@ def calculate_multi_state_impact(
     }
 
     logger.info(
-        "Multi-state Norma4 impact: %d states, R$%,.2f/month total ICMS",
+        "Multi-state Norma4 impact: %d states, R$%.2f/month total ICMS",
         len(state_revenues),
         total_monthly_tax,
     )

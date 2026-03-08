@@ -241,7 +241,7 @@ def select_backhaul(profile: CommunityProfile) -> tuple[str, dict]:
             ),
         }
         logger.info(
-            "Backhaul: fiber selected — %.1f km, estimated R$%,.0f",
+            "Backhaul: fiber selected — %.1f km, estimated R$%.0f",
             total_km,
             total_cost,
         )
@@ -286,7 +286,7 @@ def select_backhaul(profile: CommunityProfile) -> tuple[str, dict]:
             ),
         }
         logger.info(
-            "Backhaul: microwave selected — %.1f km, %d hop(s), estimated R$%,.0f",
+            "Backhaul: microwave selected — %.1f km, %d hop(s), estimated R$%.0f",
             profile.nearest_fiber_km,
             hops,
             total_cost,
@@ -313,7 +313,7 @@ def select_backhaul(profile: CommunityProfile) -> tuple[str, dict]:
             ),
         }
         logger.info(
-            "Backhaul: satellite LEO selected — estimated R$%,.0f + R$%,.0f/mo",
+            "Backhaul: satellite LEO selected — estimated R$%.0f + R$%.0f/mo",
             total_cost,
             monthly,
         )
@@ -337,7 +337,7 @@ def select_backhaul(profile: CommunityProfile) -> tuple[str, dict]:
         ),
     }
     logger.info(
-        "Backhaul: satellite GEO selected — estimated R$%,.0f, free service (SGDC)",
+        "Backhaul: satellite GEO selected — estimated R$%.0f, free service (SGDC)",
         total_cost,
     )
     return "satellite_geo", details
@@ -889,7 +889,7 @@ def design_hybrid_network(profile: CommunityProfile) -> HybridDesign:
 
     logger.info(
         "Hybrid design complete: backhaul=%s, last_mile=%s, power=%s, "
-        "CAPEX=R$%,.0f, OPEX=R$%,.0f/mo, %d max subs",
+        "CAPEX=R$%.0f, OPEX=R$%.0f/mo, %d max subs",
         backhaul_tech,
         last_mile_tech,
         power_tech,

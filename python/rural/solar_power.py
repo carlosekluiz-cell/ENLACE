@@ -352,7 +352,7 @@ def size_solar_system(
 
     logger.info(
         "Solar design: %.2f kWp (%d x %dW), %.1f kWh battery (%d x %.1f kWh %s), "
-        "%dA controller, %dW inverter — CAPEX R$%,.0f",
+        "%dA controller, %dW inverter — CAPEX R$%.0f",
         actual_kwp,
         panel_count,
         panel_watts,

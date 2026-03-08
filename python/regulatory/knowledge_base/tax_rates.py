@@ -232,7 +232,7 @@ def compute_blended_rate(state_revenue: dict[str, float]) -> Optional[float]:
 
     blended = weighted_sum / total_revenue
     logger.info(
-        "Blended ICMS rate across %d states: %.2f%% (total revenue R$%,.2f)",
+        "Blended ICMS rate across %d states: %.2f%% (total revenue R$%.2f)",
         len(state_revenue),
         blended * 100,
         total_revenue,
