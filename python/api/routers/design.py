@@ -9,8 +9,9 @@ import asyncio
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from python.api.auth.dependencies import require_auth
 from python.api.models.schemas import CoverageRequest, DesignJobStatus
 from python.api.services.rf_client import RfEngineClient
 
@@ -27,7 +28,10 @@ def _get_client() -> RfEngineClient:
 
 
 @router.post("/coverage")
-async def compute_coverage(request: CoverageRequest):
+async def compute_coverage(
+    request: CoverageRequest,
+    user: dict = Depends(require_auth),
+):
     """Compute RF coverage footprint for a tower position.
 
     Returns a coverage grid with signal strength predictions and
@@ -57,12 +61,15 @@ async def compute_coverage(request: CoverageRequest):
         result = await loop.run_in_executor(None, _run)
         return result
     except Exception as e:
-        logger.error(f"Coverage computation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Coverage computation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/optimize")
-async def optimize_towers(request: dict):
+async def optimize_towers(
+    request: dict,
+    user: dict = Depends(require_auth),
+):
     """Run tower placement optimization.
 
     Accepts parameters for the optimization area and constraints, runs
@@ -104,12 +111,15 @@ async def optimize_towers(request: dict):
         result = await loop.run_in_executor(None, _run)
         return result
     except Exception as e:
-        logger.error(f"Tower optimization failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Tower optimization failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/linkbudget")
-async def link_budget(request: dict):
+async def link_budget(
+    request: dict,
+    user: dict = Depends(require_auth),
+):
     """Calculate microwave link budget using ITU-R P.530 model.
 
     Request body fields:
@@ -142,8 +152,8 @@ async def link_budget(request: dict):
         result = await loop.run_in_executor(None, _run)
         return result
     except Exception as e:
-        logger.error(f"Link budget calculation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Link budget calculation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/profile")
@@ -153,6 +163,7 @@ async def terrain_profile(
     end_lat: float,
     end_lon: float,
     step_m: float = 30,
+    user: dict = Depends(require_auth),
 ):
     """Extract terrain elevation profile between two geographic points.
 
@@ -180,5 +191,5 @@ async def terrain_profile(
         result = await loop.run_in_executor(None, _run)
         return result
     except Exception as e:
-        logger.error(f"Terrain profile extraction failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Terrain profile extraction failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")

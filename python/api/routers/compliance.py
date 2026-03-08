@@ -7,11 +7,14 @@ checks, quality assessments, deadline tracking, and regulation lookups.
 """
 
 import dataclasses
+import logging
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+
+from python.api.auth.dependencies import require_auth
 
 from python.regulatory.analyzer.norma4 import (
     calculate_impact,
@@ -33,6 +36,8 @@ from python.regulatory.knowledge_base.deadlines import (
     get_upcoming_deadlines,
 )
 from python.regulatory.knowledge_base.tax_rates import ICMS_RATES_SCM
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/compliance", tags=["compliance"])
 
@@ -121,6 +126,7 @@ async def compliance_status(
     services: str = Query("SCM", description="Comma-separated service types (e.g. SCM,broadband)"),
     classification: str = Query("SVA", description="Current classification: SVA or SCM"),
     revenue_monthly: Optional[float] = Query(None, ge=0, description="Monthly revenue in BRL"),
+    user: dict = Depends(require_auth),
 ):
     """
     Full compliance dashboard for an ISP provider.
@@ -149,6 +155,7 @@ async def norma4_impact(
     subscribers: int = Query(..., ge=0, description="Number of subscribers"),
     revenue_monthly: float = Query(..., ge=0, description="Monthly broadband revenue in BRL"),
     classification: str = Query("SVA", description="Current classification: SVA or SCM"),
+    user: dict = Depends(require_auth),
 ):
     """
     Calculate the Norma no. 4 tax impact for a single state.
@@ -167,13 +174,17 @@ async def norma4_impact(
             current_classification=classification,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning("Norma4 impact validation error: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid impact calculation parameters")
 
     return _serialize_dataclass(impact)
 
 
 @router.post("/norma4/multi-state")
-async def norma4_multi_state(request: MultiStateRequest):
+async def norma4_multi_state(
+    request: MultiStateRequest,
+    user: dict = Depends(require_auth),
+):
     """
     Calculate aggregate Norma no. 4 tax impact across multiple states.
 
@@ -195,7 +206,8 @@ async def norma4_multi_state(request: MultiStateRequest):
             current_classification=request.current_classification,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning("Multi-state impact validation error: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid multi-state impact parameters")
 
     # Serialize per-state Norma4Impact dataclass objects
     serialized = dict(result)
@@ -213,6 +225,7 @@ async def licensing_check(
     subscribers: int = Query(..., ge=0, description="Number of subscribers"),
     services: str = Query("SCM", description="Comma-separated service types"),
     revenue_monthly: Optional[float] = Query(None, ge=0, description="Monthly revenue in BRL"),
+    user: dict = Depends(require_auth),
 ):
     """
     Check licensing threshold status for an ISP.
@@ -231,7 +244,8 @@ async def licensing_check(
             monthly_revenue_brl=revenue_monthly,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning("Licensing check validation error: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid licensing check parameters")
 
     return _serialize_dataclass(status)
 
@@ -259,6 +273,7 @@ async def quality_check(
     availability_pct: Optional[float] = Query(None, ge=0, le=100, description="Network availability %"),
     ida_score: Optional[float] = Query(None, ge=0, le=10, description="IDA composite score"),
     subscribers: int = Query(0, ge=0, description="Subscriber count for reporting threshold"),
+    user: dict = Depends(require_auth),
 ):
     """
     Check quality metrics against Anatel regulatory thresholds.

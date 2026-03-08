@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
+from python.api.auth.dependencies import require_auth
 from python.api.database import get_db
 from python.api.models.schemas import MarketSummary, CompetitorResponse, ProviderBreakdown
 
@@ -30,6 +31,7 @@ def _to_float(value: Any) -> float | None:
 async def market_summary(
     municipality_id: int,
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
 ):
     """
     Market summary for a municipality from the mv_market_summary materialized view.
@@ -79,6 +81,7 @@ async def market_history(
     municipality_id: int,
     months: int = Query(12, ge=1, le=60, description="Number of months of history"),
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
 ):
     """
     Time series subscriber data for a municipality, aggregated by year_month.
@@ -122,6 +125,7 @@ async def market_history(
 async def market_competitors(
     municipality_id: int,
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
 ):
     """
     Provider-level competitive breakdown for a municipality.
@@ -237,6 +241,7 @@ async def market_heatmap(
     metric: str = Query("penetration", description="Metric: penetration, fiber_share, subscribers"),
     country: str = Query("BR", description="Country code"),
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
 ):
     """
     GeoJSON heatmap of municipality centroids with metric values.

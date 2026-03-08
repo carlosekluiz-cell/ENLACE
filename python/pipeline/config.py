@@ -17,7 +17,7 @@ class DatabaseConfig:
     port: int = int(os.getenv("POSTGRES_PORT", "5432"))
     database: str = os.getenv("POSTGRES_DB", "enlace")
     user: str = os.getenv("POSTGRES_USER", "enlace")
-    password: str = os.getenv("POSTGRES_PASSWORD", "enlace_dev_2026")
+    password: str = os.getenv("POSTGRES_PASSWORD", "")
 
     @property
     def url(self) -> str:
@@ -33,7 +33,7 @@ class MinIOConfig:
     """MinIO (S3-compatible) object storage configuration."""
     endpoint: str = os.getenv("MINIO_ENDPOINT", "localhost:9000")
     access_key: str = os.getenv("MINIO_ROOT_USER", "enlace_minio")
-    secret_key: str = os.getenv("MINIO_ROOT_PASSWORD", "enlace_minio_2026")
+    secret_key: str = os.getenv("MINIO_ROOT_PASSWORD", "")
     secure: bool = False
 
     # Bucket names

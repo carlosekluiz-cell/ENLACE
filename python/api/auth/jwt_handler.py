@@ -20,12 +20,24 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-SECRET_KEY = os.getenv(
-    "JWT_SECRET_KEY",
-    "enlace-dev-secret-key-change-in-production",
-)
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
+
+# Runtime check: SECRET_KEY must be set for production use
+_DEV_MODE = os.getenv("DEV_MODE", "1").strip().lower() in ("1", "true", "yes")
+if not SECRET_KEY:
+    if _DEV_MODE:
+        logger.warning(
+            "JWT_SECRET_KEY is not set. Using an insecure fallback for "
+            "development only. Set JWT_SECRET_KEY for production."
+        )
+        SECRET_KEY = "enlace-insecure-dev-only-key"
+    else:
+        raise RuntimeError(
+            "JWT_SECRET_KEY must be set in production (DEV_MODE=0). "
+            "Generate a secure random key and set it in environment variables."
+        )
 
 # ---------------------------------------------------------------------------
 # Select JWT backend

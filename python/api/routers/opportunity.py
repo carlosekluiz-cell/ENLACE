@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from python.api.auth.dependencies import require_auth
 from python.api.database import get_db
 from python.api.models.schemas import (
     CompetitorResponse,
@@ -87,6 +88,7 @@ class RouteResponse(BaseModel):
 async def opportunity_score(
     request: OpportunityScoreRequest,
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
 ):
     """
     Retrieve the pre-computed opportunity score for a municipality.
@@ -136,6 +138,7 @@ async def top_opportunities(
         60.0, ge=0.0, le=100.0, description="Minimum composite score threshold"
     ),
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
 ):
     """
     Get the top-scoring expansion opportunities.
@@ -165,7 +168,10 @@ async def top_opportunities(
 
 
 @router.post("/financial", response_model=FinancialResponse)
-async def financial_analysis(request: FinancialRequest):
+async def financial_analysis(
+    request: FinancialRequest,
+    user: dict = Depends(require_auth),
+):
     """
     Run a full financial viability analysis for a municipality.
 
@@ -224,7 +230,10 @@ async def financial_analysis(request: FinancialRequest):
 
 
 @router.post("/route", response_model=RouteResponse)
-async def fiber_route(request: RouteRequest):
+async def fiber_route(
+    request: RouteRequest,
+    user: dict = Depends(require_auth),
+):
     """
     Compute a fiber route pre-design between two geographic points.
 
@@ -287,6 +296,7 @@ async def fiber_route(request: RouteRequest):
 async def municipality_competitors(
     municipality_id: int,
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
 ):
     """
     Get the competitive landscape for a municipality.

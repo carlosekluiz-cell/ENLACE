@@ -107,7 +107,7 @@ async def login(request: TokenRequest):
             detail="Production authentication not configured. Set DEV_MODE=1 for development.",
         )
 
-    logger.info(f"Login attempt for: {request.email} (dev mode)")
+    logger.info("Login attempt for: %s (dev mode)", request.email)
 
     # Derive a stable user_id from email for consistency
     user_id = request.email.split("@")[0].replace(".", "_")
@@ -124,7 +124,7 @@ async def login(request: TokenRequest):
 
     access_token = create_access_token(data=token_data)
 
-    logger.info(f"Login successful for: {request.email} (user_id={user_id})")
+    logger.info("Login successful for: %s (user_id=%s)", request.email, user_id)
 
     return TokenResponse(
         access_token=access_token,
@@ -143,7 +143,7 @@ async def register(request: RegisterRequest):
     Creates a new tenant for the organization and returns a JWT token
     for immediate API access.
     """
-    logger.info(f"Registration attempt: {request.email}, org={request.organization}")
+    logger.info("Registration attempt: %s, org=%s", request.email, request.organization)
 
     # Create a tenant for the organization
     try:
@@ -154,7 +154,8 @@ async def register(request: RegisterRequest):
             plan="free",
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning("Tenant creation validation error: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid registration parameters")
 
     # Derive user_id from email
     user_id = request.email.split("@")[0].replace(".", "_")
@@ -170,7 +171,8 @@ async def register(request: RegisterRequest):
     access_token = create_access_token(data=token_data)
 
     logger.info(
-        f"Registration successful: user={user_id}, tenant={tenant.id}, org={request.organization}"
+        "Registration successful: user=%s, tenant=%s, org=%s",
+        user_id, tenant.id, request.organization,
     )
 
     return RegisterResponse(

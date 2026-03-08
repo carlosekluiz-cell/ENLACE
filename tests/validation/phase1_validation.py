@@ -5,12 +5,22 @@ for the ENLACE data foundation layer.
 
 Run: python tests/validation/phase1_validation.py
 """
+import os
 import sys
 import time
 import json
 import psycopg2
 
-DB_URL = "postgresql://enlace:enlace_dev_2026@localhost:5432/enlace"
+DB_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://{user}:{password}@{host}:{port}/{db}".format(
+        user=os.getenv("POSTGRES_USER", "enlace"),
+        password=os.getenv("POSTGRES_PASSWORD", ""),
+        host=os.getenv("POSTGRES_HOST", "localhost"),
+        port=os.getenv("POSTGRES_PORT", "5432"),
+        db=os.getenv("POSTGRES_DB", "enlace"),
+    ),
+)
 
 
 class ValidationResult:

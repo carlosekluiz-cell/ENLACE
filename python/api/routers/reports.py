@@ -9,11 +9,13 @@ WeasyPrint when available, otherwise falls back to HTML.
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional
 import io
+
+from python.api.auth.dependencies import require_auth
 
 from python.reports.generator import (
     generate_market_report,
@@ -64,7 +66,10 @@ class RuralReportRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("/market")
-async def market_report(request: MarketReportRequest):
+async def market_report(
+    request: MarketReportRequest,
+    user: dict = Depends(require_auth),
+):
     """Generate a market analysis PDF report for a municipality.
 
     Returns a PDF document (or HTML fallback) with market overview,
@@ -81,8 +86,8 @@ async def market_report(request: MarketReportRequest):
     try:
         content_bytes, media_type = await loop.run_in_executor(None, _run)
     except Exception as e:
-        logger.error(f"Market report generation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
+        logger.error("Market report generation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Report generation failed")
 
     filename = f"enlace_market_{request.municipality_id}.pdf"
     if media_type == "text/html":
@@ -96,7 +101,10 @@ async def market_report(request: MarketReportRequest):
 
 
 @router.post("/expansion")
-async def expansion_report(request: ExpansionReportRequest):
+async def expansion_report(
+    request: ExpansionReportRequest,
+    user: dict = Depends(require_auth),
+):
     """Generate an expansion opportunity PDF report for a municipality.
 
     Returns a PDF document with opportunity scoring, financial viability
@@ -110,8 +118,8 @@ async def expansion_report(request: ExpansionReportRequest):
     try:
         content_bytes, media_type = await loop.run_in_executor(None, _run)
     except Exception as e:
-        logger.error(f"Expansion report generation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
+        logger.error("Expansion report generation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Report generation failed")
 
     filename = f"enlace_expansion_{request.municipality_id}.pdf"
     if media_type == "text/html":
@@ -144,8 +152,8 @@ async def compliance_report(request: ComplianceReportRequest):
     try:
         content_bytes, media_type = await loop.run_in_executor(None, _run)
     except Exception as e:
-        logger.error(f"Compliance report generation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
+        logger.error("Compliance report generation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Report generation failed")
 
     safe_name = request.provider_name.replace(" ", "_")[:30]
     filename = f"enlace_compliance_{safe_name}.pdf"
@@ -181,8 +189,8 @@ async def rural_report(request: RuralReportRequest):
     try:
         content_bytes, media_type = await loop.run_in_executor(None, _run)
     except Exception as e:
-        logger.error(f"Rural report generation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
+        logger.error("Rural report generation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Report generation failed")
 
     filename = f"enlace_rural_{request.community_lat:.2f}_{request.community_lon:.2f}.pdf"
     if media_type == "text/html":

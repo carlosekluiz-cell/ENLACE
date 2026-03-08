@@ -19,12 +19,22 @@ Idempotent: uses ON CONFLICT DO NOTHING where possible, and deletes
 broadband/base station rows before re-inserting to allow safe re-runs.
 """
 
+import os
 import psycopg2
 import random
 import json
 import sys
 
-DB_URL = "postgresql://enlace:enlace_dev_2026@localhost:5432/enlace"
+DB_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://{user}:{password}@{host}:{port}/{db}".format(
+        user=os.getenv("POSTGRES_USER", "enlace"),
+        password=os.getenv("POSTGRES_PASSWORD", ""),
+        host=os.getenv("POSTGRES_HOST", "localhost"),
+        port=os.getenv("POSTGRES_PORT", "5432"),
+        db=os.getenv("POSTGRES_DB", "enlace"),
+    ),
+)
 
 random.seed(42)  # Reproducible results
 

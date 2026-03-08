@@ -12,6 +12,33 @@ import type {
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const TOKEN_KEY = 'enlace_access_token';
+
+// ---------------------------------------------------------------------------
+// Token helpers
+// ---------------------------------------------------------------------------
+
+/** Read the stored JWT token from localStorage (client-side only). */
+function getToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+/** Store a JWT token after login/register. */
+export function setToken(token: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+/** Remove the stored JWT token (logout). */
+export function clearToken(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+// ---------------------------------------------------------------------------
+// Error class
+// ---------------------------------------------------------------------------
 
 export class ApiError extends Error {
   status: number;
@@ -22,18 +49,40 @@ export class ApiError extends Error {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Core fetch wrapper — attaches Authorization header automatically
+// ---------------------------------------------------------------------------
+
 export async function fetchApi<T>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
+
+  // Build headers: always include Content-Type, attach Bearer token if available
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string> | undefined),
+  };
+
+  const token = getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
+    headers,
   });
+
+  // Handle 401 — token expired or invalid: clear token and redirect to login
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
+    throw new ApiError('Session expired. Please log in again.', 401);
+  }
 
   if (!res.ok) {
     throw new ApiError(

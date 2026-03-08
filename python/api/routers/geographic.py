@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
+from python.api.auth.dependencies import require_auth
 from python.api.database import get_db
 from python.api.models.schemas import MunicipalityResponse
 
@@ -20,6 +21,7 @@ async def search_municipalities(
     country: str = Query("BR", description="Country code"),
     limit: int = Query(20, ge=1, le=100, description="Max results"),
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
 ):
     """
     Search municipalities by name (case-insensitive, partial match).
@@ -84,6 +86,7 @@ async def search_municipalities(
 async def get_boundary(
     municipality_id: int,
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
 ):
     """
     Return GeoJSON boundary for a municipality.
@@ -128,6 +131,7 @@ async def find_within_radius(
     radius_km: float = Query(50, ge=1, le=500, description="Search radius in km"),
     country: str = Query("BR", description="Country code"),
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
 ):
     """
     Find municipalities within a radius of a given point.

@@ -8,7 +8,7 @@ DB_CONFIG = {
     "port": int(os.getenv("DB_PORT", "5432")),
     "database": os.getenv("DB_NAME", "enlace"),
     "user": os.getenv("DB_USER", "enlace"),
-    "password": os.getenv("DB_PASSWORD", "enlace_dev_2026"),
+    "password": os.getenv("DB_PASSWORD", ""),
 }
 
 # Model hyperparameters

@@ -13,8 +13,9 @@ import logging
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from python.api.auth.dependencies import require_auth
 from python.ml.health.weather_correlation import (
     WeatherRisk,
     compute_weather_risk,
@@ -82,6 +83,7 @@ async def _run_sync(func, *args, **kwargs):
 @router.get("/weather-risk")
 async def weather_risk(
     municipality_id: int = Query(..., ge=1, description="Municipality ID (admin_level_2.id)"),
+    user: dict = Depends(require_auth),
 ):
     """
     Current and 7-day weather risk forecast for a municipality.
@@ -102,7 +104,7 @@ async def weather_risk(
             "precipitation_risk": "moderate",
             "wind_risk": "low",
             "temperature_risk": "low",
-            "details": {"fallback": True, "reason": str(exc)},
+            "details": {"fallback": True, "reason": "Weather data temporarily unavailable"},
         }
 
 
@@ -110,6 +112,7 @@ async def weather_risk(
 async def quality_benchmark(
     municipality_id: int,
     provider_id: int = Query(..., ge=1, description="Provider ID"),
+    user: dict = Depends(require_auth),
 ):
     """
     Quality metrics with benchmarks and trends for a provider in a municipality.
@@ -156,7 +159,7 @@ async def quality_benchmark(
             "trend_pct": 0.0,
             "is_outlier": False,
             "churn_risk": "low",
-            "message": f"Error: {exc}",
+            "message": "Quality data temporarily unavailable",
         }
 
 
@@ -164,6 +167,7 @@ async def quality_benchmark(
 async def quality_peers(
     municipality_id: int,
     provider_id: int = Query(..., ge=1, description="Provider ID for peer comparison"),
+    user: dict = Depends(require_auth),
 ):
     """
     Peer comparison for quality metrics within a municipality.
@@ -188,6 +192,7 @@ async def quality_peers(
 @router.get("/maintenance/priorities")
 async def maintenance_priorities(
     provider_id: int = Query(..., ge=1, description="Provider ID"),
+    user: dict = Depends(require_auth),
 ):
     """
     Ranked list of municipalities by maintenance priority.
@@ -213,6 +218,7 @@ async def maintenance_priorities(
 @router.get("/seasonal/{municipality_id}")
 async def seasonal_calendar(
     municipality_id: int,
+    user: dict = Depends(require_auth),
 ):
     """
     Historical seasonal risk calendar for a municipality.

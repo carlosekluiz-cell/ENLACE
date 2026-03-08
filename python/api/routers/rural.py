@@ -11,8 +11,10 @@ import dataclasses
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+
+from python.api.auth.dependencies import require_auth
 
 from python.rural.hybrid_designer import (
     CommunityProfile,
@@ -97,7 +99,10 @@ class RiverCrossingRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("/design")
-async def hybrid_design(request: HybridDesignRequest):
+async def hybrid_design(
+    request: HybridDesignRequest,
+    user: dict = Depends(require_auth),
+):
     """Generate a complete hybrid network design for a rural community.
 
     Selects optimal backhaul, last mile, and power technologies based on
@@ -122,10 +127,11 @@ async def hybrid_design(request: HybridDesignRequest):
         result = await loop.run_in_executor(None, _run)
         return _dataclass_to_dict(result)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning("Hybrid design validation error: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid design parameters")
     except Exception as e:
-        logger.error(f"Hybrid design failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Hybrid design failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/solar")
@@ -135,6 +141,7 @@ async def solar_design(
     power_watts: float = Query(..., gt=0, description="Power consumption in watts"),
     autonomy_days: int = Query(3, ge=1, le=30, description="Days of battery autonomy"),
     battery_type: str = Query("lithium", description="Battery type: lithium or lead_acid"),
+    user: dict = Depends(require_auth),
 ):
     """Size a solar power system for an off-grid telecom site.
 
@@ -156,14 +163,18 @@ async def solar_design(
         result = await loop.run_in_executor(None, _run)
         return _dataclass_to_dict(result)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning("Solar design validation error: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid solar design parameters")
     except Exception as e:
-        logger.error(f"Solar design failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Solar design failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/funding/match")
-async def funding_match(request: FundingMatchRequest):
+async def funding_match(
+    request: FundingMatchRequest,
+    user: dict = Depends(require_auth),
+):
     """Match a rural deployment to available government funding programs.
 
     Evaluates all tracked Brazilian federal programs (FUST, Norte Conectado,
@@ -187,12 +198,14 @@ async def funding_match(request: FundingMatchRequest):
         result = await loop.run_in_executor(None, _run)
         return [_dataclass_to_dict(m) for m in result]
     except Exception as e:
-        logger.error(f"Funding match failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Funding match failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/funding/programs")
-async def list_funding_programs():
+async def list_funding_programs(
+    user: dict = Depends(require_auth),
+):
     """List all tracked government funding programs for rural telecom.
 
     Returns details on FUST, Norte Conectado, New PAC, 5G Obligations,
@@ -208,12 +221,15 @@ async def list_funding_programs():
         result = await loop.run_in_executor(None, _run)
         return [_dataclass_to_dict(p) for p in result]
     except Exception as e:
-        logger.error(f"Listing funding programs failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Listing funding programs failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/community/profile")
-async def community_profile(request: CommunityProfileRequest):
+async def community_profile(
+    request: CommunityProfileRequest,
+    user: dict = Depends(require_auth),
+):
     """Profile a rural community's connectivity demand.
 
     Estimates subscriber count, bandwidth requirements, primary use cases,
@@ -235,12 +251,15 @@ async def community_profile(request: CommunityProfileRequest):
         result = await loop.run_in_executor(None, _run)
         return _dataclass_to_dict(result)
     except Exception as e:
-        logger.error(f"Community profiling failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Community profiling failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/crossing")
-async def river_crossing(request: RiverCrossingRequest):
+async def river_crossing(
+    request: RiverCrossingRequest,
+    user: dict = Depends(require_auth),
+):
     """Design river crossing options for telecom infrastructure.
 
     Evaluates aerial cable, submarine cable, and microwave link options
@@ -260,7 +279,8 @@ async def river_crossing(request: RiverCrossingRequest):
         result = await loop.run_in_executor(None, _run)
         return [_dataclass_to_dict(c) for c in result]
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning("River crossing validation error: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid crossing parameters")
     except Exception as e:
-        logger.error(f"River crossing design failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("River crossing design failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")

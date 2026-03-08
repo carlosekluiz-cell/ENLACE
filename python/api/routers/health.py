@@ -6,6 +6,7 @@ System health endpoint with database and Redis status.
 
 from fastapi import APIRouter
 
+from python.api.config import settings
 from python.api.models.schemas import HealthCheckResponse
 
 router = APIRouter(tags=["health"])
@@ -21,9 +22,7 @@ async def health_check():
     try:
         import psycopg2
 
-        conn = psycopg2.connect(
-            "postgresql://enlace:enlace_dev_2026@localhost:5432/enlace"
-        )
+        conn = psycopg2.connect(settings.database_sync_url)
         conn.cursor().execute("SELECT 1")
         conn.close()
         db_status = "healthy"
@@ -34,7 +33,7 @@ async def health_check():
     try:
         import redis
 
-        r = redis.from_url("redis://localhost:6379")
+        r = redis.from_url(settings.redis_url)
         r.ping()
         redis_status = "healthy"
     except Exception:
@@ -42,7 +41,7 @@ async def health_check():
 
     return HealthCheckResponse(
         status="healthy" if db_status == "healthy" else "degraded",
-        version="1.0.0",
+        version=settings.app_version,
         database=db_status,
         redis=redis_status,
     )
