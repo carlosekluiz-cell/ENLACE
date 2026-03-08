@@ -93,13 +93,21 @@ def _tenant_to_dict(tenant: Tenant) -> dict:
 async def login(request: TokenRequest):
     """Authenticate and return a JWT token.
 
-    In development mode, accepts any email/password combination and
-    generates a valid token. In production, validate against a user
-    database with proper password hashing (bcrypt/argon2).
+    In development mode (DEV_MODE=1 or default), accepts any email/password.
+    In production (DEV_MODE=0), rejects all logins until a real user store
+    is integrated.
     """
-    # Development mode: accept any credentials
-    # In production, validate against user database
-    logger.info(f"Login attempt for: {request.email}")
+    import os
+
+    dev_mode = os.getenv("DEV_MODE", "1").strip().lower() in ("1", "true", "yes")
+
+    if not dev_mode:
+        raise HTTPException(
+            status_code=501,
+            detail="Production authentication not configured. Set DEV_MODE=1 for development.",
+        )
+
+    logger.info(f"Login attempt for: {request.email} (dev mode)")
 
     # Derive a stable user_id from email for consistency
     user_id = request.email.split("@")[0].replace(".", "_")
@@ -176,11 +184,11 @@ async def register(request: RegisterRequest):
 
 
 @router.get("/me", response_model=UserProfile)
-async def get_me(user: dict = Depends(get_current_user)):
+async def get_me(user: dict = Depends(require_auth)):
     """Get current user profile.
 
     Returns the authenticated user's profile including tenant information.
-    If no token is provided, returns the anonymous development user.
+    Requires a valid JWT token — returns 401 if unauthenticated.
     """
     tenant_dict = None
     tenant_id = user.get("tenant_id")

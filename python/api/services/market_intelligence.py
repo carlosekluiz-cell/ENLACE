@@ -212,7 +212,7 @@ async def get_top_opportunities(
             "municipality_code": row.municipality_code.strip() if row.municipality_code else "",
             "name": row.municipality_name,
             "state_abbrev": row.state_abbrev,
-            "score": float(row.composite_score),
+            "composite_score": float(row.composite_score),
             "confidence": float(row.confidence),
             "sub_scores": {
                 "demand": float(row.demand_score),
