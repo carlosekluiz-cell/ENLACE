@@ -3,7 +3,7 @@ ENLACE API — Main Application
 
 FastAPI application with CORS middleware and all platform routers:
 geographic, market, health, opportunity, design, compliance, network_health,
-rural, reports, and auth.
+rural, reports, auth, and mna.
 """
 
 from fastapi import FastAPI
@@ -21,6 +21,7 @@ from python.api.routers import (
     rural,
     reports,
     auth,
+    mna,
 )
 
 app = FastAPI(
@@ -49,6 +50,7 @@ app.include_router(network_health.router)
 app.include_router(rural.router)
 app.include_router(reports.router)
 app.include_router(auth.router)
+app.include_router(mna.router)
 
 
 @app.get("/health")
