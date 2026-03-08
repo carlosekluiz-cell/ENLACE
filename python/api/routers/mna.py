@@ -13,9 +13,10 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from python.api.auth.dependencies import require_auth
 from python.mna.valuation import subscriber_multiple, revenue_multiple, dcf
 from python.mna import acquirer, seller
 
@@ -121,7 +122,10 @@ class MarketOverviewResponse(BaseModel):
 
 
 @router.post("/valuation", response_model=ValuationResponse)
-async def calculate_valuation(request: ValuationRequest):
+async def calculate_valuation(
+    request: ValuationRequest,
+    user: dict = Depends(require_auth),
+):
     """Calculate ISP valuation using all three methods.
 
     Returns subscriber-multiple, revenue-multiple, and DCF valuations,
@@ -214,7 +218,10 @@ async def calculate_valuation(request: ValuationRequest):
 
 
 @router.post("/targets", response_model=list[AcquisitionTargetResponse])
-async def find_targets(request: TargetsRequest):
+async def find_targets(
+    request: TargetsRequest,
+    user: dict = Depends(require_auth),
+):
     """Find and evaluate potential ISP acquisition targets.
 
     Scores targets on strategic fit, financial attractiveness,
@@ -254,7 +261,10 @@ async def find_targets(request: TargetsRequest):
 
 
 @router.post("/seller/prepare", response_model=SellerReportResponse)
-async def seller_prepare(request: SellerPrepareRequest):
+async def seller_prepare(
+    request: SellerPrepareRequest,
+    user: dict = Depends(require_auth),
+):
     """Generate a comprehensive seller preparation report.
 
     Includes valuations from all three methods, strengths/weaknesses analysis,
@@ -388,6 +398,7 @@ _RECENT_DEALS: list[dict] = [
 @router.get("/market", response_model=MarketOverviewResponse)
 async def market_overview(
     state: str = Query("SP", min_length=2, max_length=2, description="State code"),
+    user: dict = Depends(require_auth),
 ):
     """Get M&A market overview for a Brazilian state.
 

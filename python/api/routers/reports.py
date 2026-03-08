@@ -133,7 +133,10 @@ async def expansion_report(
 
 
 @router.post("/compliance")
-async def compliance_report(request: ComplianceReportRequest):
+async def compliance_report(
+    request: ComplianceReportRequest,
+    user: dict = Depends(require_auth),
+):
     """Generate a regulatory compliance PDF report for an ISP.
 
     Returns a PDF document with licensing status, Norma no. 4 tax impact,
@@ -168,7 +171,10 @@ async def compliance_report(request: ComplianceReportRequest):
 
 
 @router.post("/rural")
-async def rural_report(request: RuralReportRequest):
+async def rural_report(
+    request: RuralReportRequest,
+    user: dict = Depends(require_auth),
+):
     """Generate a rural feasibility PDF report.
 
     Returns a PDF document with hybrid network design, equipment list,
