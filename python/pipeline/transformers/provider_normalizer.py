@@ -37,6 +37,8 @@ PROVIDER_GROUPS = {
     "oi s/a": "oi sa",
     "oi movel": "oi sa",
     "oi móvel": "oi sa",
+    "oi sa": "oi sa",
+    "oi": "oi sa",
     "telemar": "oi sa",
     "brasil telecom": "oi sa",
     "brt": "oi sa",
@@ -46,6 +48,7 @@ PROVIDER_GROUPS = {
     "tim s/a": "tim sa",
     "tim celular": "tim sa",
     "tim sa": "tim sa",
+    "tim": "tim sa",
     "intelig": "tim sa",
 }
 
@@ -64,9 +67,10 @@ def normalize_provider_name(name: str) -> str:
     # Collapse whitespace
     normalized = re.sub(r"\s+", " ", normalized).strip()
 
-    # Check against known groups
+    # Check against known groups using word-boundary matching
+    # to avoid false positives like "brisanet servicos" matching "net servicos"
     for pattern, canonical in PROVIDER_GROUPS.items():
-        if pattern in normalized:
+        if re.search(r"(?:^|\s)" + re.escape(pattern) + r"(?:\s|$)", normalized):
             return canonical
 
     return normalized

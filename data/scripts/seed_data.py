@@ -445,20 +445,32 @@ def main():
         technologies = ["fiber", "cable", "dsl", "wireless"]
         months = [f"2025-{m:02d}" for m in range(1, 13)]
 
+        # Get actual total_households per municipality from census data
+        # (these may differ slightly from MUNICIPALITIES constants due
+        # to random distribution across tracts)
+        cur.execute("""
+            SELECT ct.l2_id, SUM(cd.total_households) AS total_hh
+            FROM census_tracts ct
+            JOIN census_demographics cd ON cd.tract_id = ct.id
+            WHERE ct.country_code = 'BR'
+            GROUP BY ct.l2_id
+        """)
+        actual_hh_by_muni = {r[0]: int(r[1]) for r in cur.fetchall()}
+
         sub_row_count = 0
         for l2_id, muni_code in muni_rows:
-            info = muni_info.get(muni_code.strip())
-            if info is None:
+            # Use actual household count from DB for the penetration cap
+            total_hh = actual_hh_by_muni.get(l2_id)
+            if total_hh is None or total_hh == 0:
                 continue
-            pop, total_hh, _, _, _ = info
 
             # Each municipality gets 2-6 providers
             n_providers = random.randint(2, min(6, len(provider_ids)))
             chosen_providers = random.sample(provider_ids, n_providers)
 
             # Budget: total subscribers across all providers must not exceed
-            # total_hh. Allocate a household penetration rate (40-85%).
-            penetration = random.uniform(0.40, 0.85)
+            # total_hh. Use a conservative penetration rate (30-75%).
+            penetration = random.uniform(0.30, 0.75)
             max_subs = int(total_hh * penetration)
 
             # Divide among providers with random weights
@@ -478,9 +490,10 @@ def main():
                 tech = random.choice(technologies)
 
                 for ym in months:
-                    # Slight monthly growth (0.2% - 1.5% per month)
+                    # Slight monthly growth, capped to avoid exceeding
+                    # household count even at year end
                     month_num = int(ym.split("-")[1])
-                    growth = 1 + (month_num - 1) * random.uniform(0.002, 0.015)
+                    growth = 1 + (month_num - 1) * random.uniform(0.001, 0.008)
                     subs = max(50, int(base_subs * growth))
 
                     cur.execute(
