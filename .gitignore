@@ -39,8 +39,10 @@ data/downloads/
 # Compiled Rust
 target/
 
-# Node modules
+# Node / Next.js
 node_modules/
+.next/
+out/
 
 # Archive files
 *.tar

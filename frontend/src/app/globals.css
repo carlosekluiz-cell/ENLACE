@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ENLACE custom theme */
+:root {
+  --enlace-primary: #2563eb;
+  --enlace-secondary: #7c3aed;
+  --enlace-accent: #06b6d4;
+  --enlace-bg: #0f172a;
+  --enlace-surface: #1e293b;
+  --enlace-text: #f8fafc;
+  --enlace-border: #334155;
+  --enlace-muted: #94a3b8;
+}
+
+/* Base styles */
+body {
+  background-color: var(--enlace-bg);
+  color: var(--enlace-text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--enlace-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--enlace-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--enlace-muted);
+}
+
+/* MapLibre GL overrides for dark theme */
+.maplibregl-popup-content {
+  background: var(--enlace-surface) !important;
+  color: var(--enlace-text) !important;
+  border: 1px solid var(--enlace-border) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
+}
+
+.maplibregl-popup-tip {
+  border-top-color: var(--enlace-surface) !important;
+}
+
+/* Utility classes */
+@layer components {
+  .enlace-card {
+    @apply rounded-lg border border-slate-700 bg-slate-800 p-4 shadow-lg;
+  }
+
+  .enlace-input {
+    @apply rounded-md border border-slate-600 bg-slate-700 px-3 py-2 text-sm text-slate-100
+           placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500;
+  }
+
+  .enlace-btn-primary {
+    @apply rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white
+           hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+           focus:ring-offset-slate-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .enlace-btn-secondary {
+    @apply rounded-md border border-slate-600 bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200
+           hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2
+           focus:ring-offset-slate-900 transition-colors;
+  }
+
+  .enlace-badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .enlace-badge-green {
+    @apply enlace-badge bg-green-900/50 text-green-400 ring-1 ring-green-500/30;
+  }
+
+  .enlace-badge-yellow {
+    @apply enlace-badge bg-yellow-900/50 text-yellow-400 ring-1 ring-yellow-500/30;
+  }
+
+  .enlace-badge-red {
+    @apply enlace-badge bg-red-900/50 text-red-400 ring-1 ring-red-500/30;
+  }
+}
