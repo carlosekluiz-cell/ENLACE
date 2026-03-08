@@ -168,7 +168,7 @@ function InteractiveMap({ layers, onMapClick, className }: MapViewProps) {
             setViewState((prev) => ({ ...prev, zoom: prev.zoom + 1 }))
           }
           className="rounded-lg bg-slate-800/90 p-2 text-slate-300 hover:bg-slate-700 transition-colors"
-          aria-label="Zoom in"
+          aria-label="Aumentar zoom"
         >
           <ZoomIn size={16} />
         </button>
@@ -180,14 +180,14 @@ function InteractiveMap({ layers, onMapClick, className }: MapViewProps) {
             }))
           }
           className="rounded-lg bg-slate-800/90 p-2 text-slate-300 hover:bg-slate-700 transition-colors"
-          aria-label="Zoom out"
+          aria-label="Diminuir zoom"
         >
           <ZoomOut size={16} />
         </button>
         <button
           onClick={() => setViewState(BRAZIL_VIEW)}
           className="rounded-lg bg-slate-800/90 p-2 text-slate-300 hover:bg-slate-700 transition-colors"
-          aria-label="Reset view"
+          aria-label="Redefinir visualizacao"
         >
           <Maximize2 size={16} />
         </button>
