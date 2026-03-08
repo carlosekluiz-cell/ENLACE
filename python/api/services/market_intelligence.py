@@ -57,8 +57,8 @@ async def score_area(
             os.competition_score,
             os.infrastructure_score,
             os.growth_score,
-            os.top_factors,
-            os.scored_at,
+            os.features->'top_factors' AS top_factors,
+            os.computed_at,
             os.model_version,
             a2.id   AS l2_id,
             a2.code AS municipality_code,
@@ -68,7 +68,9 @@ async def score_area(
             cd_agg.total_households,
             cd_agg.total_population
         FROM opportunity_scores os
-        JOIN admin_level_2 a2 ON a2.id = os.l2_id
+        JOIN admin_level_2 a2
+            ON a2.code = os.geographic_id
+            AND a2.country_code = os.country_code
         JOIN admin_level_1 a1 ON a1.id = a2.l1_id
         LEFT JOIN LATERAL (
             SELECT
@@ -80,7 +82,7 @@ async def score_area(
         ) cd_agg ON TRUE
         WHERE a2.code = :area_id
           AND a2.country_code = :country_code
-        ORDER BY os.scored_at DESC
+        ORDER BY os.computed_at DESC
         LIMIT 1
     """)
 
@@ -112,7 +114,7 @@ async def score_area(
             "total_households": int(row.total_households) if row.total_households else None,
             "total_population": int(row.total_population) if row.total_population else None,
             "model_version": row.model_version,
-            "scored_at": row.scored_at.isoformat() if row.scored_at else None,
+            "scored_at": row.computed_at.isoformat() if row.computed_at else None,
         },
     }
 
@@ -163,36 +165,6 @@ async def get_top_opportunities(
 
     where_sql = " AND ".join(where_clauses)
 
-    sql = text(f"""
-        SELECT DISTINCT ON (a2.id)
-            a2.id   AS l2_id,
-            a2.code AS municipality_code,
-            a2.name AS municipality_name,
-            a1.abbrev AS state_abbrev,
-            os.composite_score,
-            os.confidence,
-            os.demand_score,
-            os.competition_score,
-            os.infrastructure_score,
-            os.growth_score,
-            a2.area_km2,
-            cd_agg.total_households,
-            cd_agg.total_population
-        FROM opportunity_scores os
-        JOIN admin_level_2 a2 ON a2.id = os.l2_id
-        JOIN admin_level_1 a1 ON a1.id = a2.l1_id
-        LEFT JOIN LATERAL (
-            SELECT
-                SUM(cd.total_households) AS total_households,
-                SUM(cd.total_population) AS total_population
-            FROM census_tracts ct
-            JOIN census_demographics cd ON cd.tract_id = ct.id
-            WHERE ct.l2_id = a2.id
-        ) cd_agg ON TRUE
-        WHERE {where_sql}
-        ORDER BY a2.id, os.scored_at DESC
-    """)
-
     # Wrap in a subquery so we can ORDER BY composite_score and LIMIT
     outer_sql = text(f"""
         SELECT *
@@ -212,7 +184,9 @@ async def get_top_opportunities(
                 cd_agg.total_households,
                 cd_agg.total_population
             FROM opportunity_scores os
-            JOIN admin_level_2 a2 ON a2.id = os.l2_id
+            JOIN admin_level_2 a2
+                ON a2.code = os.geographic_id
+                AND a2.country_code = os.country_code
             JOIN admin_level_1 a1 ON a1.id = a2.l1_id
             LEFT JOIN LATERAL (
                 SELECT
@@ -223,7 +197,7 @@ async def get_top_opportunities(
                 WHERE ct.l2_id = a2.id
             ) cd_agg ON TRUE
             WHERE {where_sql}
-            ORDER BY a2.id, os.scored_at DESC
+            ORDER BY a2.id, os.computed_at DESC
         ) ranked
         ORDER BY ranked.composite_score DESC
         LIMIT :limit
