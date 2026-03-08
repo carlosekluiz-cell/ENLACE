@@ -1,0 +1,159 @@
+syntax = "proto3";
+package enlace.rf;
+
+service RfEngine {
+    rpc CalculatePathLoss(PathLossRequest) returns (PathLossResponse);
+    rpc ComputeCoverage(CoverageRequest) returns (CoverageResponse);
+    rpc OptimizeTowers(OptimizeRequest) returns (stream OptimizeProgress);
+    rpc LinkBudget(LinkBudgetRequest) returns (LinkBudgetResponse);
+    rpc TerrainProfile(ProfileRequest) returns (ProfileResponse);
+    rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+message GeoPoint {
+    double latitude = 1;
+    double longitude = 2;
+}
+
+message PathLossRequest {
+    double tx_lat = 1;
+    double tx_lon = 2;
+    double tx_height_m = 3;
+    double rx_lat = 4;
+    double rx_lon = 5;
+    double rx_height_m = 6;
+    double frequency_mhz = 7;
+    string model = 8;
+    bool apply_vegetation = 9;
+    string country_code = 10;
+}
+
+message PathLossResponse {
+    double path_loss_db = 1;
+    double received_power_dbm = 2;
+    string propagation_mode = 3;
+    double variability_db = 4;
+    double vegetation_correction_db = 5;
+    repeated string warnings = 6;
+}
+
+message CoverageRequest {
+    double tower_lat = 1;
+    double tower_lon = 2;
+    double tower_height_m = 3;
+    double frequency_mhz = 4;
+    double tx_power_dbm = 5;
+    double antenna_gain_dbi = 6;
+    double radius_m = 7;
+    double grid_resolution_m = 8;
+    double min_signal_dbm = 9;
+    bool apply_vegetation = 10;
+    string country_code = 11;
+}
+
+message CoverageResponse {
+    repeated CoveragePoint points = 1;
+    CoverageStats stats = 2;
+}
+
+message CoveragePoint {
+    double latitude = 1;
+    double longitude = 2;
+    double signal_strength_dbm = 3;
+    double path_loss_db = 4;
+}
+
+message CoverageStats {
+    uint64 total_points = 1;
+    uint64 covered_points = 2;
+    double coverage_pct = 3;
+    double area_km2 = 4;
+    double covered_area_km2 = 5;
+    double avg_signal_dbm = 6;
+    double min_signal_dbm = 7;
+    double max_signal_dbm = 8;
+}
+
+message OptimizeRequest {
+    double center_lat = 1;
+    double center_lon = 2;
+    double radius_m = 3;
+    double coverage_target_pct = 4;
+    double min_signal_dbm = 5;
+    uint32 max_towers = 6;
+    double frequency_mhz = 7;
+    double tx_power_dbm = 8;
+    double antenna_gain_dbi = 9;
+    double antenna_height_m = 10;
+}
+
+message OptimizeProgress {
+    bool is_final = 1;
+    double progress_pct = 2;
+    string phase = 3;
+    repeated TowerPlacement towers = 4;
+    double total_coverage_pct = 5;
+    double covered_area_km2 = 6;
+    double estimated_capex_brl = 7;
+    double computation_time_secs = 8;
+}
+
+message TowerPlacement {
+    uint32 id = 1;
+    double latitude = 2;
+    double longitude = 3;
+    double elevation_m = 4;
+    double antenna_height_m = 5;
+    double coverage_area_km2 = 6;
+}
+
+message LinkBudgetRequest {
+    double frequency_ghz = 1;
+    double distance_km = 2;
+    double tx_power_dbm = 3;
+    double tx_antenna_gain_dbi = 4;
+    double rx_antenna_gain_dbi = 5;
+    double rx_threshold_dbm = 6;
+    double rain_rate_mmh = 7;
+}
+
+message LinkBudgetResponse {
+    double free_space_loss_db = 1;
+    double atmospheric_absorption_db = 2;
+    double rain_attenuation_db = 3;
+    double total_path_loss_db = 4;
+    double received_power_dbm = 5;
+    double fade_margin_db = 6;
+    double availability_pct = 7;
+}
+
+message ProfileRequest {
+    double start_lat = 1;
+    double start_lon = 2;
+    double end_lat = 3;
+    double end_lon = 4;
+    double step_m = 5;
+    double k_factor = 6;
+}
+
+message ProfileResponse {
+    repeated ProfilePoint points = 1;
+    double total_distance_m = 2;
+    double max_elevation_m = 3;
+    double min_elevation_m = 4;
+    uint32 num_obstructions = 5;
+}
+
+message ProfilePoint {
+    double distance_m = 1;
+    double elevation_m = 2;
+    double latitude = 3;
+    double longitude = 4;
+}
+
+message HealthRequest {}
+message HealthResponse {
+    string status = 1;
+    string version = 2;
+    uint64 srtm_tiles_cached = 3;
+}

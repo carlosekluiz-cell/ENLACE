@@ -1,0 +1,27 @@
+[package]
+name = "enlace-service"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "enlace-rf-engine"
+path = "src/main.rs"
+
+[dependencies]
+enlace-terrain = { path = "../enlace-terrain" }
+enlace-propagation = { path = "../enlace-propagation" }
+enlace-optimizer = { path = "../enlace-optimizer" }
+enlace-raster = { path = "../enlace-raster" }
+tonic = { workspace = true }
+prost = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = "0.1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[build-dependencies]
+tonic-build = "0.12"

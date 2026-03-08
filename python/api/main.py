@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from python.api.config import settings
-from python.api.routers import geographic, market, health, opportunity
+from python.api.routers import geographic, market, health, opportunity, design
 
 app = FastAPI(
     title="ENLACE API",
@@ -30,6 +30,7 @@ app.include_router(geographic.router)
 app.include_router(market.router)
 app.include_router(health.router)
 app.include_router(opportunity.router)
+app.include_router(design.router)
 
 
 @app.get("/health")

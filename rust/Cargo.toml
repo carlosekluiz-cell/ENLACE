@@ -5,7 +5,7 @@ members = [
     "crates/enlace-propagation",
     "crates/enlace-optimizer",
     "crates/enlace-raster",
-    # "crates/enlace-service",
+    "crates/enlace-service",
 ]
 
 [workspace.package]
