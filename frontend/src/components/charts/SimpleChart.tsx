@@ -84,7 +84,7 @@ export default function SimpleChart({
           style={{ height }}
           className="flex items-center justify-center text-sm text-slate-500"
         >
-          No chart data available
+          Sem dados para o gráfico
         </div>
       </div>
     );

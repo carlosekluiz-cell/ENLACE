@@ -5,7 +5,7 @@ import StatsCard from '@/components/dashboard/StatsCard';
 import SimpleChart from '@/components/charts/SimpleChart';
 import { useLazyApi, useApi } from '@/hooks/useApi';
 import { api } from '@/lib/api';
-import type { FundingProgram } from '@/lib/types';
+import type { FundingProgram, RuralDesign } from '@/lib/types';
 import {
   Mountain,
   Sun,
@@ -18,51 +18,13 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
-// Demo funding programs
-const demoPrograms: FundingProgram[] = [
-  {
-    id: 1,
-    name: 'FUST Universal Service Fund',
-    agency: 'Anatel',
-    max_amount: 5000000,
-    eligibility_criteria: 'Municipalities under 30,000 inhabitants with less than 40% broadband penetration',
-    deadline: '2026-06-30',
-    status: 'open',
-  },
-  {
-    id: 2,
-    name: 'BNDES Rural Connectivity',
-    agency: 'BNDES',
-    max_amount: 10000000,
-    eligibility_criteria: 'Licensed ISPs expanding to underserved rural areas',
-    deadline: '2026-09-15',
-    status: 'open',
-  },
-  {
-    id: 3,
-    name: 'Norte Conectado',
-    agency: 'MCOM',
-    max_amount: 25000000,
-    eligibility_criteria: 'Projects in the Amazon region using satellite or river-based connectivity',
-    deadline: '2026-12-31',
-    status: 'upcoming',
-  },
-  {
-    id: 4,
-    name: 'Gesac Community WiFi',
-    agency: 'MCOM',
-    max_amount: 500000,
-    eligibility_criteria: 'Community centers and schools in municipalities without broadband access',
-    status: 'open',
-  },
-];
-
-interface DesignResult {
-  technology: string;
-  cost: number;
-  solar_kw: number;
-  battery_kwh: number;
-  coverage: number;
+interface DesignFormParams {
+  latitude: number;
+  longitude: number;
+  population: number;
+  area_km2: number;
+  has_grid_power: boolean;
+  community_name?: string;
 }
 
 export default function RuralPage() {
@@ -74,74 +36,113 @@ export default function RuralPage() {
   const [area, setArea] = useState('150');
   const [hasPower, setHasPower] = useState(true);
 
-  // Design results (demo)
-  const [designResult, setDesignResult] = useState<DesignResult | null>(null);
+  // Real API: fetch funding programs on mount
+  const {
+    data: programs,
+    loading: programsLoading,
+    error: programsError,
+  } = useApi(() => api.rural.programs(), []);
 
-  // Fetch funding programs
-  const { data: programs } = useApi(() => api.rural.programs(), []);
-  const displayPrograms = programs || demoPrograms;
+  // Real API: lazy design call
+  const {
+    data: designResult,
+    loading: designLoading,
+    error: designError,
+    execute: executeDesign,
+  } = useLazyApi<RuralDesign, DesignFormParams>((params) =>
+    api.rural.design(params)
+  );
 
-  const handleDesign = () => {
-    // Simulate design calculation when API is unavailable
-    const pop = parseInt(population) || 0;
-    const areaKm2 = parseFloat(area) || 0;
-    const density = pop / Math.max(areaKm2, 1);
+  // Derive stats from programs data
+  const totalFunding = programs
+    ? programs.reduce((sum, p) => sum + p.max_amount, 0)
+    : null;
+  const activeCount = programs
+    ? programs.filter((p) => p.status === 'open').length
+    : null;
 
-    let technology = 'FTTH + Wireless';
-    if (density < 5) technology = 'Satellite + WiFi Hotspot';
-    else if (density < 20) technology = 'Fixed Wireless + Solar';
-    else if (density < 50) technology = 'FTTH/FTTB Hybrid';
+  const handleDesign = async () => {
+    const lat = parseFloat(latitude);
+    const lon = parseFloat(longitude);
+    const pop = parseInt(population, 10);
+    const areaKm2 = parseFloat(area);
 
-    const baseCost = pop * 450;
-    const solarKw = hasPower ? 0 : Math.ceil(pop * 0.05);
-    const batteryKwh = hasPower ? 0 : Math.ceil(solarKw * 4);
+    if (isNaN(lat) || isNaN(lon) || isNaN(pop) || isNaN(areaKm2)) {
+      return;
+    }
 
-    setDesignResult({
-      technology,
-      cost: baseCost + solarKw * 3200,
-      solar_kw: solarKw,
-      battery_kwh: batteryKwh,
-      coverage: Math.min(95, 70 + density * 0.5),
+    await executeDesign({
+      latitude: lat,
+      longitude: lon,
+      population: pop,
+      area_km2: areaKm2,
+      has_grid_power: hasPower,
+      community_name: communityName || undefined,
     });
   };
 
-  const costBreakdown = designResult
+  // Build cost breakdown chart data from real result
+  const costBreakdown: { name: string; value: number }[] = designResult
     ? [
-        { name: 'Infrastructure', value: Math.round(designResult.cost * 0.45) },
-        { name: 'Equipment', value: Math.round(designResult.cost * 0.25) },
-        { name: 'Installation', value: Math.round(designResult.cost * 0.15) },
-        { name: 'Solar/Power', value: Math.round(designResult.cost * 0.1) },
-        { name: 'Contingency', value: Math.round(designResult.cost * 0.05) },
+        { name: 'Backhaul', value: designResult.backhaul.cost_brl },
+        { name: 'Ultima Milha', value: designResult.last_mile.cost_brl },
+        { name: 'Energia', value: designResult.power.cost_brl },
       ]
     : [];
+
+  const statusLabel: Record<string, string> = {
+    open: 'aberto',
+    upcoming: 'em breve',
+    closed: 'encerrado',
+  };
 
   return (
     <div className="space-y-6 p-6">
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <StatsCard
-          title="Unserved Communities"
-          value="12,450"
+          title="Comunidades Não Atendidas"
+          value={programs ? `${programs.length}` : '---'}
           icon={<MapPin size={18} />}
-          subtitle="No broadband access"
+          subtitle="Programas cadastrados"
+          loading={programsLoading}
         />
         <StatsCard
-          title="Rural Population"
-          value="29.3M"
+          title="População Rural"
+          value={
+            designResult
+              ? designResult.coverage_pct.toFixed(1) + '% cobertura'
+              : '---'
+          }
           icon={<Users size={18} />}
-          subtitle="Underserved"
+          subtitle={designResult ? 'Do projeto gerado' : 'Gere um projeto'}
+          loading={programsLoading}
         />
         <StatsCard
-          title="Available Funding"
-          value="R$ 40.5M"
+          title="Financiamento Disponivel"
+          value={
+            totalFunding !== null
+              ? `R$ ${(totalFunding / 1e6).toFixed(1)}M`
+              : '---'
+          }
           icon={<DollarSign size={18} />}
-          subtitle="Active programs"
+          subtitle={
+            activeCount !== null
+              ? `${activeCount} programas ativos`
+              : 'Programas ativos'
+          }
+          loading={programsLoading}
         />
         <StatsCard
-          title="Avg Cost/Household"
-          value="R$ 1,850"
+          title="Custo Médio/Domicílio"
+          value={
+            designResult
+              ? `R$ ${Math.round(designResult.total_cost_brl / Math.max(parseInt(population) || 1, 1)).toLocaleString('pt-BR')}`
+              : '---'
+          }
           icon={<Zap size={18} />}
-          subtitle="Rural deployment"
+          subtitle={designResult ? 'Calculado do projeto' : 'Fonte: Anatel'}
+          loading={programsLoading}
         />
       </div>
 
@@ -150,19 +151,19 @@ export default function RuralPage() {
         <div className="enlace-card">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-200">
             <Mountain size={16} className="text-blue-400" />
-            Community Design Input
+            Dados da Comunidade
           </h2>
 
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs text-slate-400">
-                Community Name
+                Nome da Comunidade
               </label>
               <input
                 type="text"
                 value={communityName}
                 onChange={(e) => setCommunityName(e.target.value)}
-                placeholder="e.g., Vila Nova do Norte"
+                placeholder="Ex.: Vila Nova do Norte"
                 className="enlace-input w-full"
               />
             </div>
@@ -197,7 +198,7 @@ export default function RuralPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs text-slate-400">
-                  Population
+                  Populacao
                 </label>
                 <input
                   type="number"
@@ -230,71 +231,135 @@ export default function RuralPage() {
                 <div className="h-5 w-9 rounded-full bg-slate-600 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-slate-300 after:transition-all peer-checked:bg-blue-600 peer-checked:after:translate-x-full" />
               </label>
               <span className="text-sm text-slate-400">
-                Grid Power Available
+                Rede Eletrica Disponivel
               </span>
             </div>
 
             <button
               onClick={handleDesign}
-              className="enlace-btn-primary w-full flex items-center justify-center gap-2"
+              disabled={designLoading}
+              className={clsx(
+                'enlace-btn-primary flex w-full items-center justify-center gap-2',
+                designLoading && 'cursor-wait opacity-70'
+              )}
             >
-              <Send size={16} />
-              Generate Design
+              {designLoading ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-transparent" />
+              ) : (
+                <Send size={16} />
+              )}
+              {designLoading ? 'Gerando...' : 'Gerar Projeto'}
             </button>
-          </div>
 
-          {/* Design results */}
-          {designResult && (
-            <div className="mt-4 space-y-3 rounded-lg bg-slate-900 p-4">
-              <h3 className="text-xs font-semibold uppercase text-slate-400">
-                Recommended Design
-              </h3>
-
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">Technology</span>
-                  <span className="font-semibold text-blue-400">
-                    {designResult.technology}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">Estimated Cost</span>
-                  <span className="font-semibold text-slate-200">
-                    R${' '}
-                    {designResult.cost.toLocaleString('pt-BR')}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">Coverage</span>
-                  <span className="font-semibold text-green-400">
-                    {designResult.coverage.toFixed(1)}%
-                  </span>
-                </div>
-                {designResult.solar_kw > 0 && (
-                  <>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-400 flex items-center gap-1">
-                        <Sun size={14} /> Solar Capacity
-                      </span>
-                      <span className="font-semibold text-yellow-400">
-                        {designResult.solar_kw} kW
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-400">Battery Storage</span>
-                      <span className="font-semibold text-slate-200">
-                        {designResult.battery_kwh} kWh
-                      </span>
-                    </div>
-                  </>
-                )}
+            {designError && (
+              <div className="rounded-lg bg-red-900/30 p-3 text-sm text-red-400">
+                Erro ao gerar projeto: {designError}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Results and funding */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-6 lg:col-span-2">
+          {/* Design results */}
+          {designResult && (
+            <div className="enlace-card">
+              <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-200">
+                <Wifi size={16} className="text-blue-400" />
+                Projeto Recomendado
+              </h3>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                {/* Backhaul */}
+                <div className="rounded-lg bg-slate-900 p-4">
+                  <p className="mb-1 text-xs font-semibold uppercase text-slate-500">
+                    Backhaul
+                  </p>
+                  <p className="text-sm font-semibold text-blue-400">
+                    {designResult.backhaul.technology}
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-slate-200">
+                    R${' '}
+                    {designResult.backhaul.cost_brl.toLocaleString('pt-BR')}
+                  </p>
+                </div>
+
+                {/* Last Mile */}
+                <div className="rounded-lg bg-slate-900 p-4">
+                  <p className="mb-1 text-xs font-semibold uppercase text-slate-500">
+                    Ultima Milha
+                  </p>
+                  <p className="text-sm font-semibold text-blue-400">
+                    {designResult.last_mile.technology}
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-slate-200">
+                    R${' '}
+                    {designResult.last_mile.cost_brl.toLocaleString('pt-BR')}
+                  </p>
+                </div>
+
+                {/* Power */}
+                <div className="rounded-lg bg-slate-900 p-4">
+                  <p className="mb-1 text-xs font-semibold uppercase text-slate-500">
+                    Energia
+                  </p>
+                  <p className="text-sm font-semibold text-yellow-400">
+                    <Sun size={14} className="mr-1 inline" />
+                    {designResult.power.source}
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-slate-200">
+                    R${' '}
+                    {designResult.power.cost_brl.toLocaleString('pt-BR')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Summary row */}
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="flex items-center justify-between rounded-lg bg-slate-900 p-3">
+                  <span className="text-sm text-slate-400">Custo Total</span>
+                  <span className="text-sm font-bold text-slate-100">
+                    R${' '}
+                    {designResult.total_cost_brl.toLocaleString('pt-BR')}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-slate-900 p-3">
+                  <span className="text-sm text-slate-400">OPEX Mensal</span>
+                  <span className="text-sm font-bold text-slate-100">
+                    R${' '}
+                    {designResult.monthly_opex_brl.toLocaleString('pt-BR')}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-slate-900 p-3">
+                  <span className="text-sm text-slate-400">Cobertura</span>
+                  <span className="text-sm font-bold text-green-400">
+                    {designResult.coverage_pct.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Notes */}
+              {designResult.notes && designResult.notes.length > 0 && (
+                <div className="mt-4 rounded-lg bg-slate-900 p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase text-slate-500">
+                    Observacoes
+                  </p>
+                  <ul className="space-y-1">
+                    {designResult.notes.map((note, idx) => (
+                      <li
+                        key={idx}
+                        className="flex items-start gap-2 text-sm text-slate-400"
+                      >
+                        <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-400" />
+                        {note}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Cost breakdown chart */}
           {designResult && (
             <SimpleChart
@@ -302,7 +367,7 @@ export default function RuralPage() {
               type="bar"
               xKey="name"
               yKey="value"
-              title="Cost Breakdown (BRL)"
+              title="Detalhamento de Custos (R$)"
               height={200}
             />
           )}
@@ -311,52 +376,78 @@ export default function RuralPage() {
           <div>
             <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-200">
               <DollarSign size={16} className="text-blue-400" />
-              Matching Funding Programs
+              Programas de Financiamento Compativeis
             </h2>
 
-            <div className="space-y-3">
-              {displayPrograms.map((program) => (
-                <div key={program.id} className="enlace-card">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-medium text-slate-200">
-                          {program.name}
-                        </h3>
-                        <span
-                          className={clsx(
-                            program.status === 'open'
-                              ? 'enlace-badge-green'
-                              : program.status === 'upcoming'
-                                ? 'enlace-badge-yellow'
-                                : 'enlace-badge-red'
-                          )}
-                        >
-                          {program.status}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {program.agency}
-                      </p>
-                      <p className="mt-2 text-sm text-slate-400">
-                        {program.eligibility_criteria}
-                      </p>
-                    </div>
-                    <div className="ml-4 text-right">
-                      <p className="text-sm font-semibold text-slate-200">
-                        Up to R${' '}
-                        {(program.max_amount / 1e6).toFixed(1)}M
-                      </p>
-                      {program.deadline && (
-                        <p className="text-xs text-slate-500">
-                          Deadline: {program.deadline}
+            {programsError && (
+              <div className="enlace-card mb-3 text-sm text-red-400">
+                Erro ao carregar programas: {programsError}
+              </div>
+            )}
+
+            {programsLoading && (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="enlace-card animate-pulse">
+                    <div className="h-4 w-48 rounded bg-slate-700" />
+                    <div className="mt-2 h-3 w-32 rounded bg-slate-700" />
+                    <div className="mt-2 h-3 w-full rounded bg-slate-700" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!programsLoading && programs && programs.length === 0 && (
+              <div className="enlace-card text-sm text-slate-500">
+                Nenhum programa de financiamento encontrado.
+              </div>
+            )}
+
+            {!programsLoading && programs && programs.length > 0 && (
+              <div className="space-y-3">
+                {programs.map((program) => (
+                  <div key={program.id} className="enlace-card">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-medium text-slate-200">
+                            {program.name}
+                          </h3>
+                          <span
+                            className={clsx(
+                              program.status === 'open'
+                                ? 'enlace-badge-green'
+                                : program.status === 'upcoming'
+                                  ? 'enlace-badge-yellow'
+                                  : 'enlace-badge-red'
+                            )}
+                          >
+                            {statusLabel[program.status] || program.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {program.agency}
                         </p>
-                      )}
+                        <p className="mt-2 text-sm text-slate-400">
+                          {program.eligibility_criteria}
+                        </p>
+                      </div>
+                      <div className="ml-4 text-right">
+                        <p className="text-sm font-semibold text-slate-200">
+                          Ate R${' '}
+                          {(program.max_amount / 1e6).toFixed(1)}M
+                        </p>
+                        {program.deadline && (
+                          <p className="text-xs text-slate-500">
+                            Prazo: {program.deadline}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

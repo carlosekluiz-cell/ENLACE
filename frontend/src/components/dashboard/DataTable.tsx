@@ -27,7 +27,7 @@ export default function DataTable<T extends Record<string, any>>({
   columns,
   data,
   loading,
-  emptyMessage = 'No data available',
+  emptyMessage = 'Nenhum dado disponível',
   onRowClick,
   searchable = false,
   searchKeys,
@@ -100,7 +100,7 @@ export default function DataTable<T extends Record<string, any>>({
             />
             <input
               type="text"
-              placeholder="Search..."
+              placeholder="Buscar..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -190,8 +190,8 @@ export default function DataTable<T extends Record<string, any>>({
       {totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-slate-700 px-4 py-3">
           <span className="text-xs text-slate-500">
-            Showing {page * pageSize + 1}-
-            {Math.min((page + 1) * pageSize, sortedData.length)} of{' '}
+            Exibindo {page * pageSize + 1}-
+            {Math.min((page + 1) * pageSize, sortedData.length)} de{' '}
             {sortedData.length}
           </span>
           <div className="flex gap-1">
@@ -200,14 +200,14 @@ export default function DataTable<T extends Record<string, any>>({
               disabled={page === 0}
               className="enlace-btn-secondary px-2 py-1 text-xs disabled:opacity-30"
             >
-              Previous
+              Anterior
             </button>
             <button
               onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
               disabled={page >= totalPages - 1}
               className="enlace-btn-secondary px-2 py-1 text-xs disabled:opacity-30"
             >
-              Next
+              Próximo
             </button>
           </div>
         </div>

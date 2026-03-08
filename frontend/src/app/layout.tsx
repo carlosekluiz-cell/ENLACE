@@ -7,9 +7,9 @@ import Header from '@/components/layout/Header';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'ENLACE - Telecom Intelligence Platform',
+  title: 'ENLACE - Plataforma de Inteligência Telecom',
   description:
-    'Comprehensive telecom intelligence platform for the Brazilian market. Coverage mapping, opportunity scoring, compliance monitoring, and rural connectivity planning.',
+    'Plataforma de inteligência telecom para o mercado brasileiro. Mapeamento de cobertura, scoring de oportunidades, conformidade regulatória e planejamento de conectividade rural.',
 };
 
 export default function RootLayout({

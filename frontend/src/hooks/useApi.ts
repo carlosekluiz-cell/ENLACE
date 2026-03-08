@@ -33,7 +33,7 @@ export function useApi<T>(
       setState({ data, loading: false, error: null });
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'An unexpected error occurred';
+        err instanceof Error ? err.message : 'Ocorreu um erro inesperado';
       setState({ data: null, loading: false, error: message });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -73,7 +73,7 @@ export function useLazyApi<T, P = void>(
         return data;
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : 'An unexpected error occurred';
+          err instanceof Error ? err.message : 'Ocorreu um erro inesperado';
         setState({ data: null, loading: false, error: message });
         return null;
       }

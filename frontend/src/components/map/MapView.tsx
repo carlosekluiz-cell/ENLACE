@@ -89,11 +89,11 @@ function MapPlaceholder({ className }: { className?: string }) {
       <div className="relative z-10 text-center">
         <MapPin className="mx-auto mb-4 text-blue-500" size={48} />
         <h3 className="text-lg font-semibold text-slate-200">
-          Interactive Coverage Map
+          Mapa de Cobertura Interativo
         </h3>
         <p className="mt-2 max-w-md text-sm text-slate-400">
-          Visualize telecom coverage, fiber routes, and municipality data across
-          Brazil. Connect to the ENLACE API to load real-time geographic data.
+          Visualize cobertura telecom, rotas de fibra e dados municipais em todo
+          o Brasil. Conecte-se a API ENLACE para carregar dados geograficos em tempo real.
         </p>
         <div className="mt-4 flex items-center justify-center gap-4 text-xs text-slate-500">
           <span>Lat: {BRAZIL_VIEW.latitude.toFixed(3)}</span>
