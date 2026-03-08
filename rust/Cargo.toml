@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "crates/enlace-terrain",
-    # "crates/enlace-propagation",
+    "crates/enlace-propagation",
     # "crates/enlace-optimizer",
     # "crates/enlace-raster",
     # "crates/enlace-service",
