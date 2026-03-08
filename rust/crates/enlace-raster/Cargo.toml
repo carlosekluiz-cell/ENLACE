@@ -1,0 +1,13 @@
+[package]
+name = "enlace-raster"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+enlace-propagation = { path = "../enlace-propagation" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+byteorder = { workspace = true }
