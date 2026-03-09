@@ -1,0 +1,14 @@
+[package]
+name = "enlace-tiles"
+version.workspace = true
+edition.workspace = true
+description = "XYZ tile generator for Sentinel-2 COG composites"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+gdal = { workspace = true }
+image = "0.25"
+rayon = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

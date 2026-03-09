@@ -6,6 +6,7 @@ members = [
     "crates/enlace-optimizer",
     "crates/enlace-raster",
     "crates/enlace-service",
+    "enlace-tiles",
 ]
 
 [workspace.package]
