@@ -15,6 +15,7 @@ Depends on:
     google.cloud.storage — downloading results from GCS
     boto3 — uploading COGs to MinIO
 """
+from __future__ import annotations
 
 import csv
 import io
@@ -25,20 +26,27 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-import boto3
-from google.cloud import storage as gcs_storage
 from psycopg2.extras import execute_values
 
 from python.pipeline.base import BasePipeline
 from python.pipeline.config import DOWNLOAD_CACHE_DIR, MinIOConfig
-from python.pipeline.gee.sentinel_compute import (
-    GEE_EXPORT_BUCKET,
-    MunicipalitySpec,
-    TaskPair,
-    batch_compute,
-    check_task_status,
-    initialize_gee,
-)
+
+# Optional dependencies — imported lazily at runtime to avoid breaking
+# other pipelines when earthengine-api / google-cloud-storage aren't installed.
+try:
+    import boto3
+    from google.cloud import storage as gcs_storage
+    from python.pipeline.gee.sentinel_compute import (
+        GEE_EXPORT_BUCKET,
+        MunicipalitySpec,
+        TaskPair,
+        batch_compute,
+        check_task_status,
+        initialize_gee,
+    )
+    _HAS_SENTINEL_DEPS = True
+except ImportError:
+    _HAS_SENTINEL_DEPS = False
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +90,10 @@ class SentinelGrowthPipeline(BasePipeline):
 
     def __init__(self):
         super().__init__("sentinel_growth")
+        if not _HAS_SENTINEL_DEPS:
+            raise ImportError(
+                "Sentinel pipeline requires: pip install earthengine-api google-cloud-storage boto3"
+            )
         self.minio_config = MinIOConfig()
         self.cache_dir = Path(DOWNLOAD_CACHE_DIR) / "sentinel"
         self.gcs_bucket = os.getenv("GEE_EXPORT_BUCKET", GEE_EXPORT_BUCKET)

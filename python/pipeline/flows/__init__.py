@@ -14,4 +14,7 @@ from python.pipeline.flows.aneel_power import ANEELPowerPipeline
 from python.pipeline.flows.inmet_weather import INMETWeatherPipeline
 from python.pipeline.flows.snis_sanitation import SNISSanitationPipeline
 from python.pipeline.flows.anp_fuel import ANPFuelPipeline
-from python.pipeline.flows.sentinel_growth import SentinelGrowthPipeline
+try:
+    from python.pipeline.flows.sentinel_growth import SentinelGrowthPipeline
+except ImportError:
+    SentinelGrowthPipeline = None  # type: ignore[assignment,misc]

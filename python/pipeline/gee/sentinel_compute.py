@@ -28,9 +28,21 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-import ee
+try:
+    import ee
+except ImportError:
+    ee = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
+
+
+def _require_ee():
+    """Raise a clear error if earthengine-api is not installed."""
+    if ee is None:
+        raise ImportError(
+            "earthengine-api is required for Sentinel-2 processing. "
+            "Install with: pip install earthengine-api"
+        )
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -113,6 +125,7 @@ def initialize_gee() -> None:
     pointed to by ``GEE_SERVICE_ACCOUNT_KEY``).  Falls back to interactive
     / application-default credentials when no key file is configured.
     """
+    _require_ee()
     global _initialised
     if _initialised:
         logger.debug("GEE already initialised, skipping")

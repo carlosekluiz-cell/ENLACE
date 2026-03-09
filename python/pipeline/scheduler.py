@@ -88,6 +88,9 @@ def run_monthly_geographic():
 def run_monthly_sentinel():
     """Monthly: Sentinel-2 urban growth indices and composites."""
     logger.info("=== Monthly sentinel pipeline ===")
+    if SentinelGrowthPipeline is None:
+        logger.warning("SentinelGrowthPipeline unavailable (missing dependencies)")
+        return
     _run_pipeline(SentinelGrowthPipeline)
 
 
