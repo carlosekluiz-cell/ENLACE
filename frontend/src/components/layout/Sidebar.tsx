@@ -17,6 +17,7 @@ import {
   User,
   Users,
   Activity,
+  Satellite,
   Sun,
   Moon,
 } from 'lucide-react';
@@ -39,6 +40,7 @@ const navItems: NavItem[] = [
   { label: 'Conformidade', href: '/conformidade', icon: <Shield size={16} /> },
   { label: 'Saúde', href: '/saude', icon: <Activity size={16} /> },
   { label: 'Rural', href: '/rural', icon: <Mountain size={16} /> },
+  { label: 'Satélite', href: '/satelite', icon: <Satellite size={16} /> },
   { label: 'Relatórios', href: '/relatorios', icon: <FileText size={16} /> },
 ];
 
