@@ -23,8 +23,8 @@ const BRAZIL_VIEW = {
   latitude: -14.235,
   longitude: -51.9253,
   zoom: 4,
-  pitch: 0,
-  bearing: 0,
+  pitch: 45,
+  bearing: -15,
 };
 
 const MAP_STYLES = {
@@ -35,12 +35,17 @@ const MAP_STYLES = {
 // Dynamically check if map libraries are available
 let MapComponent: any = null;
 let DeckGLComponent: any = null;
+let TileLayerClass: any = null;
+let BitmapLayerClass: any = null;
 
 interface MapViewProps {
   layers?: any[];
   onMapClick?: (info: any) => void;
   className?: string;
   initialViewState?: Partial<typeof BRAZIL_VIEW>;
+  satelliteTileUrl?: string;
+  showSatelliteLayer?: boolean;
+  satelliteOpacity?: number;
 }
 
 function MapPlaceholder({ className }: { className?: string }) {
@@ -113,46 +118,46 @@ function MapPlaceholder({ className }: { className?: string }) {
   );
 }
 
-function InteractiveMap({ layers, onMapClick, className, initialViewState }: MapViewProps) {
+function InteractiveMap({ layers, onMapClick, className, initialViewState, satelliteTileUrl, showSatelliteLayer, satelliteOpacity }: MapViewProps) {
   const [viewState, setViewState] = useState({ ...BRAZIL_VIEW, ...initialViewState });
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [containerReady, setContainerReady] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme } = useTheme();
 
-  // Wait for container to have actual dimensions before mounting DeckGL
+  // Always render container div so ref is attached from first render.
+  // Check dimensions once mapReady flips (dynamic imports done).
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el || containerReady) return;
     const check = () => {
       if (el.offsetWidth > 0 && el.offsetHeight > 0) {
         setContainerReady(true);
       }
     };
     check();
-    if (!containerReady) {
-      const ro = new ResizeObserver(check);
-      ro.observe(el);
-      return () => ro.disconnect();
-    }
-  }, [containerReady]);
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [mapReady, containerReady]);
 
   useEffect(() => {
     Promise.all([
       import('react-map-gl/maplibre'),
       import('deck.gl'),
+      import('@deck.gl/geo-layers'),
+      import('@deck.gl/layers'),
     ])
-      .then(([mapMod, deckMod]) => {
+      .then(([mapMod, deckMod, geoLayersMod, layersMod]) => {
         MapComponent = mapMod.default || mapMod.Map;
         DeckGLComponent = deckMod.DeckGL || deckMod.default;
+        TileLayerClass = geoLayersMod.TileLayer;
+        BitmapLayerClass = layersMod.BitmapLayer;
         setMapReady(true);
-        setLoading(false);
       })
       .catch(() => {
         setMapError(true);
-        setLoading(false);
       });
   }, []);
 
@@ -163,34 +168,54 @@ function InteractiveMap({ layers, onMapClick, className, initialViewState }: Map
     []
   );
 
-  if (mapError || !mapReady) {
-    return <MapPlaceholder className={className} />;
-  }
+  // Build satellite tile overlay when URL is provided and layer is toggled on
+  const satelliteLayer =
+    satelliteTileUrl && showSatelliteLayer && TileLayerClass && BitmapLayerClass
+      ? new TileLayerClass({
+          id: 'satellite-tiles',
+          data: satelliteTileUrl,
+          minZoom: 10,
+          maxZoom: 16,
+          tileSize: 256,
+          renderSubLayers: (props: any) => {
+            const { boundingBox } = props.tile;
+            return new BitmapLayerClass(props, {
+              data: undefined,
+              image: props.data,
+              bounds: [
+                boundingBox[0][0],
+                boundingBox[0][1],
+                boundingBox[1][0],
+                boundingBox[1][1],
+              ],
+              opacity: satelliteOpacity ?? 0.7,
+            });
+          },
+        })
+      : null;
 
-  if (!DeckGLComponent || !MapComponent) {
-    return <MapPlaceholder className={className} />;
-  }
+  // Satellite tiles render below other layers so boundaries/points stay on top
+  const allLayers = [
+    ...(satelliteLayer ? [satelliteLayer] : []),
+    ...(layers || []),
+  ];
 
+  const canRenderMap = mapReady && containerReady && DeckGLComponent && MapComponent && !mapError;
   const DeckGL = DeckGLComponent;
   const MapGL = MapComponent;
-  const mapStyle = MAP_STYLES[resolvedTheme] || MAP_STYLES.light;
+  const mapStyle = MAP_STYLES[resolvedTheme as keyof typeof MAP_STYLES] || MAP_STYLES.light;
 
   return (
     <div ref={containerRef} className={`relative overflow-hidden ${className || 'h-full'}`}>
-      {/* Loading progress bar */}
-      {loading && (
-        <div className="absolute top-0 left-0 right-0 z-20 overflow-hidden" style={{ height: '2px' }}>
-          <div className="pulso-progress-bar w-full" />
-        </div>
-      )}
+      {!canRenderMap && <MapPlaceholder className="h-full w-full" />}
 
-      {containerReady && (
-        <MapErrorBoundary fallback={<MapPlaceholder className={className} />}>
+      {canRenderMap && (
+        <MapErrorBoundary fallback={<MapPlaceholder className="h-full w-full" />}>
           <DeckGL
             viewState={viewState}
             onViewStateChange={handleViewStateChange}
             controller={true}
-            layers={layers || []}
+            layers={allLayers}
             onClick={onMapClick}
           >
             <MapGL
@@ -202,7 +227,7 @@ function InteractiveMap({ layers, onMapClick, className, initialViewState }: Map
       )}
 
       {/* Map controls top-right */}
-      <div className="absolute right-4 top-4 flex flex-col gap-2">
+      <div className="absolute right-4 top-4 z-10 flex flex-col gap-2">
         <button
           onClick={() => setViewState((prev) => ({ ...prev, zoom: prev.zoom + 1 }))}
           className="rounded-md p-2 transition-colors"
@@ -243,7 +268,7 @@ function InteractiveMap({ layers, onMapClick, className, initialViewState }: Map
 
       {/* Attribution bottom-left */}
       <div
-        className="absolute bottom-2 left-2 rounded px-2 py-1 text-xs"
+        className="absolute bottom-2 left-2 z-10 rounded px-2 py-1 text-xs"
         style={{ color: 'var(--text-muted)', background: 'var(--bg-surface)', opacity: 0.8 }}
       >
         {viewState.latitude.toFixed(4)}, {viewState.longitude.toFixed(4)} | Zoom:{' '}
