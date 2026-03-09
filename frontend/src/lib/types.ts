@@ -28,6 +28,17 @@ export interface OpportunityScore {
   area_km2: number | null;
   households: number;
   population: number;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+export interface BaseStationPoint {
+  id: number;
+  latitude: number;
+  longitude: number;
+  technology: string;
+  frequency_mhz: number | null;
+  provider_name: string | null;
 }
 
 export interface MarketSummary {
@@ -501,4 +512,57 @@ export interface NavItem {
   label: string;
   href: string;
   icon: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Satellite Intelligence
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface SatelliteYearData {
+  year: number;
+  mean_ndvi: number | null;
+  ndvi_std: number | null;
+  mean_ndbi: number | null;
+  built_up_area_km2: number | null;
+  built_up_pct: number | null;
+  mean_mndwi: number | null;
+  water_area_km2: number | null;
+  mean_bsi: number | null;
+  bare_soil_area_km2: number | null;
+  built_up_change_km2: number | null;
+  built_up_change_pct: number | null;
+  ndvi_change_pct: number | null;
+  scenes_used: number | null;
+}
+
+export interface SatelliteGrowthComparison {
+  municipality_code: string;
+  municipality_name: string;
+  satellite_growth: Array<{
+    year: number;
+    built_up_area_km2: number | null;
+    built_up_pct: number | null;
+    built_up_change_pct: number | null;
+    mean_ndvi: number | null;
+  }>;
+  ibge_growth: Array<{
+    year: number;
+    population: number | null;
+  }>;
+  correlation_summary: {
+    avg_annual_built_up_change_pct: number;
+    ibge_population: number | null;
+    area_km2: number | null;
+  };
+}
+
+export interface SatelliteGrowthRanking {
+  municipality_code: string;
+  municipality_name: string;
+  population: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  avg_built_up_change_pct: number | null;
+  latest_built_up_area_km2: number | null;
+  avg_ndvi: number | null;
 }

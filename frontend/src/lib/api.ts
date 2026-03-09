@@ -2,6 +2,7 @@
 import type {
   ApiHealth,
   OpportunityScore,
+  BaseStationPoint,
   MarketSummary,
   HeatmapFeatureCollection,
   Norma4Impact,
@@ -37,6 +38,9 @@ import type {
   LinkBudgetRequest,
   WeatherRisk,
   MaintenancePriority,
+  SatelliteYearData,
+  SatelliteGrowthComparison,
+  SatelliteGrowthRanking,
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -179,6 +183,10 @@ export const api = {
       fetchApi<OpportunityScore>(
         `/api/v1/opportunity/score/${municipalityCode}`
       ),
+    baseStations: (params?: Record<string, string>) => {
+      const qs = params ? `?${new URLSearchParams(params)}` : '';
+      return fetchApi<BaseStationPoint[]>(`/api/v1/opportunity/base-stations${qs}`);
+    },
   },
 
   // ── Inteligência de mercado ──────────────────────────────────────────
@@ -404,3 +412,41 @@ export const api = {
       fetchApi<MnaMarketOverview>(`/api/v1/mna/market?state=${state}`),
   },
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Satellite Intelligence
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export async function getSatelliteIndices(
+  municipalityCode: string,
+  fromYear = 2016,
+  toYear = 2026,
+): Promise<SatelliteYearData[]> {
+  return fetchApi(
+    `/api/v1/satellite/${municipalityCode}/indices?from_year=${fromYear}&to_year=${toYear}`,
+  );
+}
+
+export async function getSatelliteGrowth(
+  municipalityCode: string,
+): Promise<SatelliteGrowthComparison> {
+  return fetchApi(`/api/v1/satellite/${municipalityCode}/growth`);
+}
+
+export async function getSatelliteRanking(
+  state?: string,
+  metric = 'built_up_change_pct',
+  years = 3,
+  limit = 50,
+): Promise<SatelliteGrowthRanking[]> {
+  const params = new URLSearchParams({ metric, years: String(years), limit: String(limit) });
+  if (state) params.append('state', state);
+  return fetchApi(`/api/v1/satellite/ranking?${params}`);
+}
+
+export function getSatelliteTileUrl(
+  municipalityCode: string,
+  year: number,
+): string {
+  return `${API_BASE}/api/v1/satellite/${municipalityCode}/tiles/${year}/{z}/{x}/{y}.png`;
+}
