@@ -1,0 +1,30 @@
+# Stage: Build Rust tile generator
+FROM rust:1.77-slim AS tiles-builder
+RUN apt-get update && apt-get install -y libgdal-dev pkg-config && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+COPY rust/enlace-tiles/ .
+RUN cargo build --release
+
+# Stage: Python API
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev gcc libgdal-dev libgeos-dev libproj-dev \
+    libcairo2-dev libpango1.0-dev libgdk-pixbuf2.0-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY python/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY python/ ./python/
+
+COPY --from=tiles-builder /build/target/release/enlace-tiles /usr/local/bin/enlace-tiles
+
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8000
+
+CMD ["uvicorn", "python.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

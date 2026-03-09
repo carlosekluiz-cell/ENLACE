@@ -112,6 +112,7 @@ services:
       mc mb --ignore-existing enlace/coverage-maps;
       mc mb --ignore-existing enlace/reports;
       mc mb --ignore-existing enlace/raw-downloads;
+      mc mb --ignore-existing enlace/sentinel-composites;
       echo 'Buckets created.';
       "
     deploy:
@@ -124,6 +125,109 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # ═══ API (FastAPI backend) ═══
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: enlace-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      DEV_MODE: "0"
+      GEE_SERVICE_ACCOUNT_KEY: /secrets/gee-key.json
+      GEE_EXPORT_BUCKET: enlace-sentinel
+      GEE_PROJECT: enlace-platform
+      ENLACE_TILES_BIN: /usr/local/bin/enlace-tiles
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./secrets/gee-key.json:/secrets/gee-key.json:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '2.0'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ═══ Frontend (Next.js) ═══
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: enlace-frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NEXT_PUBLIC_API_URL: http://api:8000
+    ports:
+      - "4100:4100"
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ═══ Scheduler (pipeline jobs) ═══
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.scheduler
+    container_name: enlace-scheduler
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      GEE_SERVICE_ACCOUNT_KEY: /secrets/gee-key.json
+      GEE_EXPORT_BUCKET: enlace-sentinel
+      GEE_PROJECT: enlace-platform
+      ENLACE_TILES_BIN: /usr/local/bin/enlace-tiles
+    volumes:
+      - ./secrets/gee-key.json:/secrets/gee-key.json:ro
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '2.0'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 volumes:
   postgres_data:
