@@ -42,6 +42,7 @@ class MinIOConfig:
     bucket_coverage_maps: str = "coverage-maps"
     bucket_reports: str = "reports"
     bucket_raw_downloads: str = "raw-downloads"
+    bucket_sentinel: str = "sentinel-composites"
 
 
 @dataclass
