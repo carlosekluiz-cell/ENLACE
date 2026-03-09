@@ -3,7 +3,7 @@ ENLACE API — Main Application
 
 FastAPI application with CORS, security headers, rate limiting, structured
 logging, and all platform routers: geographic, market, health, opportunity,
-design, compliance, network_health, rural, reports, auth, and mna.
+design, compliance, network_health, rural, reports, auth, mna, and satellite.
 """
 
 import logging
@@ -30,6 +30,7 @@ from python.api.routers import (
     mna,
     admin,
     events,
+    satellite,
 )
 
 # Initialize structured JSON logging before anything else
@@ -96,6 +97,7 @@ app.include_router(auth.router)
 app.include_router(mna.router)
 app.include_router(admin.router)
 app.include_router(events.router)
+app.include_router(satellite.router)
 
 
 @app.get("/health")
