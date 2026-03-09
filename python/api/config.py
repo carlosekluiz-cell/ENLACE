@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     rf_engine_port: int = 50051
 
     # CORS
-    cors_origins: List[str] = ["http://localhost:3000"]
+    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:4100"]
 
     # Application
     app_name: str = "ENLACE API"

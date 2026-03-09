@@ -53,73 +53,99 @@ class RedisConfig:
 
 @dataclass
 class DataSourceURLs:
-    """URLs for all external data sources used by pipelines."""
+    """URLs for all external data sources used by pipelines.
 
-    # Anatel (Brazilian telecom regulator) open data
-    anatel_broadband: str = (
-        "https://dados.gov.br/dados/conjuntos-dados/acessos-banda-larga-fixa"
-    )
-    anatel_base_stations: str = (
-        "https://sistemas.anatel.gov.br/se/public/view/b/licenciamento.php"
-    )
-    anatel_quality: str = (
-        "https://dados.gov.br/dados/conjuntos-dados/indicadores-de-qualidade"
-    )
-    anatel_providers: str = (
-        "https://dados.gov.br/dados/conjuntos-dados/prestadoras"
-    )
+    All URLs point to real, publicly available Brazilian government APIs.
+    """
 
-    # IBGE (Brazilian Institute of Geography and Statistics)
-    ibge_census_boundaries: str = (
-        "https://www.ibge.gov.br/geociencias/organizacao-do-territorio/"
-        "malhas-territoriais/26565-malhas-de-setores-censitarios-"
-        "divisoes-intramunicipais.html"
+    # --- Anatel CKAN dataset IDs (resolved via dados.gov.br API) ---
+    anatel_ckan_base: str = "https://dados.gov.br/dados/api/3/action"
+    anatel_broadband_dataset: str = "acessos---banda-larga-fixa"
+    anatel_base_stations_dataset: str = "licenciamento"
+    anatel_quality_dataset: str = "indicadores-de-qualidade"
+    anatel_providers_dataset: str = "prestadoras"
+
+    # --- IBGE REST APIs ---
+    ibge_api_v1: str = "https://servicodados.ibge.gov.br/api/v1"
+    ibge_api_v3: str = "https://servicodados.ibge.gov.br/api/v3"
+
+    # Municipalities list
+    ibge_municipalities: str = (
+        "https://servicodados.ibge.gov.br/api/v1/localidades/municipios"
     )
-    ibge_census_demographics: str = (
-        "https://www.ibge.gov.br/estatisticas/sociais/saude/"
-        "22827-censo-demografico-2022.html"
+    # States list
+    ibge_states: str = (
+        "https://servicodados.ibge.gov.br/api/v1/localidades/estados"
     )
+    # State boundaries GeoJSON (template: replace {UF} with state IBGE code)
+    ibge_state_boundaries: str = (
+        "https://servicodados.ibge.gov.br/api/v3/malhas/estados/{uf}"
+        "?formato=application/vnd.geo+json"
+    )
+    # Municipality boundaries GeoJSON (template: replace {id})
+    ibge_municipality_boundaries: str = (
+        "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/{id}"
+        "?formato=application/vnd.geo+json"
+    )
+    # Census 2022 population: agregado 4714, variavel 93, all municipalities
+    ibge_census_population: str = (
+        "https://servicodados.ibge.gov.br/api/v3/agregados/4714"
+        "/periodos/2022/variaveis/93"
+        "?localidades=N6[all]&view=flat"
+    )
+    # Municipal GDP: agregado 5938, variavel 37 (PIB), latest period
     ibge_pib_municipal: str = (
-        "https://www.ibge.gov.br/estatisticas/economicas/"
-        "contas-nacionais/9088-produto-interno-bruto-dos-municipios.html"
+        "https://servicodados.ibge.gov.br/api/v3/agregados/5938"
+        "/periodos/-1/variaveis/37"
+        "?localidades=N6[all]&view=flat"
     )
+    # Population estimates: agregado 6579, variavel 9324
+    ibge_population_estimates: str = (
+        "https://servicodados.ibge.gov.br/api/v3/agregados/6579"
+        "/periodos/-1/variaveis/9324"
+        "?localidades=N6[all]&view=flat"
+    )
+    # State population projections
     ibge_population_projections: str = (
-        "https://www.ibge.gov.br/estatisticas/sociais/populacao/"
-        "9109-projecao-da-populacao.html"
-    )
-    ibge_api_base: str = "https://servicodados.ibge.gov.br/api/v1"
-
-    # SRTM terrain elevation data
-    srtm_nasa: str = (
-        "https://e4ftl01.cr.usgs.gov/MEASURES/SRTMGL1.003/2000.02.11/"
-    )
-    srtm_alternative: str = "https://dwtkns.com/srtm30m/"
-
-    # OpenStreetMap via Geofabrik
-    osm_brazil_pbf: str = (
-        "https://download.geofabrik.de/south-america/brazil-latest.osm.pbf"
+        "https://servicodados.ibge.gov.br/api/v1/projecoes/populacao/{uf}"
     )
 
-    # INMET (Brazilian National Institute of Meteorology)
-    inmet_stations: str = (
-        "https://apitempo.inmet.gov.br/estacoes/T"
-    )
-    inmet_observations: str = (
-        "https://apitempo.inmet.gov.br/estacao"
+    # --- SRTM terrain (OpenTopography S3, no auth) ---
+    srtm_s3_bucket: str = "raster"
+    srtm_s3_prefix: str = "SRTM_GL1/SRTM_GL1_srtm/"
+    srtm_s3_endpoint: str = "https://opentopography.s3.sdsc.edu"
+
+    # --- OpenStreetMap via Geofabrik regional shapefiles ---
+    osm_geofabrik_base: str = "https://download.geofabrik.de/south-america/brazil"
+    # Regional shapefile URLs (template: replace {region})
+    osm_geofabrik_shp: str = (
+        "https://download.geofabrik.de/south-america/brazil"
+        "/{region}-latest-free.shp.zip"
     )
 
-    # MapBiomas land cover
-    mapbiomas: str = "https://mapbiomas.org/"
+    # --- INMET weather API ---
+    inmet_stations: str = "https://apitempo.inmet.gov.br/estacoes/T"
+    inmet_observations: str = "https://apitempo.inmet.gov.br/estacao"
 
-    # ANEEL power grid
-    aneel_power: str = (
-        "https://dadosabertos.aneel.gov.br/"
+    # --- MapBiomas land cover (Google Cloud Storage, no auth) ---
+    mapbiomas_gcs: str = (
+        "https://storage.googleapis.com/mapbiomas-public"
+        "/initiatives/brasil/collection_9/lclu/coverage"
+        "/brasil_coverage_2023.tif"
     )
 
-    # Ookla Speedtest open data
-    ookla_speedtest: str = (
-        "https://github.com/teamookla/ookla-open-data"
+    # --- ANEEL SIGEL ArcGIS REST API ---
+    aneel_sigel_lines: str = (
+        "https://sigel.aneel.gov.br/arcgis/rest/services"
+        "/PORTAL/Linhas_Transmissao/MapServer/0/query"
     )
+
+    # --- Ookla Speedtest open data ---
+    ookla_speedtest: str = "https://github.com/teamookla/ookla-open-data"
+
+
+# Download cache directory for large files
+DOWNLOAD_CACHE_DIR = os.getenv("DOWNLOAD_CACHE_DIR", "/tmp/enlace_cache")
 
 
 # Brazilian states: code -> (name, abbreviation)

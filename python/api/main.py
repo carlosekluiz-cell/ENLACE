@@ -28,6 +28,8 @@ from python.api.routers import (
     reports,
     auth,
     mna,
+    admin,
+    events,
 )
 
 # Initialize structured JSON logging before anything else
@@ -92,6 +94,8 @@ app.include_router(rural.router)
 app.include_router(reports.router)
 app.include_router(auth.router)
 app.include_router(mna.router)
+app.include_router(admin.router)
+app.include_router(events.router)
 
 
 @app.get("/health")

@@ -1,22 +1,20 @@
 """Anatel provider registry pipeline.
 
-Source: Anatel provider database
-URL: https://dados.gov.br/dados/conjuntos-dados/prestadoras
-Format: CSV with provider CNPJ, trade name, services authorized
+Source: Anatel open data on dados.gov.br (CKAN)
+Dataset: "prestadoras"
+Format: CSV (semicolon-delimited, ISO-8859-1)
+Columns: CNPJ, Razao Social, Nome Fantasia, Servicos, Situacao
 
-Real download would fetch the provider registry CSV from Anatel's open
-data portal and update/validate against existing provider records.
-Since we already seeded 20 providers, this pipeline mainly validates
-and updates existing records.
+Downloads ALL providers from the registry, normalizes names, and upserts.
 """
+import json
 import logging
-import random
-from datetime import date
 
 import pandas as pd
 
 from python.pipeline.base import BasePipeline
 from python.pipeline.config import DataSourceURLs
+from python.pipeline.http_client import PipelineHTTPClient
 from python.pipeline.transformers.provider_normalizer import (
     classify_provider,
     normalize_provider_name,
@@ -26,94 +24,128 @@ logger = logging.getLogger(__name__)
 
 
 class AnatelProvidersPipeline(BasePipeline):
-    """Validate and update Anatel provider registry."""
+    """Ingest real Anatel provider registry from CKAN."""
 
     def __init__(self):
         super().__init__("anatel_providers")
         self.urls = DataSourceURLs()
 
     def check_for_updates(self) -> bool:
-        conn = self._get_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM providers WHERE country_code = 'BR'")
-        count = cur.fetchone()[0]
-        cur.close()
-        conn.close()
-        return count > 0  # Always validate existing providers
+        return True  # Always re-check provider registry
 
     def download(self) -> pd.DataFrame:
-        try:
-            logger.info("Attempting real Anatel provider registry download...")
-            raise ConnectionError("Real download not available in dev environment")
-        except Exception as e:
-            logger.info(f"Real download failed ({e}), loading existing providers")
-            return self._generate_synthetic()
+        """Download provider registry CSV from dados.gov.br CKAN."""
+        with PipelineHTTPClient(timeout=120) as http:
+            logger.info("Resolving Anatel providers CKAN resource URL...")
+            csv_url = http.resolve_ckan_resource_url(
+                self.urls.anatel_providers_dataset,
+                resource_format="CSV",
+                ckan_base=self.urls.anatel_ckan_base,
+            )
+            logger.info(f"Downloading providers CSV from {csv_url}")
+            df = http.get_csv(csv_url, sep=";", encoding="iso-8859-1")
+            logger.info(f"Downloaded {len(df)} provider records")
 
-    def _generate_synthetic(self) -> pd.DataFrame:
-        """Load existing providers and add services metadata."""
-        conn = self._get_connection()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT id, name, national_id, classification, services, status
-            FROM providers WHERE country_code = 'BR'
-        """)
-        providers = cur.fetchall()
-        cur.close()
-        conn.close()
-
-        import json
-        rows = []
-        service_types = {
-            "PGP": ["SCM", "SMP", "STFC", "SeAC"],  # Fixed, mobile, landline, pay-tv
-            "PMP": ["SCM", "SMP"],
-            "PPP": ["SCM"],
-        }
-
-        for prov_id, name, national_id, classification, services, status in providers:
-            available_services = service_types.get(classification, ["SCM"])
-            num_services = min(len(available_services), random.randint(1, len(available_services)))
-            selected = random.sample(available_services, num_services)
-            rows.append({
-                "id": prov_id,
-                "name": name,
-                "national_id": national_id,
-                "classification": classification,
-                "services": json.dumps(selected),
-                "status": status or "active",
-            })
-
-        return pd.DataFrame(rows)
+        return df
 
     def validate_raw(self, data: pd.DataFrame) -> None:
         if data.empty:
-            raise ValueError("No providers found")
-        if "name" not in data.columns:
-            raise ValueError("Missing 'name' column")
+            raise ValueError("Empty provider registry CSV")
+        logger.info(f"Provider CSV columns: {list(data.columns)}")
+        # Check for essential columns (names vary between datasets)
+        has_cnpj = any("cnpj" in c.lower() for c in data.columns)
+        has_name = any("raz" in c.lower() or "nome" in c.lower() for c in data.columns)
+        if not has_cnpj:
+            raise ValueError("No CNPJ column found in provider CSV")
+        if not has_name:
+            raise ValueError("No name column found in provider CSV")
 
     def transform(self, raw_data: pd.DataFrame) -> pd.DataFrame:
+        """Normalize provider names, extract CNPJ, classify."""
         df = raw_data.copy()
-        # Normalize names for matching
-        df["name_normalized"] = df["name"].apply(normalize_provider_name)
-        self.rows_processed = len(df)
-        return df
+        # Normalize column names to lowercase
+        df.columns = [c.strip().lower() for c in df.columns]
+
+        # Find the right columns (Anatel CSVs may vary)
+        cnpj_col = next((c for c in df.columns if "cnpj" in c), None)
+        name_col = next((c for c in df.columns if "raz" in c), None)
+        if name_col is None:
+            name_col = next((c for c in df.columns if "nome" in c), None)
+        status_col = next((c for c in df.columns if "situa" in c), None)
+        services_col = next((c for c in df.columns if "servic" in c or "serviç" in c), None)
+
+        rows = []
+        seen_cnpj = set()
+        for _, row in df.iterrows():
+            cnpj = str(row.get(cnpj_col, "")).strip()
+            name = str(row.get(name_col, "")).strip()
+            if not cnpj or not name or cnpj == "nan":
+                continue
+            # Deduplicate by CNPJ
+            if cnpj in seen_cnpj:
+                continue
+            seen_cnpj.add(cnpj)
+
+            status = str(row.get(status_col, "Ativa")).strip() if status_col else "active"
+            services = str(row.get(services_col, "")).strip() if services_col else ""
+
+            # Map status
+            status_lower = status.lower()
+            if "ativa" in status_lower or "ativo" in status_lower:
+                db_status = "active"
+            elif "cancelad" in status_lower:
+                db_status = "inactive"
+            else:
+                db_status = "active"
+
+            name_normalized = normalize_provider_name(name)
+
+            rows.append({
+                "national_id": cnpj,
+                "name": name,
+                "name_normalized": name_normalized,
+                "classification": "PPP",  # Will be reclassified when subscriber data arrives
+                "services": json.dumps([s.strip() for s in services.split(",") if s.strip()]) if services else "[]",
+                "status": db_status,
+                "country_code": "BR",
+            })
+
+        self.rows_processed = len(rows)
+        logger.info(f"Transformed {len(rows)} unique providers")
+        return pd.DataFrame(rows)
 
     def load(self, data: pd.DataFrame) -> None:
-        """Update existing provider records with services metadata."""
+        """Upsert provider records by CNPJ (national_id)."""
+        if data.empty:
+            logger.warning("No providers to load")
+            return
+
         conn = self._get_connection()
         cur = conn.cursor()
-        updated = 0
-        for _, row in data.iterrows():
-            cur.execute("""
-                UPDATE providers
-                SET services = %s::jsonb,
-                    name_normalized = %s,
-                    updated_at = NOW()
-                WHERE id = %s
-            """, (row["services"], row["name_normalized"], row["id"]))
-            updated += cur.rowcount
+        from psycopg2.extras import execute_values
 
+        values = []
+        for _, row in data.iterrows():
+            values.append((
+                row["national_id"], row["name"], row["name_normalized"],
+                row["classification"], row["services"],
+                row["status"], row["country_code"],
+            ))
+
+        execute_values(cur, """
+            INSERT INTO providers
+            (national_id, name, name_normalized, classification, services, status, country_code)
+            VALUES %s
+            ON CONFLICT (national_id) DO UPDATE
+            SET name = EXCLUDED.name,
+                name_normalized = EXCLUDED.name_normalized,
+                services = EXCLUDED.services,
+                status = EXCLUDED.status,
+                updated_at = NOW()
+        """, values, page_size=1000)
         conn.commit()
+
+        self.rows_inserted = len(values)
         cur.close()
         conn.close()
-        self.rows_updated = updated
-        logger.info(f"Updated {updated} provider records")
+        logger.info(f"Upserted {len(values)} provider records")

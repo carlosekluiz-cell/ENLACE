@@ -1,44 +1,38 @@
 """ANEEL power grid corridors pipeline.
 
-Source: ANEEL (Agencia Nacional de Energia Eletrica)
-URL: https://dadosabertos.aneel.gov.br/
-Format: CSV/Shapefile with transmission and distribution line data
+Source: SIGEL (Sistema de Informacoes Geograficas do Setor Eletrico)
+URL: https://sigel.aneel.gov.br/arcgis/rest/services/PORTAL/Linhas_Transmissao/MapServer/0/query
+Format: ArcGIS REST paginated GeoJSON
+Fields: TENSAO (kV), PROPRIETAR (operator), geometry (LineString)
 
-Real download would fetch power line geometry from ANEEL's open data portal,
-including voltage levels, operator names, and line types (transmission vs distribution).
-
-Fiber-optic cables are frequently co-deployed along power transmission corridors
-(OPGW - Optical Ground Wire), making power grid data valuable for identifying
+Fiber-optic cables are frequently co-deployed along power transmission
+corridors (OPGW), making power grid data valuable for identifying
 potential fiber routes and infrastructure sharing opportunities.
 """
+import json
 import logging
-import math
-import random
 
 import pandas as pd
 
 from python.pipeline.base import BasePipeline
 from python.pipeline.config import DataSourceURLs
+from python.pipeline.http_client import PipelineHTTPClient
 
 logger = logging.getLogger(__name__)
 
-# Major power operators in Brazil
-POWER_OPERATORS = [
-    "CHESF", "Eletronorte", "Furnas", "Eletrosul", "CTEEP",
-    "CELG", "CEMIG", "COPEL", "CEEE", "Light",
-    "Enel", "Neoenergia", "Energisa", "CPFL", "Equatorial",
-]
 
-# Voltage levels
-VOLTAGE_LEVELS = {
-    "transmission": [230, 345, 500, 750],
-    "subtransmission": [69, 88, 138],
-    "distribution": [13.8, 23, 34.5],
-}
+def classify_voltage(voltage_kv: float) -> str:
+    """Classify power line type based on voltage."""
+    if voltage_kv >= 230:
+        return "transmission"
+    elif voltage_kv >= 69:
+        return "subtransmission"
+    else:
+        return "distribution"
 
 
 class ANEELPowerPipeline(BasePipeline):
-    """Ingest ANEEL power grid corridor data."""
+    """Ingest real ANEEL power grid data from SIGEL ArcGIS REST API."""
 
     def __init__(self):
         super().__init__("aneel_power")
@@ -47,129 +41,100 @@ class ANEELPowerPipeline(BasePipeline):
     def check_for_updates(self) -> bool:
         conn = self._get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM power_lines WHERE country_code = 'BR'")
+        cur.execute("SELECT COUNT(*) FROM power_lines WHERE source = 'sigel_aneel'")
         count = cur.fetchone()[0]
         cur.close()
         conn.close()
-        return count < 50
+        return count < 100
 
-    def download(self) -> pd.DataFrame:
-        try:
-            logger.info("Attempting real ANEEL power grid download...")
-            raise ConnectionError("Real download not available in dev environment")
-        except Exception as e:
-            logger.info(f"Real download failed ({e}), generating synthetic data")
-            return self._generate_synthetic()
+    def download(self) -> list[dict]:
+        """Fetch paginated power line features from SIGEL ArcGIS REST."""
+        with PipelineHTTPClient(timeout=300) as http:
+            logger.info("Fetching power lines from SIGEL ArcGIS REST API...")
+            features = http.get_paginated_geojson(
+                base_url=self.urls.aneel_sigel_lines,
+                page_size=1000,
+                where="1=1",
+                out_fields="*",
+            )
+            logger.info(f"Fetched {len(features)} power line features")
 
-    def _generate_synthetic(self) -> pd.DataFrame:
-        """Generate power lines connecting seed municipalities."""
-        conn = self._get_connection()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT al2.id, al2.name,
-                   ST_X(al2.centroid::geometry) as lon,
-                   ST_Y(al2.centroid::geometry) as lat
-            FROM admin_level_2 al2
-            WHERE al2.country_code = 'BR' AND al2.centroid IS NOT NULL
-            ORDER BY al2.id
-        """)
-        municipalities = cur.fetchall()
-        cur.close()
-        conn.close()
+        return features
 
-        random.seed(49)
+    def validate_raw(self, data: list[dict]) -> None:
+        if not data:
+            raise ValueError("No power line features returned from SIGEL")
+        # Check that features have geometry
+        with_geom = sum(1 for f in data if f.get("geometry"))
+        logger.info(f"{with_geom}/{len(data)} features have geometry")
+
+    def transform(self, raw_data: list[dict]) -> pd.DataFrame:
+        """Extract voltage, operator, geometry from GeoJSON features."""
         rows = []
-
-        # Create transmission lines between nearby municipalities
-        for i, (l2_id_a, name_a, lon_a, lat_a) in enumerate(municipalities):
-            if lon_a is None or lat_a is None:
+        for feature in raw_data:
+            props = feature.get("properties", {})
+            geometry = feature.get("geometry")
+            if not geometry:
                 continue
 
-            # Connect to 2-3 nearest municipalities
-            distances = []
-            for j, (l2_id_b, name_b, lon_b, lat_b) in enumerate(municipalities):
-                if i == j or lon_b is None or lat_b is None:
-                    continue
-                dist = math.sqrt((lon_a - lon_b) ** 2 + (lat_a - lat_b) ** 2)
-                distances.append((j, dist, lon_b, lat_b))
+            # Extract voltage (field name may vary: TENSAO, TensaoKV, etc.)
+            voltage_kv = 0
+            for key in ("TENSAO", "TensaoKV", "tensao", "TENSAO_KV"):
+                val = props.get(key)
+                if val is not None:
+                    try:
+                        voltage_kv = float(val)
+                        break
+                    except (ValueError, TypeError):
+                        pass
 
-            distances.sort(key=lambda x: x[1])
-            connections = distances[:random.randint(2, 3)]
+            # Extract operator name
+            operator = ""
+            for key in ("PROPRIETAR", "Proprietario", "OPERADORA", "proprietar"):
+                val = props.get(key)
+                if val and str(val).strip() not in ("None", "null", ""):
+                    operator = str(val).strip()
+                    break
 
-            for j, dist, lon_b, lat_b in connections:
-                # Only create line if we haven't created the reverse
-                if j < i:
-                    continue
+            line_type = classify_voltage(voltage_kv)
 
-                # Determine line type based on distance
-                if dist > 3.0:
-                    line_type = "transmission"
-                elif dist > 1.0:
-                    line_type = "subtransmission"
-                else:
-                    line_type = "distribution"
+            # Convert geometry to EWKT
+            geom_type = geometry.get("type", "")
+            coords = geometry.get("coordinates", [])
+            if geom_type == "LineString" and coords:
+                coord_str = ", ".join(f"{c[0]} {c[1]}" for c in coords)
+                geom_wkt = f"SRID=4326;LINESTRING({coord_str})"
+            elif geom_type == "MultiLineString" and coords:
+                # Take the first line
+                first_line = coords[0]
+                coord_str = ", ".join(f"{c[0]} {c[1]}" for c in first_line)
+                geom_wkt = f"SRID=4326;LINESTRING({coord_str})"
+            else:
+                continue
 
-                voltage = random.choice(VOLTAGE_LEVELS[line_type])
-                operator = random.choice(POWER_OPERATORS)
+            rows.append({
+                "country_code": "BR",
+                "voltage_kv": voltage_kv,
+                "operator_name": operator,
+                "line_type": line_type,
+                "geom_wkt": geom_wkt,
+                "source": "sigel_aneel",
+            })
 
-                # Create a line with an intermediate point for realism
-                mid_lon = (lon_a + lon_b) / 2 + random.uniform(-0.1, 0.1)
-                mid_lat = (lat_a + lat_b) / 2 + random.uniform(-0.1, 0.1)
-
-                geom_wkt = (
-                    f"SRID=4326;LINESTRING("
-                    f"{lon_a} {lat_a}, {mid_lon} {mid_lat}, {lon_b} {lat_b})"
-                )
-
-                rows.append({
-                    "country_code": "BR",
-                    "voltage_kv": voltage,
-                    "operator_name": operator,
-                    "line_type": line_type,
-                    "geom_wkt": geom_wkt,
-                    "source": "aneel_synthetic",
-                })
-
-            # Also add local distribution lines within municipality
-            for _ in range(random.randint(2, 5)):
-                start_lon = lon_a + random.uniform(-0.02, 0.02)
-                start_lat = lat_a + random.uniform(-0.02, 0.02)
-                end_lon = start_lon + random.uniform(-0.01, 0.01)
-                end_lat = start_lat + random.uniform(-0.01, 0.01)
-
-                geom_wkt = (
-                    f"SRID=4326;LINESTRING("
-                    f"{start_lon} {start_lat}, {end_lon} {end_lat})"
-                )
-                rows.append({
-                    "country_code": "BR",
-                    "voltage_kv": random.choice(VOLTAGE_LEVELS["distribution"]),
-                    "operator_name": random.choice(POWER_OPERATORS),
-                    "line_type": "distribution",
-                    "geom_wkt": geom_wkt,
-                    "source": "aneel_synthetic",
-                })
-
+        self.rows_processed = len(rows)
+        logger.info(f"Transformed {len(rows)} power lines")
         return pd.DataFrame(rows)
-
-    def validate_raw(self, data: pd.DataFrame) -> None:
-        required = ["voltage_kv", "line_type", "geom_wkt"]
-        missing = set(required) - set(data.columns)
-        if missing:
-            raise ValueError(f"Missing columns: {missing}")
-        if data.empty:
-            raise ValueError("Empty dataset")
-
-    def transform(self, raw_data: pd.DataFrame) -> pd.DataFrame:
-        self.rows_processed = len(raw_data)
-        return raw_data
 
     def load(self, data: pd.DataFrame) -> None:
         """Insert power line records."""
+        if data.empty:
+            logger.warning("No power lines to load")
+            return
+
         conn = self._get_connection()
         cur = conn.cursor()
-        # Clear existing synthetic power lines
-        cur.execute("DELETE FROM power_lines WHERE source = 'aneel_synthetic'")
+        # Clear existing SIGEL data
+        cur.execute("DELETE FROM power_lines WHERE source = 'sigel_aneel'")
         conn.commit()
 
         from psycopg2.extras import execute_values

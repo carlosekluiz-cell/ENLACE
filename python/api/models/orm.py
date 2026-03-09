@@ -15,6 +15,7 @@ from sqlalchemy import (
     Column,
     Date,
     Double,
+    Enum,
     ForeignKey,
     Integer,
     Numeric,
@@ -26,6 +27,57 @@ from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from python.api.database import Base
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Users & Auth
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class User(Base):
+    """Platform user with role-based access control."""
+
+    __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("email", "tenant_id", name="uq_users_email_tenant"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(
+        Enum("admin", "manager", "analyst", "viewer", name="user_role", create_type=False),
+        nullable=False,
+        server_default="viewer",
+    )
+    tenant_id: Mapped[str] = mapped_column(String(100), nullable=False, server_default="default")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    preferences: Mapped[Optional[Any]] = mapped_column(JSONB, server_default="{}")
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), server_default="now()"
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), server_default="now()"
+    )
+
+    sessions: Mapped[list["UserSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+
+class UserSession(Base):
+    """Tracks active user sessions for audit and revocation."""
+
+    __tablename__ = "user_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45))
+    user_agent: Mapped[Optional[str]] = mapped_column(String(500))
+    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), server_default="now()"
+    )
+
+    user: Mapped["User"] = relationship(back_populates="sessions")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -10,26 +10,17 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
 } from 'recharts';
 
 const CHART_COLORS = [
-  '#2563eb', // blue
-  '#7c3aed', // purple
-  '#06b6d4', // cyan
-  '#10b981', // emerald
-  '#f59e0b', // amber
-  '#ef4444', // red
-  '#ec4899', // pink
-  '#8b5cf6', // violet
+  '#0f766e', // teal (accent)
+  '#0d9488', // teal lighter
+  '#059669', // success green
 ];
 
 interface ChartProps {
   data: Record<string, any>[];
-  type?: 'bar' | 'line' | 'pie';
+  type?: 'bar' | 'line';
   xKey?: string;
   yKey?: string;
   yKeys?: string[];
@@ -43,10 +34,17 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
 
   return (
-    <div className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 shadow-xl">
-      <p className="text-xs font-medium text-slate-300">{label}</p>
+    <div
+      className="rounded-md border px-3 py-2 text-xs"
+      style={{
+        background: 'var(--bg-surface)',
+        borderColor: 'var(--border)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+      }}
+    >
+      <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{label}</p>
       {payload.map((entry: any, index: number) => (
-        <p key={index} className="text-xs" style={{ color: entry.color }}>
+        <p key={index} style={{ color: entry.color }}>
           {entry.name}: {typeof entry.value === 'number' ? entry.value.toLocaleString('pt-BR') : entry.value}
         </p>
       ))}
@@ -67,22 +65,24 @@ export default function SimpleChart({
 }: ChartProps) {
   if (loading) {
     return (
-      <div className={`enlace-card animate-pulse ${className || ''}`}>
-        {title && <div className="mb-4 h-5 w-32 rounded bg-slate-700" />}
-        <div style={{ height }} className="rounded bg-slate-700/50" />
+      <div className={`pulso-card ${className || ''}`}>
+        {title && <div className="mb-4 text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{title}</div>}
+        <div style={{ height }} className="flex items-center justify-center">
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando...</p>
+        </div>
       </div>
     );
   }
 
   if (!data || data.length === 0) {
     return (
-      <div className={`enlace-card ${className || ''}`}>
+      <div className={`pulso-card ${className || ''}`}>
         {title && (
-          <h3 className="mb-4 text-sm font-medium text-slate-300">{title}</h3>
+          <h3 className="mb-4 text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{title}</h3>
         )}
         <div
-          style={{ height }}
-          className="flex items-center justify-center text-sm text-slate-500"
+          style={{ height, color: 'var(--text-muted)' }}
+          className="flex items-center justify-center text-sm"
         >
           Sem dados para o gráfico
         </div>
@@ -98,15 +98,15 @@ export default function SimpleChart({
         return (
           <ResponsiveContainer width="100%" height={height}>
             <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey={xKey}
-                tick={{ fill: '#94a3b8', fontSize: 12 }}
-                axisLine={{ stroke: '#475569' }}
+                tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                axisLine={{ stroke: 'var(--border-strong)' }}
               />
               <YAxis
-                tick={{ fill: '#94a3b8', fontSize: 12 }}
-                axisLine={{ stroke: '#475569' }}
+                tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                axisLine={{ stroke: 'var(--border-strong)' }}
               />
               <Tooltip content={<CustomTooltip />} />
               {keys.map((key, i) => (
@@ -123,50 +123,19 @@ export default function SimpleChart({
           </ResponsiveContainer>
         );
 
-      case 'pie':
-        return (
-          <ResponsiveContainer width="100%" height={height}>
-            <PieChart>
-              <Pie
-                data={data}
-                dataKey={yKey}
-                nameKey={xKey}
-                cx="50%"
-                cy="50%"
-                outerRadius={height / 3}
-                label={({ name, percent }: any) =>
-                  `${name}: ${(percent * 100).toFixed(0)}%`
-                }
-                labelLine={{ stroke: '#64748b' }}
-              >
-                {data.map((_entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={CHART_COLORS[index % CHART_COLORS.length]}
-                  />
-                ))}
-              </Pie>
-              <Tooltip content={<CustomTooltip />} />
-              <Legend
-                wrapperStyle={{ color: '#94a3b8', fontSize: 12 }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        );
-
       default: // bar
         return (
           <ResponsiveContainer width="100%" height={height}>
             <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey={xKey}
-                tick={{ fill: '#94a3b8', fontSize: 12 }}
-                axisLine={{ stroke: '#475569' }}
+                tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                axisLine={{ stroke: 'var(--border-strong)' }}
               />
               <YAxis
-                tick={{ fill: '#94a3b8', fontSize: 12 }}
-                axisLine={{ stroke: '#475569' }}
+                tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                axisLine={{ stroke: 'var(--border-strong)' }}
               />
               <Tooltip content={<CustomTooltip />} />
               {keys.map((key, i) => (
@@ -184,9 +153,9 @@ export default function SimpleChart({
   };
 
   return (
-    <div className={`enlace-card ${className || ''}`}>
+    <div className={`pulso-card ${className || ''}`}>
       {title && (
-        <h3 className="mb-4 text-sm font-medium text-slate-300">{title}</h3>
+        <h3 className="mb-4 text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{title}</h3>
       )}
       {renderChart()}
     </div>

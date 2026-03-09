@@ -1,13 +1,25 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import './globals.css';
 import Sidebar from '@/components/layout/Sidebar';
-import Header from '@/components/layout/Header';
+import { Providers } from './providers';
+import { ThemeScript } from './theme-script';
 
-const inter = Inter({ subsets: ['latin'] });
+const ibmPlexSans = IBM_Plex_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-ibm-plex-sans',
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-ibm-plex-mono',
+});
 
 export const metadata: Metadata = {
-  title: 'ENLACE - Plataforma de Inteligência Telecom',
+  title: 'Pulso - Inteligência Telecom',
   description:
     'Plataforma de inteligência telecom para o mercado brasileiro. Mapeamento de cobertura, scoring de oportunidades, conformidade regulatória e planejamento de conectividade rural.',
 };
@@ -18,18 +30,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR" className="dark">
-      <body className={`${inter.className} bg-slate-950 text-slate-100`}>
-        <div className="flex min-h-screen">
-          {/* Sidebar navigation */}
-          <Sidebar />
-
-          {/* Main content area */}
-          <div className="flex flex-1 flex-col lg:pl-64">
-            <Header />
-            <main className="flex-1 overflow-auto">{children}</main>
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+      </head>
+      <body
+        className={`${ibmPlexSans.variable} ${ibmPlexMono.variable} font-sans`}
+        style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+      >
+        <Providers>
+          <div className="flex h-screen overflow-hidden">
+            <Sidebar />
+            <main className="flex-1 overflow-hidden">{children}</main>
           </div>
-        </div>
+        </Providers>
       </body>
     </html>
   );

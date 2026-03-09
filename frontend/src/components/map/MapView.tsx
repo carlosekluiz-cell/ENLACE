@@ -1,7 +1,22 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef, Component, type ReactNode } from 'react';
 import { MapPin, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { useTheme } from '@/contexts/ThemeContext';
+
+// Error boundary to catch WebGL initialization failures (luma.gl resize race)
+class MapErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    return this.state.hasError ? this.props.fallback : this.props.children;
+  }
+}
 
 // Brazil center coordinates and initial view
 const BRAZIL_VIEW = {
@@ -12,57 +27,53 @@ const BRAZIL_VIEW = {
   bearing: 0,
 };
 
+const MAP_STYLES = {
+  light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+  dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+};
+
 // Dynamically check if map libraries are available
 let MapComponent: any = null;
 let DeckGLComponent: any = null;
-let mapLibrariesAvailable = false;
 
 interface MapViewProps {
   layers?: any[];
   onMapClick?: (info: any) => void;
   className?: string;
+  initialViewState?: Partial<typeof BRAZIL_VIEW>;
 }
 
 function MapPlaceholder({ className }: { className?: string }) {
   return (
     <div
-      className={`relative flex items-center justify-center rounded-lg bg-slate-800 border border-slate-700 overflow-hidden ${className || 'h-[600px]'}`}
+      className={`relative flex items-center justify-center overflow-hidden ${className || 'h-full'}`}
+      style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
     >
-      {/* Stylized Brazil map background */}
       <div className="absolute inset-0 opacity-10">
         <svg viewBox="0 0 800 800" className="h-full w-full">
-          {/* Simplified Brazil outline */}
           <path
             d="M350,100 L450,80 L550,120 L600,200 L620,300 L600,400 L580,500 L500,600 L400,650 L300,600 L250,500 L200,400 L220,300 L250,200 L300,150 Z"
             fill="currentColor"
-            className="text-blue-500"
+            style={{ color: 'var(--accent)' }}
           />
-          {/* Grid lines */}
           {Array.from({ length: 10 }, (_, i) => (
             <line
               key={`h${i}`}
-              x1="0"
-              y1={i * 80}
-              x2="800"
-              y2={i * 80}
+              x1="0" y1={i * 80} x2="800" y2={i * 80}
               stroke="currentColor"
-              className="text-slate-600"
+              style={{ color: 'var(--border)' }}
               strokeWidth="0.5"
             />
           ))}
           {Array.from({ length: 10 }, (_, i) => (
             <line
               key={`v${i}`}
-              x1={i * 80}
-              y1="0"
-              x2={i * 80}
-              y2="800"
+              x1={i * 80} y1="0" x2={i * 80} y2="800"
               stroke="currentColor"
-              className="text-slate-600"
+              style={{ color: 'var(--border)' }}
               strokeWidth="0.5"
             />
           ))}
-          {/* Sample data points */}
           {[
             { x: 400, y: 300, r: 8 },
             { x: 500, y: 250, r: 12 },
@@ -74,28 +85,25 @@ function MapPlaceholder({ className }: { className?: string }) {
           ].map((point, i) => (
             <circle
               key={`p${i}`}
-              cx={point.x}
-              cy={point.y}
-              r={point.r}
+              cx={point.x} cy={point.y} r={point.r}
               fill="currentColor"
-              className="text-blue-500"
+              style={{ color: 'var(--accent)' }}
               opacity="0.6"
             />
           ))}
         </svg>
       </div>
 
-      {/* Content overlay */}
       <div className="relative z-10 text-center">
-        <MapPin className="mx-auto mb-4 text-blue-500" size={48} />
-        <h3 className="text-lg font-semibold text-slate-200">
+        <MapPin className="mx-auto mb-4" size={48} style={{ color: 'var(--accent)' }} />
+        <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           Mapa de Cobertura Interativo
         </h3>
-        <p className="mt-2 max-w-md text-sm text-slate-400">
+        <p className="mt-2 max-w-md text-sm" style={{ color: 'var(--text-muted)' }}>
           Visualize cobertura telecom, rotas de fibra e dados municipais em todo
-          o Brasil. Conecte-se a API ENLACE para carregar dados geograficos em tempo real.
+          o Brasil.
         </p>
-        <div className="mt-4 flex items-center justify-center gap-4 text-xs text-slate-500">
+        <div className="mt-4 flex items-center justify-center gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
           <span>Lat: {BRAZIL_VIEW.latitude.toFixed(3)}</span>
           <span>Lng: {BRAZIL_VIEW.longitude.toFixed(3)}</span>
           <span>Zoom: {BRAZIL_VIEW.zoom}</span>
@@ -105,13 +113,33 @@ function MapPlaceholder({ className }: { className?: string }) {
   );
 }
 
-function InteractiveMap({ layers, onMapClick, className }: MapViewProps) {
-  const [viewState, setViewState] = useState(BRAZIL_VIEW);
+function InteractiveMap({ layers, onMapClick, className, initialViewState }: MapViewProps) {
+  const [viewState, setViewState] = useState({ ...BRAZIL_VIEW, ...initialViewState });
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [containerReady, setContainerReady] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { resolvedTheme } = useTheme();
+
+  // Wait for container to have actual dimensions before mounting DeckGL
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const check = () => {
+      if (el.offsetWidth > 0 && el.offsetHeight > 0) {
+        setContainerReady(true);
+      }
+    };
+    check();
+    if (!containerReady) {
+      const ro = new ResizeObserver(check);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+  }, [containerReady]);
 
   useEffect(() => {
-    // Dynamically import map libraries on client side
     Promise.all([
       import('react-map-gl/maplibre'),
       import('deck.gl'),
@@ -120,9 +148,11 @@ function InteractiveMap({ layers, onMapClick, className }: MapViewProps) {
         MapComponent = mapMod.default || mapMod.Map;
         DeckGLComponent = deckMod.DeckGL || deckMod.default;
         setMapReady(true);
+        setLoading(false);
       })
       .catch(() => {
         setMapError(true);
+        setLoading(false);
       });
   }, []);
 
@@ -143,58 +173,79 @@ function InteractiveMap({ layers, onMapClick, className }: MapViewProps) {
 
   const DeckGL = DeckGLComponent;
   const MapGL = MapComponent;
+  const mapStyle = MAP_STYLES[resolvedTheme] || MAP_STYLES.light;
 
   return (
-    <div
-      className={`relative rounded-lg overflow-hidden border border-slate-700 ${className || 'h-[600px]'}`}
-    >
-      <DeckGL
-        viewState={viewState}
-        onViewStateChange={handleViewStateChange}
-        controller={true}
-        layers={layers || []}
-        onClick={onMapClick}
-      >
-        <MapGL
-          mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
-          attributionControl={false}
-        />
-      </DeckGL>
+    <div ref={containerRef} className={`relative overflow-hidden ${className || 'h-full'}`}>
+      {/* Loading progress bar */}
+      {loading && (
+        <div className="absolute top-0 left-0 right-0 z-20 overflow-hidden" style={{ height: '2px' }}>
+          <div className="pulso-progress-bar w-full" />
+        </div>
+      )}
 
-      {/* Map controls overlay */}
+      {containerReady && (
+        <MapErrorBoundary fallback={<MapPlaceholder className={className} />}>
+          <DeckGL
+            viewState={viewState}
+            onViewStateChange={handleViewStateChange}
+            controller={true}
+            layers={layers || []}
+            onClick={onMapClick}
+          >
+            <MapGL
+              mapStyle={mapStyle}
+              attributionControl={false}
+            />
+          </DeckGL>
+        </MapErrorBoundary>
+      )}
+
+      {/* Map controls top-right */}
       <div className="absolute right-4 top-4 flex flex-col gap-2">
         <button
-          onClick={() =>
-            setViewState((prev) => ({ ...prev, zoom: prev.zoom + 1 }))
-          }
-          className="rounded-lg bg-slate-800/90 p-2 text-slate-300 hover:bg-slate-700 transition-colors"
+          onClick={() => setViewState((prev) => ({ ...prev, zoom: prev.zoom + 1 }))}
+          className="rounded-md p-2 transition-colors"
+          style={{
+            background: 'var(--bg-surface)',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border)',
+          }}
           aria-label="Aumentar zoom"
         >
           <ZoomIn size={16} />
         </button>
         <button
-          onClick={() =>
-            setViewState((prev) => ({
-              ...prev,
-              zoom: Math.max(prev.zoom - 1, 1),
-            }))
-          }
-          className="rounded-lg bg-slate-800/90 p-2 text-slate-300 hover:bg-slate-700 transition-colors"
+          onClick={() => setViewState((prev) => ({ ...prev, zoom: Math.max(prev.zoom - 1, 1) }))}
+          className="rounded-md p-2 transition-colors"
+          style={{
+            background: 'var(--bg-surface)',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border)',
+          }}
           aria-label="Diminuir zoom"
         >
           <ZoomOut size={16} />
         </button>
         <button
-          onClick={() => setViewState(BRAZIL_VIEW)}
-          className="rounded-lg bg-slate-800/90 p-2 text-slate-300 hover:bg-slate-700 transition-colors"
-          aria-label="Redefinir visualizacao"
+          onClick={() => setViewState({ ...BRAZIL_VIEW, ...initialViewState })}
+          className="rounded-md p-2 transition-colors"
+          style={{
+            background: 'var(--bg-surface)',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border)',
+          }}
+          aria-label="Redefinir visualização"
         >
           <Maximize2 size={16} />
         </button>
       </div>
 
-      {/* Coordinates display */}
-      <div className="absolute bottom-4 left-4 rounded-lg bg-slate-800/90 px-3 py-1.5 text-xs text-slate-400">
+      {/* Attribution bottom-left */}
+      <div
+        className="absolute bottom-2 left-2 rounded px-2 py-1 text-xs"
+        style={{ color: 'var(--text-muted)', background: 'var(--bg-surface)', opacity: 0.8 }}
+      >
         {viewState.latitude.toFixed(4)}, {viewState.longitude.toFixed(4)} | Zoom:{' '}
         {viewState.zoom.toFixed(1)}
       </div>

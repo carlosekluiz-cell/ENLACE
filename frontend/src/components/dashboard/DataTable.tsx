@@ -77,26 +77,22 @@ export default function DataTable<T extends Record<string, any>>({
 
   if (loading) {
     return (
-      <div className="enlace-card animate-pulse">
-        <div className="space-y-3">
-          <div className="h-8 w-full rounded bg-slate-700" />
-          {Array.from({ length: 5 }, (_, i) => (
-            <div key={i} className="h-6 w-full rounded bg-slate-700/50" />
-          ))}
-        </div>
+      <div className="pulso-card">
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando...</p>
       </div>
     );
   }
 
   return (
-    <div className="enlace-card overflow-hidden p-0">
+    <div className="pulso-card overflow-hidden p-0">
       {/* Search bar */}
       {searchable && (
-        <div className="border-b border-slate-700 p-4">
+        <div className="p-4" style={{ borderBottom: '1px solid var(--border)' }}>
           <div className="relative">
             <Search
               size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              className="absolute left-3 top-1/2 -translate-y-1/2"
+              style={{ color: 'var(--text-muted)' }}
             />
             <input
               type="text"
@@ -106,7 +102,7 @@ export default function DataTable<T extends Record<string, any>>({
                 setSearch(e.target.value);
                 setPage(0);
               }}
-              className="enlace-input w-full pl-9"
+              className="pulso-input w-full pl-9"
             />
           </div>
         </div>
@@ -116,15 +112,16 @@ export default function DataTable<T extends Record<string, any>>({
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-slate-700 bg-slate-800/50">
+            <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)' }}>
               {columns.map((col) => (
                 <th
                   key={col.key}
                   className={clsx(
-                    'px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400',
-                    col.sortable && 'cursor-pointer select-none hover:text-slate-200',
+                    'px-3 py-2 text-left text-sm font-medium',
+                    col.sortable && 'cursor-pointer select-none',
                     col.className
                   )}
+                  style={{ color: 'var(--text-secondary)' }}
                   onClick={() => col.sortable && handleSort(col.key)}
                 >
                   <div className="flex items-center gap-1">
@@ -144,12 +141,13 @@ export default function DataTable<T extends Record<string, any>>({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-700/50">
+          <tbody>
             {pagedData.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-8 text-center text-sm text-slate-500"
+                  className="px-3 py-8 text-center text-sm"
+                  style={{ color: 'var(--text-muted)' }}
                 >
                   {emptyMessage}
                 </td>
@@ -161,18 +159,21 @@ export default function DataTable<T extends Record<string, any>>({
                   onClick={() => onRowClick?.(row)}
                   className={clsx(
                     'transition-colors',
-                    onRowClick
-                      ? 'cursor-pointer hover:bg-slate-800/50'
-                      : 'hover:bg-slate-800/30'
+                    onRowClick && 'cursor-pointer'
                   )}
+                  style={{ borderBottom: '1px solid var(--border)' }}
                 >
                   {columns.map((col) => (
                     <td
                       key={col.key}
                       className={clsx(
-                        'px-4 py-3 text-sm text-slate-300',
+                        'px-3 py-2 text-sm',
                         col.className
                       )}
+                      style={{
+                        color: 'var(--text-primary)',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
                     >
                       {col.render
                         ? col.render(row[col.key], row)
@@ -188,8 +189,11 @@ export default function DataTable<T extends Record<string, any>>({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-slate-700 px-4 py-3">
-          <span className="text-xs text-slate-500">
+        <div
+          className="flex items-center justify-between px-3 py-2"
+          style={{ borderTop: '1px solid var(--border)' }}
+        >
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
             Exibindo {page * pageSize + 1}-
             {Math.min((page + 1) * pageSize, sortedData.length)} de{' '}
             {sortedData.length}
@@ -198,14 +202,14 @@ export default function DataTable<T extends Record<string, any>>({
             <button
               onClick={() => setPage(Math.max(0, page - 1))}
               disabled={page === 0}
-              className="enlace-btn-secondary px-2 py-1 text-xs disabled:opacity-30"
+              className="pulso-btn-secondary px-2 py-1 text-xs disabled:opacity-30"
             >
               Anterior
             </button>
             <button
               onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
               disabled={page >= totalPages - 1}
-              className="enlace-btn-secondary px-2 py-1 text-xs disabled:opacity-30"
+              className="pulso-btn-secondary px-2 py-1 text-xs disabled:opacity-30"
             >
               Próximo
             </button>

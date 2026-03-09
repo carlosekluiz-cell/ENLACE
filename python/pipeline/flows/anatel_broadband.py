@@ -1,23 +1,24 @@
-"""Anatel broadband subscriber data pipeline.
+"""Anatel broadband subscriber data pipeline — HIGHEST PRIORITY.
 
-Source: Anatel open data portal
-URL: https://dados.gov.br/dados/conjuntos-dados/acessos-banda-larga-fixa
+Source: Anatel open data on dados.gov.br (CKAN)
+Dataset: "acessos---banda-larga-fixa"
 Format: CSV (semicolon-delimited, ISO-8859-1 encoding)
-Update: Monthly (~45 days after month end)
 Key columns: Ano, Mes, Grupo Economico, Empresa, CNPJ, UF, Municipio,
              Codigo IBGE, Tecnologia, Meio de Acesso, Acessos
+Update: Monthly (~45 days after month end)
 
-Real download would parse the CSV and extract subscriber counts per
-municipality per provider per technology per month.
+Downloads the full CSV (millions of rows), maps CNPJ -> provider_id,
+Codigo IBGE -> l2_id, Tecnologia -> normalized tech, and loads into
+broadband_subscribers. Auto-creates providers for unknown CNPJs.
 """
 import logging
-import random
 from datetime import datetime
 
 import pandas as pd
 
 from python.pipeline.base import BasePipeline
 from python.pipeline.config import TECHNOLOGY_MAP, DataSourceURLs
+from python.pipeline.http_client import PipelineHTTPClient
 from python.pipeline.loaders.postgres_loader import refresh_materialized_view, upsert_batch
 from python.pipeline.transformers.provider_normalizer import normalize_provider_name
 
@@ -35,13 +36,11 @@ TECH_MAP = {
     "Satélite": "satellite",
     "Outras": "other",
 }
-
-# Merge with config's TECHNOLOGY_MAP
 TECH_MAP.update(TECHNOLOGY_MAP)
 
 
 class AnatelBroadbandPipeline(BasePipeline):
-    """Ingest Anatel monthly broadband subscriber data."""
+    """Ingest real Anatel monthly broadband subscriber data."""
 
     def __init__(self):
         super().__init__("anatel_broadband")
@@ -61,96 +60,161 @@ class AnatelBroadbandPipeline(BasePipeline):
         return latest < expected
 
     def download(self) -> pd.DataFrame:
-        """Try real Anatel CSV download, fallback to synthetic data."""
-        try:
-            logger.info("Attempting real Anatel broadband download...")
-            # Real download: semicolon-delimited CSV, ISO-8859-1
-            # df = pd.read_csv(url, sep=';', encoding='iso-8859-1')
-            raise ConnectionError("Real download not available in dev environment")
-        except Exception as e:
-            logger.info(f"Real download failed ({e}), generating synthetic data")
-            return self._generate_synthetic()
+        """Download broadband subscriber CSV from dados.gov.br CKAN."""
+        with PipelineHTTPClient(timeout=600) as http:
+            logger.info("Resolving Anatel broadband CKAN resource URL...")
+            csv_url = http.resolve_ckan_resource_url(
+                self.urls.anatel_broadband_dataset,
+                resource_format="CSV",
+                ckan_base=self.urls.anatel_ckan_base,
+            )
+            logger.info(f"Downloading broadband CSV from {csv_url}")
+            df = http.get_csv(csv_url, sep=";", encoding="iso-8859-1")
+            logger.info(f"Downloaded {len(df)} broadband records")
 
-    def _generate_synthetic(self) -> pd.DataFrame:
-        """Generate realistic broadband subscriber data."""
+        return df
+
+    def validate_raw(self, data: pd.DataFrame) -> None:
+        if data.empty:
+            raise ValueError("Empty broadband CSV")
+        logger.info(f"Broadband CSV columns: {list(data.columns)}")
+        # Check for essential columns
+        cols_lower = [c.lower().strip() for c in data.columns]
+        has_ibge = any("ibge" in c or "codigo" in c for c in cols_lower)
+        has_acessos = any("acesso" in c for c in cols_lower)
+        if not has_ibge:
+            raise ValueError("No IBGE code column found")
+        if not has_acessos:
+            raise ValueError("No Acessos column found")
+
+    def transform(self, raw_data: pd.DataFrame) -> pd.DataFrame:
+        """Map CSV columns to database schema."""
+        df = raw_data.copy()
+        df.columns = [c.strip() for c in df.columns]
+
+        # Find column names (they vary between releases)
+        col_map = {}
+        for c in df.columns:
+            cl = c.lower()
+            if "codigo" in cl and "ibge" in cl:
+                col_map["ibge_code"] = c
+            elif "ibge" in cl and "codigo" not in cl:
+                col_map.setdefault("ibge_code", c)
+            elif cl == "ano":
+                col_map["ano"] = c
+            elif cl in ("mes", "mês"):
+                col_map["mes"] = c
+            elif "cnpj" in cl:
+                col_map["cnpj"] = c
+            elif "tecnologia" in cl:
+                col_map["tecnologia"] = c
+            elif "acesso" in cl:
+                col_map["acessos"] = c
+            elif "empresa" in cl:
+                col_map["empresa"] = c
+
+        # Build lookup tables from DB
         conn = self._get_connection()
         cur = conn.cursor()
-        cur.execute("""
-            SELECT al2.id, al2.code, al2.name
-            FROM admin_level_2 al2
-            JOIN countries c ON al2.country_code = c.code
-            WHERE c.code = 'BR'
-        """)
-        municipalities = cur.fetchall()
-        cur.execute("SELECT id, name, classification FROM providers WHERE country_code = 'BR'")
-        providers = cur.fetchall()
+        cur.execute("SELECT code, id FROM admin_level_2 WHERE country_code = 'BR'")
+        code_to_l2 = {code: l2_id for code, l2_id in cur.fetchall()}
+        cur.execute("SELECT national_id, id FROM providers WHERE country_code = 'BR'")
+        cnpj_to_provider = {nid: pid for nid, pid in cur.fetchall()}
         cur.close()
         conn.close()
 
-        random.seed(42)
         rows = []
-        techs = ["fiber", "cable", "dsl", "wireless", "satellite"]
-        tech_weights = [0.45, 0.20, 0.15, 0.12, 0.08]
+        auto_created_providers = {}
 
-        # Population-proxy subscriber bases per municipality size
-        for l2_id, code, mun_name in municipalities:
-            # Base subscriber count varies by municipality
-            base_subs = random.randint(5000, 500000)
-            # Assign 3-6 providers per municipality
-            num_providers = random.randint(3, min(6, len(providers)))
-            mun_providers = random.sample(providers, num_providers)
-            shares = [random.random() for _ in range(num_providers)]
-            total_share = sum(shares)
-            shares = [s / total_share for s in shares]
+        for _, row in df.iterrows():
+            # Map IBGE code to l2_id
+            ibge_code = str(row.get(col_map.get("ibge_code", ""), "")).strip()
+            l2_id = code_to_l2.get(ibge_code)
+            if l2_id is None:
+                continue
 
-            for month_offset in range(12):
-                year = 2025
-                month = month_offset + 1
-                ym = f"{year}-{month:02d}"
-                growth = 1.0 + month_offset * 0.005  # slight monthly growth
+            # Map CNPJ to provider_id
+            cnpj = str(row.get(col_map.get("cnpj", ""), "")).strip()
+            provider_id = cnpj_to_provider.get(cnpj)
+            if provider_id is None and cnpj and cnpj != "nan":
+                # Auto-create provider if not seen before
+                if cnpj not in auto_created_providers:
+                    empresa = str(row.get(col_map.get("empresa", ""), "")).strip()
+                    provider_id = self._auto_create_provider(cnpj, empresa)
+                    auto_created_providers[cnpj] = provider_id
+                    cnpj_to_provider[cnpj] = provider_id
+                else:
+                    provider_id = auto_created_providers[cnpj]
 
-                for (prov_id, prov_name, prov_class), share in zip(mun_providers, shares):
-                    prov_subs = int(base_subs * share * growth)
-                    # Pick 1-2 technologies per provider
-                    num_techs = random.choices([1, 2], weights=[0.6, 0.4])[0]
-                    chosen_techs = random.choices(techs, weights=tech_weights, k=num_techs)
-                    for tech in set(chosen_techs):
-                        tech_fraction = random.uniform(0.3, 1.0) if num_techs > 1 else 1.0
-                        subs = max(1, int(prov_subs * tech_fraction))
-                        rows.append({
-                            "l2_id": l2_id,
-                            "provider_id": prov_id,
-                            "year_month": ym,
-                            "technology": tech,
-                            "subscribers": subs,
-                        })
+            if provider_id is None:
+                continue
 
-        return pd.DataFrame(rows)
+            # Map technology
+            tech_raw = str(row.get(col_map.get("tecnologia", ""), "")).strip()
+            technology = TECH_MAP.get(tech_raw, tech_raw.lower() if tech_raw else "other")
 
-    def validate_raw(self, data: pd.DataFrame) -> None:
-        required = ["l2_id", "provider_id", "year_month", "technology", "subscribers"]
-        missing = set(required) - set(data.columns)
-        if missing:
-            raise ValueError(f"Missing columns: {missing}")
-        if (data["subscribers"] < 0).any():
-            raise ValueError("Negative subscriber counts found")
-        if data.empty:
-            raise ValueError("Empty dataset")
+            # Build year_month
+            ano = str(row.get(col_map.get("ano", ""), "")).strip()
+            mes = str(row.get(col_map.get("mes", ""), "")).strip()
+            try:
+                year_month = f"{int(ano)}-{int(mes):02d}"
+            except (ValueError, TypeError):
+                continue
 
-    def transform(self, raw_data: pd.DataFrame) -> pd.DataFrame:
-        """Normalize technology names and deduplicate."""
-        df = raw_data.copy()
-        # Map technology names
-        df["technology"] = df["technology"].map(lambda t: TECH_MAP.get(t, t))
+            # Parse subscriber count (may have dot thousands separator)
+            acessos_raw = str(row.get(col_map.get("acessos", ""), "")).strip()
+            try:
+                subscribers = int(acessos_raw.replace(".", "").replace(",", ""))
+            except (ValueError, TypeError):
+                continue
+
+            if subscribers <= 0:
+                continue
+
+            rows.append({
+                "l2_id": l2_id,
+                "provider_id": provider_id,
+                "year_month": year_month,
+                "technology": technology,
+                "subscribers": subscribers,
+            })
+
+        if auto_created_providers:
+            logger.info(f"Auto-created {len(auto_created_providers)} new providers")
+
+        result = pd.DataFrame(rows)
         # Aggregate duplicates (same l2, provider, month, tech)
-        df = df.groupby(
-            ["l2_id", "provider_id", "year_month", "technology"], as_index=False
-        )["subscribers"].sum()
-        self.rows_processed = len(df)
-        return df
+        if not result.empty:
+            result = result.groupby(
+                ["l2_id", "provider_id", "year_month", "technology"], as_index=False
+            )["subscribers"].sum()
+
+        self.rows_processed = len(result)
+        return result
+
+    def _auto_create_provider(self, cnpj: str, name: str) -> int:
+        """Create a new provider record for an unknown CNPJ. Returns provider ID."""
+        conn = self._get_connection()
+        cur = conn.cursor()
+        name_normalized = normalize_provider_name(name) if name and name != "nan" else cnpj
+        cur.execute("""
+            INSERT INTO providers (national_id, name, name_normalized, classification, status, country_code)
+            VALUES (%s, %s, %s, 'PPP', 'active', 'BR')
+            ON CONFLICT (national_id) DO UPDATE SET name = EXCLUDED.name
+            RETURNING id
+        """, (cnpj, name or cnpj, name_normalized))
+        provider_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return provider_id
 
     def load(self, data: pd.DataFrame) -> None:
-        """Upsert broadband subscriber records."""
+        """Load broadband subscriber records."""
+        if data.empty:
+            logger.warning("No broadband data to load")
+            return
+
         # Delete existing records for the year_months we're loading
         conn = self._get_connection()
         cur = conn.cursor()
@@ -170,7 +234,7 @@ class AnatelBroadbandPipeline(BasePipeline):
             table="broadband_subscribers",
             columns=columns,
             values=values,
-            conflict_columns=["id"],  # no natural conflict, each insert is new
+            conflict_columns=["id"],
             db_config=self.db_config,
         )
         self.rows_inserted = inserted
@@ -197,7 +261,6 @@ class AnatelBroadbandPipeline(BasePipeline):
         """)
         rows = cur.fetchall()
 
-        # Group by (l2_id, year_month)
         market_data = {}
         for l2_id, ym, prov_id, subs in rows:
             key = (l2_id, ym)
@@ -219,7 +282,6 @@ class AnatelBroadbandPipeline(BasePipeline):
                 {"provider_id": pid, "market_share": round(share, 4), "subscribers": s}
                 for (pid, s), (_, share) in zip(entries, shares)
             ])
-            # Determine threat level based on HHI
             if hhi > 5000:
                 threat = "high"
             elif hhi > 2500:
@@ -232,7 +294,6 @@ class AnatelBroadbandPipeline(BasePipeline):
             ))
 
         if values:
-            # Delete existing competitive_analysis for these months
             months = list(set(ym for _, ym in market_data.keys()))
             cur.execute("DELETE FROM competitive_analysis WHERE year_month = ANY(%s)", (months,))
 

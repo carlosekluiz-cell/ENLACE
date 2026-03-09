@@ -1,27 +1,27 @@
 """SRTM terrain tile download pipeline.
 
-Source: NASA SRTM 1-arc-second (30m resolution)
-URL: https://e4ftl01.cr.usgs.gov/MEASURES/SRTMGL1.003/2000.02.11/
-Alternative: https://dwtkns.com/srtm30m/
-Format: HGT files (3601x3601 int16 big-endian), each covering 1 degree x 1 degree
+Source: OpenTopography S3 (no auth required)
+  - Bucket: raster, prefix: SRTM_GL1/SRTM_GL1_srtm/
+  - Endpoint: https://opentopography.s3.sdsc.edu
+Format: HGT files (3601x3601 int16 big-endian), 1° x 1° tiles
+Resolution: ~30m (SRTM1)
 
-Real download would:
-1. Generate the list of required tiles from Brazil's bounding box
-2. Download each .hgt.zip file from NASA's SRTM server
-3. Store HGT files in MinIO object storage
-4. Register tile metadata in terrain_tiles table
-
-Since we cannot download real tiles, this pipeline registers tile
-metadata for the tiles that cover seed municipality locations.
+Downloads HGT tiles covering all municipalities in the DB,
+uploads to MinIO, and registers metadata in terrain_tiles table.
 """
 import logging
 import math
-import random
+import os
+from pathlib import Path
+
+import boto3
+from botocore import UNSIGNED
+from botocore.config import Config
 
 import pandas as pd
 
 from python.pipeline.base import BasePipeline
-from python.pipeline.config import BRAZIL_BBOX, DataSourceURLs
+from python.pipeline.config import DOWNLOAD_CACHE_DIR, DataSourceURLs, MinIOConfig
 
 logger = logging.getLogger(__name__)
 
@@ -48,31 +48,25 @@ def tile_bbox_wkt(lat: float, lon: float) -> str:
 
 
 class SRTMTerrainPipeline(BasePipeline):
-    """Register SRTM terrain tiles covering seed municipalities."""
+    """Download real SRTM tiles from OpenTopography S3 and store in MinIO."""
 
     def __init__(self):
         super().__init__("srtm_terrain")
         self.urls = DataSourceURLs()
+        self.minio_config = MinIOConfig()
+        self.cache_dir = Path(DOWNLOAD_CACHE_DIR) / "srtm"
 
     def check_for_updates(self) -> bool:
         conn = self._get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM terrain_tiles")
+        cur.execute("SELECT COUNT(*) FROM terrain_tiles WHERE source = 'SRTM1'")
         count = cur.fetchone()[0]
         cur.close()
         conn.close()
-        return count < 10
+        return count < 50
 
     def download(self) -> pd.DataFrame:
-        try:
-            logger.info("Attempting real SRTM tile download...")
-            raise ConnectionError("Real download not available in dev environment")
-        except Exception as e:
-            logger.info(f"Real download failed ({e}), generating tile registry")
-            return self._generate_synthetic()
-
-    def _generate_synthetic(self) -> pd.DataFrame:
-        """Register tiles for all seed municipality locations."""
+        """Determine required tiles and download from OpenTopography S3."""
         conn = self._get_connection()
         cur = conn.cursor()
         cur.execute("""
@@ -86,7 +80,7 @@ class SRTMTerrainPipeline(BasePipeline):
 
         # Determine unique tiles needed
         seen_tiles = set()
-        rows = []
+        tiles_to_download = []
         for lon, lat in centroids:
             if lon is None or lat is None:
                 continue
@@ -94,23 +88,93 @@ class SRTMTerrainPipeline(BasePipeline):
             if tile_name in seen_tiles:
                 continue
             seen_tiles.add(tile_name)
-            bbox_wkt = tile_bbox_wkt(lat, lon)
-            # Simulated file size (~25MB per tile)
-            file_size = random.randint(20_000_000, 30_000_000)
-            rows.append({
+            tiles_to_download.append({
                 "tile_name": tile_name,
-                "filepath": f"terrain/srtm/{tile_name}.hgt",
-                "bbox_wkt": bbox_wkt,
-                "resolution_m": 30.0,
-                "source": "SRTM1",
-                "file_size_bytes": file_size,
+                "lat": lat,
+                "lon": lon,
             })
 
+        logger.info(f"Need {len(tiles_to_download)} SRTM tiles")
+
+        # Set up S3 client for OpenTopography (unsigned/public)
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=self.urls.srtm_s3_endpoint,
+            config=Config(signature_version=UNSIGNED),
+        )
+
+        # Set up MinIO client for upload
+        minio_s3 = boto3.client(
+            "s3",
+            endpoint_url=f"http://{self.minio_config.endpoint}",
+            aws_access_key_id=self.minio_config.access_key,
+            aws_secret_access_key=self.minio_config.secret_key,
+        )
+
+        # Ensure MinIO bucket exists
+        try:
+            minio_s3.head_bucket(Bucket=self.minio_config.bucket_terrain)
+        except Exception:
+            try:
+                minio_s3.create_bucket(Bucket=self.minio_config.bucket_terrain)
+            except Exception as e:
+                logger.warning(f"Could not create MinIO bucket: {e}")
+
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        rows = []
+        downloaded = 0
+        failed = 0
+
+        for tile_info in tiles_to_download:
+            tile_name = tile_info["tile_name"]
+            s3_key = f"{self.urls.srtm_s3_prefix}{tile_name}.hgt"
+            local_path = self.cache_dir / f"{tile_name}.hgt"
+            minio_key = f"srtm/{tile_name}.hgt"
+
+            try:
+                # Download from OpenTopography S3
+                if not local_path.exists():
+                    s3.download_file(
+                        self.urls.srtm_s3_bucket,
+                        s3_key,
+                        str(local_path),
+                    )
+
+                file_size = local_path.stat().st_size
+
+                # Upload to MinIO
+                try:
+                    minio_s3.upload_file(
+                        str(local_path),
+                        self.minio_config.bucket_terrain,
+                        minio_key,
+                    )
+                except Exception as e:
+                    logger.warning(f"MinIO upload failed for {tile_name}: {e}")
+
+                rows.append({
+                    "tile_name": tile_name,
+                    "filepath": f"terrain/{minio_key}",
+                    "bbox_wkt": tile_bbox_wkt(tile_info["lat"], tile_info["lon"]),
+                    "resolution_m": 30.0,
+                    "source": "SRTM1",
+                    "file_size_bytes": file_size,
+                })
+                downloaded += 1
+
+                if downloaded % 10 == 0:
+                    logger.info(f"Downloaded {downloaded} tiles...")
+
+            except Exception as e:
+                logger.warning(f"Could not download SRTM tile {tile_name}: {e}")
+                failed += 1
+
+        logger.info(f"Downloaded {downloaded} tiles, {failed} failed")
         return pd.DataFrame(rows)
 
     def validate_raw(self, data: pd.DataFrame) -> None:
         if data.empty:
-            raise ValueError("No terrain tiles generated")
+            raise ValueError("No terrain tiles downloaded")
         required = ["tile_name", "filepath", "bbox_wkt"]
         missing = set(required) - set(data.columns)
         if missing:
@@ -124,7 +188,6 @@ class SRTMTerrainPipeline(BasePipeline):
         """Insert terrain tile registry entries."""
         conn = self._get_connection()
         cur = conn.cursor()
-        # Clear existing synthetic tiles
         cur.execute("DELETE FROM terrain_tiles WHERE source = 'SRTM1'")
         conn.commit()
 

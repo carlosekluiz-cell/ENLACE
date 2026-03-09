@@ -1,4 +1,4 @@
-// Cliente API para o backend ENLACE
+// Cliente API para o backend Pulso
 import type {
   ApiHealth,
   OpportunityScore,
@@ -19,6 +19,11 @@ import type {
   RegisterRequest,
   RegisterResponse,
   UserProfile,
+  UpdateProfileRequest,
+  ChangePasswordRequest,
+  AdminUser,
+  CreateUserRequest,
+  PipelineRun,
   ValuationRequest,
   ValuationResponse,
   AcquisitionTarget,
@@ -30,10 +35,12 @@ import type {
   CoverageResult,
   OptimizeRequest,
   LinkBudgetRequest,
+  WeatherRisk,
+  MaintenancePriority,
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const TOKEN_KEY = 'enlace_access_token';
+const TOKEN_KEY = 'pulso_access_token';
 
 // ---------------------------------------------------------------------------
 // Helpers de token
@@ -100,13 +107,10 @@ export async function fetchApi<T>(
     headers,
   });
 
-  // 401 — token expirado ou inválido: limpar e redirecionar
+  // 401 — sem permissão. Não redireciona automaticamente;
+  // o AuthContext gerencia o estado de sessão via /auth/me.
   if (res.status === 401) {
-    clearToken();
-    if (typeof window !== 'undefined') {
-      window.location.href = '/login';
-    }
-    throw new ApiError('Sessão expirada. Faça login novamente.', 401);
+    throw new ApiError('Sem permissão.', 401);
   }
 
   if (!res.ok) {
@@ -153,6 +157,16 @@ export const api = {
         body: JSON.stringify(data),
       }),
     me: () => fetchApi<UserProfile>('/api/v1/auth/me'),
+    updateProfile: (data: UpdateProfileRequest) =>
+      fetchApi<UserProfile>('/api/v1/auth/me', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    changePassword: (data: ChangePasswordRequest) =>
+      fetchApi<{ message: string }>('/api/v1/auth/me/password', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
   },
 
   // ── Oportunidades ────────────────────────────────────────────────────
@@ -185,9 +199,9 @@ export const api = {
 
   // ── Conformidade regulatória ─────────────────────────────────────────
   compliance: {
-    status: (providerId: number) =>
+    status: (params: { provider_name: string; state: string; subscribers: number }) =>
       fetchApi<ComplianceStatus>(
-        `/api/v1/compliance/status?provider_id=${providerId}`
+        `/api/v1/compliance/status?provider_name=${encodeURIComponent(params.provider_name)}&state=${params.state}&subscribers=${params.subscribers}`
       ),
     norma4Impact: (state: string, subs: number, revenue: number) =>
       fetchApi<Norma4Impact>(
@@ -195,7 +209,7 @@ export const api = {
       ),
     licensingCheck: (subscriberCount: number) =>
       fetchApi<LicensingCheck>(
-        `/api/v1/compliance/licensing/check?subscriber_count=${subscriberCount}`
+        `/api/v1/compliance/licensing/check?subscribers=${subscriberCount}`
       ),
     deadlines: (daysAhead?: number) =>
       fetchApi<ComplianceDeadline[]>(
@@ -221,7 +235,14 @@ export const api = {
     }) =>
       fetchApi<RuralDesign>('/api/v1/rural/design', {
         method: 'POST',
-        body: JSON.stringify(params),
+        body: JSON.stringify({
+          community_lat: params.latitude,
+          community_lon: params.longitude,
+          population: params.population,
+          area_km2: params.area_km2,
+          has_grid_power: params.has_grid_power,
+          community_name: params.community_name,
+        }),
       }),
     solar: (latitude: number, longitude: number, load_kw: number) =>
       fetchApi<any>(
@@ -265,25 +286,56 @@ export const api = {
   // ── Relatórios ───────────────────────────────────────────────────────
   reports: {
     market: (params: Record<string, any>) =>
-      fetchApi<ReportResult>('/api/v1/report/market', {
+      fetchApi<ReportResult>('/api/v1/reports/market', {
         method: 'POST',
         body: JSON.stringify(params),
       }),
     expansion: (params: Record<string, any>) =>
-      fetchApi<ReportResult>('/api/v1/report/expansion', {
+      fetchApi<ReportResult>('/api/v1/reports/expansion', {
         method: 'POST',
         body: JSON.stringify(params),
       }),
     compliance: (params: Record<string, any>) =>
-      fetchApi<ReportResult>('/api/v1/report/compliance', {
+      fetchApi<ReportResult>('/api/v1/reports/compliance', {
         method: 'POST',
         body: JSON.stringify(params),
       }),
     rural: (params: Record<string, any>) =>
-      fetchApi<ReportResult>('/api/v1/report/rural', {
+      fetchApi<ReportResult>('/api/v1/reports/rural', {
         method: 'POST',
         body: JSON.stringify(params),
       }),
+  },
+
+  // ── Administração ─────────────────────────────────────────────────
+  admin: {
+    listUsers: (params?: Record<string, string>) => {
+      const qs = params ? `?${new URLSearchParams(params)}` : '';
+      return fetchApi<AdminUser[]>(`/api/v1/admin/users${qs}`);
+    },
+    createUser: (data: CreateUserRequest) =>
+      fetchApi<AdminUser>('/api/v1/admin/users', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    updateUser: (id: number, data: Partial<AdminUser>) =>
+      fetchApi<AdminUser>(`/api/v1/admin/users/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    deleteUser: (id: number) =>
+      fetchApi<{ message: string }>(`/api/v1/admin/users/${id}`, {
+        method: 'DELETE',
+      }),
+    listPipelines: (params?: Record<string, string>) => {
+      const qs = params ? `?${new URLSearchParams(params)}` : '';
+      return fetchApi<PipelineRun[]>(`/api/v1/admin/pipelines${qs}`);
+    },
+    triggerPipeline: (name: string) =>
+      fetchApi<{ message: string; run_id: number }>(
+        `/api/v1/admin/pipelines/${name}/run`,
+        { method: 'POST' }
+      ),
   },
 
   // ── Projeto de cobertura RF ──────────────────────────────────────────
@@ -311,6 +363,24 @@ export const api = {
       fetchApi<any>(
         `/api/v1/design/profile?start_lat=${startLat}&start_lon=${startLon}&end_lat=${endLat}&end_lon=${endLon}${stepM ? `&step_m=${stepM}` : ''}`
       ),
+  },
+
+  // ── Saúde da rede ───────────────────────────────────────────────────
+  networkHealth: {
+    weatherRisk: (municipalityId: number) =>
+      fetchApi<WeatherRisk>(
+        `/api/v1/health/weather-risk?municipality_id=${municipalityId}`
+      ),
+    maintenancePriorities: (providerId: number) =>
+      fetchApi<MaintenancePriority[]>(
+        `/api/v1/health/maintenance/priorities?provider_id=${providerId}`
+      ),
+    quality: (municipalityId: number, providerId: number) =>
+      fetchApi<any>(
+        `/api/v1/health/quality/${municipalityId}?provider_id=${providerId}`
+      ),
+    seasonal: (municipalityId: number) =>
+      fetchApi<any>(`/api/v1/health/seasonal/${municipalityId}`),
   },
 
   // ── M&A Intelligence ─────────────────────────────────────────────────

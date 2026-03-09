@@ -4,14 +4,19 @@ Each ISP organization is a tenant.  Public data (Anatel, IBGE) is shared
 across all tenants.  Tenant-specific data (custom analyses, saved reports,
 settings, and user accounts) is isolated by ``tenant_id``.
 
-Tenant storage is currently in-memory for development.  In production
-this would be backed by the PostgreSQL database.
+Tenants are stored in the PostgreSQL ``tenants`` table.  The table is
+auto-created on first access if it does not exist.
 """
 
 import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
+
+import psycopg2
+import psycopg2.extras
+
+from python.api.config import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -50,19 +55,70 @@ PLAN_RATE_LIMITS = {
 
 
 # ---------------------------------------------------------------------------
-# In-memory tenant store (development)
+# Database helpers
 # ---------------------------------------------------------------------------
-_TENANTS: dict[str, Tenant] = {
-    "default": Tenant(
-        id="default",
-        name="ENLACE Development",
-        country_code="BR",
-        primary_state=None,
-        plan="enterprise",
-        rate_limit=600,
-    ),
-}
 
+def _get_connection():
+    """Get a psycopg2 connection using app settings."""
+    settings = Settings()
+    return psycopg2.connect(settings.database_sync_url)
+
+
+def _ensure_table():
+    """Create the tenants table if it does not exist."""
+    conn = _get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tenants (
+            id VARCHAR(100) PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            country_code VARCHAR(10) NOT NULL DEFAULT 'BR',
+            primary_state VARCHAR(10),
+            plan VARCHAR(50) NOT NULL DEFAULT 'free',
+            rate_limit INTEGER NOT NULL DEFAULT 60,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """)
+    # Ensure default tenant exists
+    cur.execute("""
+        INSERT INTO tenants (id, name, country_code, plan, rate_limit)
+        VALUES ('default', 'ENLACE Development', 'BR', 'enterprise', 600)
+        ON CONFLICT (id) DO NOTHING
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+_table_ensured = False
+
+
+def _ensure_table_once():
+    global _table_ensured
+    if not _table_ensured:
+        try:
+            _ensure_table()
+            _table_ensured = True
+        except Exception as e:
+            logger.warning("Could not ensure tenants table: %s", e)
+
+
+def _row_to_tenant(row: dict) -> Tenant:
+    """Convert a database row dict to a Tenant dataclass."""
+    return Tenant(
+        id=row["id"],
+        name=row["name"],
+        country_code=row.get("country_code", "BR"),
+        primary_state=row.get("primary_state"),
+        plan=row.get("plan", "free"),
+        rate_limit=row.get("rate_limit", 60),
+        created_at=str(row.get("created_at", "")),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Public API (same interface as before)
+# ---------------------------------------------------------------------------
 
 def get_tenant(tenant_id: str) -> Tenant | None:
     """Get a tenant by ID.
@@ -73,10 +129,29 @@ def get_tenant(tenant_id: str) -> Tenant | None:
     Returns:
         Tenant instance, or None if not found.
     """
-    tenant = _TENANTS.get(tenant_id)
-    if tenant is None:
-        logger.debug(f"Tenant not found: {tenant_id}")
-    return tenant
+    _ensure_table_once()
+    try:
+        conn = _get_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM tenants WHERE id = %s", (tenant_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row is None:
+            logger.debug("Tenant not found: %s", tenant_id)
+            return None
+        return _row_to_tenant(row)
+    except Exception as e:
+        logger.warning("Error fetching tenant %s: %s", tenant_id, e)
+        # Fallback for default tenant during startup
+        if tenant_id == "default":
+            return Tenant(
+                id="default",
+                name="ENLACE Development",
+                plan="enterprise",
+                rate_limit=600,
+            )
+        return None
 
 
 def create_tenant(
@@ -104,8 +179,20 @@ def create_tenant(
             f"Invalid plan '{plan}'. Must be one of: {list(PLAN_RATE_LIMITS.keys())}"
         )
 
+    _ensure_table_once()
+
     tenant_id = str(uuid.uuid4())[:8]
     rate_limit = PLAN_RATE_LIMITS[plan]
+
+    conn = _get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO tenants (id, name, country_code, primary_state, plan, rate_limit)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (tenant_id, name, country_code, primary_state, plan, rate_limit))
+    conn.commit()
+    cur.close()
+    conn.close()
 
     tenant = Tenant(
         id=tenant_id,
@@ -115,8 +202,6 @@ def create_tenant(
         plan=plan,
         rate_limit=rate_limit,
     )
-
-    _TENANTS[tenant_id] = tenant
 
     logger.info(
         "Created tenant: id=%s, name=%s, plan=%s, rate_limit=%d",
@@ -132,7 +217,18 @@ def list_tenants() -> list[Tenant]:
     Returns:
         List of all Tenant instances.
     """
-    return list(_TENANTS.values())
+    _ensure_table_once()
+    try:
+        conn = _get_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM tenants ORDER BY created_at")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [_row_to_tenant(r) for r in rows]
+    except Exception as e:
+        logger.warning("Error listing tenants: %s", e)
+        return []
 
 
 def delete_tenant(tenant_id: str) -> bool:
@@ -148,9 +244,18 @@ def delete_tenant(tenant_id: str) -> bool:
         logger.warning("Cannot delete the default tenant.")
         return False
 
-    if tenant_id in _TENANTS:
-        del _TENANTS[tenant_id]
-        logger.info("Deleted tenant: %s", tenant_id)
-        return True
-
-    return False
+    _ensure_table_once()
+    try:
+        conn = _get_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM tenants WHERE id = %s", (tenant_id,))
+        deleted = cur.rowcount > 0
+        conn.commit()
+        cur.close()
+        conn.close()
+        if deleted:
+            logger.info("Deleted tenant: %s", tenant_id)
+        return deleted
+    except Exception as e:
+        logger.warning("Error deleting tenant %s: %s", tenant_id, e)
+        return False

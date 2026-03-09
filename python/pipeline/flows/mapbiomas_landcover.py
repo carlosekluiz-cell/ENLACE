@@ -1,74 +1,70 @@
 """MapBiomas land use/cover classification pipeline.
 
-Source: MapBiomas collection
-URL: https://mapbiomas.org/
-Format: Raster classification (GeoTIFF), accessed via GEE or direct download
-Resolution: 30m pixels, annual classification since 1985
+Source: MapBiomas Collection 9, Google Cloud Storage (no auth)
+URL: https://storage.googleapis.com/mapbiomas-public/initiatives/brasil/
+     collection_9/lclu/coverage/brasil_coverage_2023.tif
+Format: GeoTIFF (~2GB)
+Resolution: 30m pixels
 
-Uses H3 hexagonal indexing at resolution 8 (~0.74 km2 per hex) to store
-land cover classifications. Each H3 cell stores the dominant land cover
-type and biome.
-
-Real download would:
-1. Download MapBiomas raster tiles for Brazil
-2. Sample land cover at H3 cell centers
-3. Classify dominant cover type per hex
+Uses rasterio windowed reading to sample land cover at H3 cell centers
+for each municipality's bounding box. Maps MapBiomas integer class codes
+to cover type strings.
 """
 import logging
-import random
+from pathlib import Path
 
 import h3
 import pandas as pd
 
 from python.pipeline.base import BasePipeline
-from python.pipeline.config import DataSourceURLs
+from python.pipeline.config import DOWNLOAD_CACHE_DIR, DataSourceURLs, STATE_ABBREVIATIONS
+from python.pipeline.http_client import PipelineHTTPClient, get_cache_path
 from python.pipeline.loaders.postgres_loader import upsert_batch
 
 logger = logging.getLogger(__name__)
 
-# MapBiomas level-1 classification
-COVER_TYPES = [
-    "forest",
-    "savanna",
-    "grassland",
-    "agriculture",
-    "pasture",
-    "urban",
-    "water",
-    "wetland",
-    "bare_soil",
-    "other_vegetation",
-]
-
-# Brazilian biomes with typical land cover distributions
-BIOME_PROFILES = {
-    "Amazonia": {
-        "covers": ["forest", "water", "agriculture", "pasture", "other_vegetation"],
-        "weights": [0.55, 0.08, 0.12, 0.15, 0.10],
-    },
-    "Cerrado": {
-        "covers": ["savanna", "agriculture", "pasture", "grassland", "forest"],
-        "weights": [0.30, 0.25, 0.20, 0.15, 0.10],
-    },
-    "Mata Atlantica": {
-        "covers": ["forest", "urban", "agriculture", "pasture", "other_vegetation"],
-        "weights": [0.25, 0.20, 0.20, 0.20, 0.15],
-    },
-    "Caatinga": {
-        "covers": ["savanna", "agriculture", "bare_soil", "pasture", "other_vegetation"],
-        "weights": [0.30, 0.20, 0.15, 0.20, 0.15],
-    },
-    "Pampa": {
-        "covers": ["grassland", "agriculture", "pasture", "forest", "wetland"],
-        "weights": [0.30, 0.30, 0.20, 0.10, 0.10],
-    },
-    "Pantanal": {
-        "covers": ["wetland", "grassland", "forest", "water", "pasture"],
-        "weights": [0.30, 0.20, 0.20, 0.15, 0.15],
-    },
+# MapBiomas Collection 9 class codes -> cover type strings
+MAPBIOMAS_CLASSES = {
+    1: "forest",
+    3: "forest",
+    4: "savanna",
+    5: "savanna",
+    6: "forest",        # flooded forest
+    9: "forest",        # forest plantation
+    10: "other_vegetation",
+    11: "wetland",
+    12: "grassland",
+    13: "other_vegetation",
+    14: "agriculture",
+    15: "pasture",
+    18: "agriculture",
+    19: "agriculture",   # temp crop
+    20: "agriculture",   # sugar cane
+    21: "agriculture",   # mosaic
+    22: "bare_soil",
+    23: "bare_soil",
+    24: "urban",
+    25: "bare_soil",
+    26: "water",
+    27: "bare_soil",
+    29: "agriculture",   # soybean
+    30: "agriculture",
+    31: "water",
+    32: "bare_soil",     # salt flat
+    33: "water",
+    36: "agriculture",   # perennial crop
+    39: "agriculture",   # soybean
+    40: "agriculture",   # rice
+    41: "agriculture",   # other temp
+    46: "agriculture",   # coffee
+    47: "agriculture",   # citrus
+    48: "agriculture",   # other perennial
+    49: "forest",        # wooded sandbank
+    50: "other_vegetation",
+    62: "agriculture",   # cotton
 }
 
-# Map municipality states to approximate biomes
+# State -> biome mapping (simplified)
 STATE_BIOME = {
     "AM": "Amazonia", "PA": "Amazonia", "RO": "Amazonia", "RR": "Amazonia",
     "AC": "Amazonia", "AP": "Amazonia", "TO": "Cerrado",
@@ -82,7 +78,7 @@ STATE_BIOME = {
 
 
 class MapBiomasLandCoverPipeline(BasePipeline):
-    """Ingest MapBiomas land cover data indexed by H3 cells."""
+    """Ingest real MapBiomas land cover data from GCS."""
 
     def __init__(self):
         super().__init__("mapbiomas_landcover")
@@ -91,26 +87,26 @@ class MapBiomasLandCoverPipeline(BasePipeline):
     def check_for_updates(self) -> bool:
         conn = self._get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM land_cover")
+        cur.execute("SELECT COUNT(*) FROM land_cover WHERE source = 'mapbiomas'")
         count = cur.fetchone()[0]
         cur.close()
         conn.close()
-        return count < 100
+        return count < 1000
 
     def download(self) -> pd.DataFrame:
-        try:
-            logger.info("Attempting real MapBiomas download...")
-            raise ConnectionError("Real download not available in dev environment")
-        except Exception as e:
-            logger.info(f"Real download failed ({e}), generating synthetic data")
-            return self._generate_synthetic()
+        """Download MapBiomas GeoTIFF and sample at H3 cell centers."""
+        # Download the GeoTIFF
+        cache_path = get_cache_path("brasil_coverage_2023.tif")
 
-    def _generate_synthetic(self) -> pd.DataFrame:
-        """Generate land cover data for H3 cells around seed municipalities."""
+        with PipelineHTTPClient(timeout=1800) as http:
+            logger.info("Downloading MapBiomas GeoTIFF (~2GB)...")
+            http.download_file(self.urls.mapbiomas_gcs, cache_path)
+
+        # Get municipality centroids and state codes for biome mapping
         conn = self._get_connection()
         cur = conn.cursor()
         cur.execute("""
-            SELECT al2.id, al2.code,
+            SELECT al2.id,
                    ST_X(al2.centroid::geometry) as lon,
                    ST_Y(al2.centroid::geometry) as lat,
                    al1.code as state_code
@@ -122,43 +118,60 @@ class MapBiomasLandCoverPipeline(BasePipeline):
         cur.close()
         conn.close()
 
-        random.seed(47)
+        # Sample raster at H3 cell centers
+        try:
+            import rasterio
+            from rasterio.transform import rowcol
+        except ImportError:
+            logger.error("rasterio is required for MapBiomas pipeline. Install with: pip install rasterio")
+            raise
+
         rows = []
         seen_h3 = set()
 
-        for l2_id, code, lon, lat, state_code in municipalities:
-            if lon is None or lat is None:
-                continue
+        with rasterio.open(str(cache_path)) as dataset:
+            logger.info(f"Raster: {dataset.width}x{dataset.height}, CRS={dataset.crs}")
 
-            # Determine biome based on state
-            state_abbr = state_code[:2] if len(state_code) >= 2 else "SP"
-            biome = STATE_BIOME.get(state_abbr, "Cerrado")
-            profile = BIOME_PROFILES.get(biome, BIOME_PROFILES["Cerrado"])
-
-            # Get H3 cell at resolution 8 for the centroid
-            center_h3 = h3.geo_to_h3(lat, lon, 8)
-            # Get k-ring of radius 2 (about 19 cells)
-            ring_cells = h3.k_ring(center_h3, 2)
-
-            for h3_index in ring_cells:
-                if h3_index in seen_h3:
+            for l2_id, lon, lat, state_code in municipalities:
+                if lon is None or lat is None:
                     continue
-                seen_h3.add(h3_index)
 
-                cover = random.choices(
-                    profile["covers"], weights=profile["weights"]
-                )[0]
-                cover_pct = round(random.uniform(40, 95), 1)
+                state_abbr = STATE_ABBREVIATIONS.get(str(state_code), "SP")
+                biome = STATE_BIOME.get(state_abbr, "Cerrado")
 
-                rows.append({
-                    "h3_index": h3_index,
-                    "cover_type": cover,
-                    "biome": biome,
-                    "cover_pct": cover_pct,
-                    "year": 2023,
-                    "source": "mapbiomas_synthetic",
-                })
+                # Get H3 cells around the centroid
+                center_h3 = h3.geo_to_h3(lat, lon, 8)
+                ring_cells = h3.k_ring(center_h3, 2)
 
+                for h3_index in ring_cells:
+                    if h3_index in seen_h3:
+                        continue
+                    seen_h3.add(h3_index)
+
+                    # Get H3 cell center
+                    cell_lat, cell_lon = h3.h3_to_geo(h3_index)
+
+                    try:
+                        row_idx, col_idx = rowcol(dataset.transform, cell_lon, cell_lat)
+                        if (0 <= row_idx < dataset.height and 0 <= col_idx < dataset.width):
+                            # Read single pixel using windowed read
+                            window = rasterio.windows.Window(col_idx, row_idx, 1, 1)
+                            pixel = dataset.read(1, window=window)
+                            class_code = int(pixel[0, 0])
+
+                            cover_type = MAPBIOMAS_CLASSES.get(class_code, "other_vegetation")
+                            rows.append({
+                                "h3_index": h3_index,
+                                "cover_type": cover_type,
+                                "biome": biome,
+                                "cover_pct": 100.0,  # Dominant class at cell center
+                                "year": 2023,
+                                "source": "mapbiomas",
+                            })
+                    except Exception:
+                        continue
+
+        logger.info(f"Sampled {len(rows)} H3 cells from MapBiomas raster")
         return pd.DataFrame(rows)
 
     def validate_raw(self, data: pd.DataFrame) -> None:
@@ -167,7 +180,7 @@ class MapBiomasLandCoverPipeline(BasePipeline):
         if missing:
             raise ValueError(f"Missing columns: {missing}")
         if data.empty:
-            raise ValueError("Empty dataset")
+            raise ValueError("Empty land cover dataset")
         # Validate H3 indices
         invalid = data[~data["h3_index"].apply(h3.h3_is_valid)]
         if len(invalid) > 0:
@@ -179,10 +192,13 @@ class MapBiomasLandCoverPipeline(BasePipeline):
 
     def load(self, data: pd.DataFrame) -> None:
         """Insert land cover records."""
-        # Clear existing synthetic data
+        if data.empty:
+            logger.warning("No land cover data to load")
+            return
+
         conn = self._get_connection()
         cur = conn.cursor()
-        cur.execute("DELETE FROM land_cover WHERE source = 'mapbiomas_synthetic'")
+        cur.execute("DELETE FROM land_cover WHERE source = 'mapbiomas'")
         conn.commit()
         cur.close()
         conn.close()

@@ -2,23 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ENLACE custom theme */
+/* Pulso design tokens — UNCODIXFY-PULSO spec */
 :root {
-  --enlace-primary: #2563eb;
-  --enlace-secondary: #7c3aed;
-  --enlace-accent: #06b6d4;
-  --enlace-bg: #0f172a;
-  --enlace-surface: #1e293b;
-  --enlace-text: #f8fafc;
-  --enlace-border: #334155;
-  --enlace-muted: #94a3b8;
+  --bg-primary: #f9fafb;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --accent: #0f766e;
+  --accent-hover: #0d9488;
+  --accent-subtle: #f0fdfa;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --success: #059669;
 }
 
-/* Base styles */
-body {
-  background-color: var(--enlace-bg);
-  color: var(--enlace-text);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+.dark {
+  --bg-primary: #0f0f0f;
+  --bg-surface: #1a1a1a;
+  --bg-subtle: #262626;
+  --text-primary: #f5f5f5;
+  --text-secondary: #a3a3a3;
+  --text-muted: #737373;
+  --accent: #2dd4bf;
+  --accent-hover: #5eead4;
+  --accent-subtle: #1a2e2b;
+  --border: #2a2a2a;
+  --border-strong: #404040;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --success: #10b981;
 }
 
 /* Custom scrollbar */
@@ -28,67 +44,131 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--enlace-bg);
+  background: var(--bg-primary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--enlace-border);
+  background: var(--border-strong);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--enlace-muted);
+  background: var(--text-muted);
 }
 
-/* MapLibre GL overrides for dark theme */
+/* MapLibre GL overrides */
 .maplibregl-popup-content {
-  background: var(--enlace-surface) !important;
-  color: var(--enlace-text) !important;
-  border: 1px solid var(--enlace-border) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
+  background: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+}
+
+.dark .maplibregl-popup-content {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
 }
 
 .maplibregl-popup-tip {
-  border-top-color: var(--enlace-surface) !important;
+  border-top-color: var(--bg-surface) !important;
 }
 
-/* Utility classes */
+/* Progress bar — the ONLY loading indicator */
+@keyframes progress-bar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.pulso-progress-bar {
+  height: 2px;
+  background: var(--accent);
+  animation: progress-bar 1.5s ease-in-out infinite;
+}
+
+/* SidePanel slide — the ONLY animation */
+.pulso-panel-enter {
+  transform: translateX(100%);
+}
+.pulso-panel-active {
+  transform: translateX(0);
+  transition: transform 150ms ease;
+}
+
+/* Utility classes — Pulso design system */
 @layer components {
-  .enlace-card {
-    @apply rounded-lg border border-slate-700 bg-slate-800 p-4 shadow-lg;
+  .pulso-card {
+    @apply rounded-lg border p-4;
+    border-color: var(--border);
+    background: var(--bg-surface);
   }
 
-  .enlace-input {
-    @apply rounded-md border border-slate-600 bg-slate-700 px-3 py-2 text-sm text-slate-100
-           placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500;
+  .pulso-input {
+    @apply px-3 py-2 text-sm focus:outline-none focus:ring-1;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    placeholder-color: var(--text-muted);
   }
 
-  .enlace-btn-primary {
-    @apply rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white
-           hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-           focus:ring-offset-slate-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  .pulso-input:focus {
+    border-color: var(--accent);
+    ring-color: var(--accent);
   }
 
-  .enlace-btn-secondary {
-    @apply rounded-md border border-slate-600 bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200
-           hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2
-           focus:ring-offset-slate-900 transition-colors;
+  .pulso-input::placeholder {
+    color: var(--text-muted);
   }
 
-  .enlace-badge {
+  .pulso-btn-primary {
+    @apply px-4 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    height: 36px;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #ffffff;
+  }
+
+  .pulso-btn-primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+  }
+
+  .pulso-btn-primary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .pulso-btn-secondary {
+    @apply px-4 text-sm font-medium transition-colors;
+    height: 36px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+  }
+
+  .pulso-btn-secondary:hover {
+    background: var(--bg-subtle);
+  }
+
+  .pulso-badge {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
 
-  .enlace-badge-green {
-    @apply enlace-badge bg-green-900/50 text-green-400 ring-1 ring-green-500/30;
+  .pulso-badge-green {
+    @apply pulso-badge;
+    background: color-mix(in srgb, var(--success) 15%, transparent);
+    color: var(--success);
   }
 
-  .enlace-badge-yellow {
-    @apply enlace-badge bg-yellow-900/50 text-yellow-400 ring-1 ring-yellow-500/30;
+  .pulso-badge-yellow {
+    @apply pulso-badge;
+    background: color-mix(in srgb, var(--warning) 15%, transparent);
+    color: var(--warning);
   }
 
-  .enlace-badge-red {
-    @apply enlace-badge bg-red-900/50 text-red-400 ring-1 ring-red-500/30;
+  .pulso-badge-red {
+    @apply pulso-badge;
+    background: color-mix(in srgb, var(--danger) 15%, transparent);
+    color: var(--danger);
   }
 }

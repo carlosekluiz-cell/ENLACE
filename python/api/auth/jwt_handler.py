@@ -13,7 +13,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -144,12 +144,13 @@ def create_access_token(
         Encoded JWT string.
     """
     to_encode = data.copy()
-    expire = datetime.utcnow() + (
+    now = datetime.now(timezone.utc)
+    expire = now + (
         expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode.update({
         "exp": int(expire.timestamp()),
-        "iat": int(datetime.utcnow().timestamp()),
+        "iat": int(now.timestamp()),
     })
 
     if _BACKEND == "jose":

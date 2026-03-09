@@ -1,28 +1,36 @@
 """
 ENLACE Auth Router
 
-Authentication and user management endpoints. Provides login, registration,
-and user profile retrieval. Uses JWT tokens for session management.
-
-In development mode, login accepts any email/password combination and
-generates a valid token. In production, this would integrate with a
-proper user database and password hashing.
+Authentication and user management endpoints with real database backing.
+Uses bcrypt password hashing and JWT tokens with persistent user records.
+Dev mode auto-creates user on first login.
 """
 
-import dataclasses
 import logging
+import os
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from passlib.context import CryptContext
 
 from python.api.auth.jwt_handler import create_access_token
 from python.api.auth.dependencies import get_current_user, require_auth
 from python.api.auth.tenant import create_tenant, get_tenant, Tenant
+from python.api.database import get_db
+from python.api.models.orm import User
+import dataclasses
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+DEV_MODE = os.getenv("DEV_MODE", "1").strip().lower() in ("1", "true", "yes")
 
 
 # ---------------------------------------------------------------------------
@@ -30,32 +38,29 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 # ---------------------------------------------------------------------------
 
 class TokenRequest(BaseModel):
-    """Login request body."""
     email: str = Field(..., description="User email address")
     password: str = Field(..., description="User password")
 
 
 class TokenResponse(BaseModel):
-    """Login response with JWT token."""
     access_token: str
     token_type: str = "bearer"
     user_id: str
     email: str
     tenant_id: str
     role: str
+    full_name: str
 
 
 class RegisterRequest(BaseModel):
-    """Registration request body."""
     email: str = Field(..., description="User email address")
     password: str = Field(..., min_length=6, description="User password (min 6 chars)")
     name: str = Field(..., min_length=1, description="User display name")
     organization: str = Field(..., min_length=1, description="Organization / ISP name")
-    state_code: Optional[str] = Field(None, min_length=2, max_length=2, description="Primary state code")
+    state_code: Optional[str] = Field(None, min_length=2, max_length=2)
 
 
 class RegisterResponse(BaseModel):
-    """Registration response."""
     user_id: str
     email: str
     tenant_id: str
@@ -64,14 +69,27 @@ class RegisterResponse(BaseModel):
     token_type: str = "bearer"
 
 
-class UserProfile(BaseModel):
-    """User profile response."""
+class UserProfileResponse(BaseModel):
     user_id: str
     email: str
+    full_name: str
     tenant_id: str
     role: str
     anonymous: bool
+    is_active: bool = True
+    preferences: dict = {}
     tenant: Optional[dict] = None
+
+
+class UpdateProfileRequest(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    preferences: Optional[dict] = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=6)
 
 
 # ---------------------------------------------------------------------------
@@ -79,10 +97,19 @@ class UserProfile(BaseModel):
 # ---------------------------------------------------------------------------
 
 def _tenant_to_dict(tenant: Tenant) -> dict:
-    """Convert a Tenant dataclass to a dict."""
     if dataclasses.is_dataclass(tenant) and not isinstance(tenant, type):
         return {f.name: getattr(tenant, f.name) for f in dataclasses.fields(tenant)}
     return {}
+
+
+def _make_token(user: User) -> str:
+    return create_access_token(data={
+        "sub": str(user.id),
+        "email": user.email,
+        "tenant_id": user.tenant_id,
+        "role": user.role,
+        "full_name": user.full_name,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -90,62 +117,58 @@ def _tenant_to_dict(tenant: Tenant) -> dict:
 # ---------------------------------------------------------------------------
 
 @router.post("/login", response_model=TokenResponse)
-async def login(request: TokenRequest):
+async def login(request: TokenRequest, db: AsyncSession = Depends(get_db)):
     """Authenticate and return a JWT token.
 
-    In development mode (DEV_MODE=1 or default), accepts any email/password.
-    In production (DEV_MODE=0), rejects all logins until a real user store
-    is integrated.
+    Verifies credentials against users table. In dev mode, auto-creates
+    the user on first login if they don't exist.
     """
-    import os
+    result = await db.execute(select(User).where(User.email == request.email))
+    user = result.scalar_one_or_none()
 
-    dev_mode = os.getenv("DEV_MODE", "1").strip().lower() in ("1", "true", "yes")
-
-    if not dev_mode:
-        raise HTTPException(
-            status_code=501,
-            detail="Production authentication not configured. Set DEV_MODE=1 for development.",
+    if user is None and DEV_MODE:
+        # Auto-create user in dev mode
+        user = User(
+            email=request.email,
+            password_hash=pwd_context.hash(request.password),
+            full_name=request.email.split("@")[0].replace(".", " ").title(),
+            role="admin",
+            tenant_id="default",
+            is_active=True,
         )
+        db.add(user)
+        await db.flush()
+        logger.info("Dev mode: auto-created user %s (id=%s)", request.email, user.id)
 
-    logger.info("Login attempt for: %s (dev mode)", request.email)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais inválidas")
 
-    # Derive a stable user_id from email for consistency
-    user_id = request.email.split("@")[0].replace(".", "_")
+    if not DEV_MODE and not pwd_context.verify(request.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais inválidas")
 
-    # Check if user has a tenant, default otherwise
-    tenant_id = "default"
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Conta desativada")
 
-    token_data = {
-        "sub": user_id,
-        "email": request.email,
-        "tenant_id": tenant_id,
-        "role": "admin",  # Development default
-    }
-
-    access_token = create_access_token(data=token_data)
-
-    logger.info("Login successful for: %s (user_id=%s)", request.email, user_id)
-
+    token = _make_token(user)
     return TokenResponse(
-        access_token=access_token,
-        token_type="bearer",
-        user_id=user_id,
-        email=request.email,
-        tenant_id=tenant_id,
-        role="admin",
+        access_token=token,
+        user_id=str(user.id),
+        email=user.email,
+        tenant_id=user.tenant_id,
+        role=user.role,
+        full_name=user.full_name,
     )
 
 
 @router.post("/register", response_model=RegisterResponse)
-async def register(request: RegisterRequest):
-    """Register a new user and create a tenant for the organization.
+async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    """Register a new user and create a tenant for the organization."""
+    # Check if email already exists
+    result = await db.execute(select(User).where(User.email == request.email))
+    if result.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=400, detail="Email já cadastrado")
 
-    Creates a new tenant for the organization and returns a JWT token
-    for immediate API access.
-    """
-    logger.info("Registration attempt: %s, org=%s", request.email, request.organization)
-
-    # Create a tenant for the organization
+    # Create tenant
     try:
         tenant = create_tenant(
             name=request.organization,
@@ -153,57 +176,116 @@ async def register(request: RegisterRequest):
             primary_state=request.state_code,
             plan="free",
         )
-    except ValueError as e:
-        logger.warning("Tenant creation validation error: %s", e)
-        raise HTTPException(status_code=400, detail="Invalid registration parameters")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Parâmetros de registro inválidos")
 
-    # Derive user_id from email
-    user_id = request.email.split("@")[0].replace(".", "_")
-
-    # Create access token
-    token_data = {
-        "sub": user_id,
-        "email": request.email,
-        "tenant_id": tenant.id,
-        "role": "admin",  # First user of a tenant is admin
-    }
-
-    access_token = create_access_token(data=token_data)
-
-    logger.info(
-        "Registration successful: user=%s, tenant=%s, org=%s",
-        user_id, tenant.id, request.organization,
+    user = User(
+        email=request.email,
+        password_hash=pwd_context.hash(request.password),
+        full_name=request.name,
+        role="admin",  # First user of a tenant is admin
+        tenant_id=tenant.id,
+        is_active=True,
     )
+    db.add(user)
+    await db.flush()
+
+    token = _make_token(user)
+    logger.info("Registration: user=%s, tenant=%s", user.id, tenant.id)
 
     return RegisterResponse(
-        user_id=user_id,
-        email=request.email,
+        user_id=str(user.id),
+        email=user.email,
         tenant_id=tenant.id,
         organization=request.organization,
-        access_token=access_token,
-        token_type="bearer",
+        access_token=token,
     )
 
 
-@router.get("/me", response_model=UserProfile)
-async def get_me(user: dict = Depends(require_auth)):
-    """Get current user profile.
+@router.get("/me", response_model=UserProfileResponse)
+async def get_me(user: dict = Depends(require_auth), db: AsyncSession = Depends(get_db)):
+    """Get current user profile from DB."""
+    result = await db.execute(select(User).where(User.id == int(user["user_id"])))
+    db_user = result.scalar_one_or_none()
 
-    Returns the authenticated user's profile including tenant information.
-    Requires a valid JWT token — returns 401 if unauthenticated.
-    """
+    if db_user is None:
+        # Fallback for JWT-only users (dev mode legacy)
+        return UserProfileResponse(
+            user_id=user.get("user_id", "unknown"),
+            email=user.get("email", ""),
+            full_name=user.get("full_name", user.get("email", "").split("@")[0]),
+            tenant_id=user.get("tenant_id", "default"),
+            role=user.get("role", "viewer"),
+            anonymous=False,
+        )
+
     tenant_dict = None
-    tenant_id = user.get("tenant_id")
-    if tenant_id:
-        tenant = get_tenant(tenant_id)
-        if tenant is not None:
-            tenant_dict = _tenant_to_dict(tenant)
+    tenant = get_tenant(db_user.tenant_id)
+    if tenant is not None:
+        tenant_dict = _tenant_to_dict(tenant)
 
-    return UserProfile(
-        user_id=user.get("user_id", "unknown"),
-        email=user.get("email", ""),
-        tenant_id=user.get("tenant_id", "default"),
-        role=user.get("role", "viewer"),
-        anonymous=user.get("anonymous", True),
+    return UserProfileResponse(
+        user_id=str(db_user.id),
+        email=db_user.email,
+        full_name=db_user.full_name,
+        tenant_id=db_user.tenant_id,
+        role=db_user.role,
+        anonymous=False,
+        is_active=db_user.is_active,
+        preferences=db_user.preferences or {},
         tenant=tenant_dict,
     )
+
+
+@router.put("/me", response_model=UserProfileResponse)
+async def update_profile(
+    body: UpdateProfileRequest,
+    user: dict = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update current user's profile."""
+    result = await db.execute(select(User).where(User.id == int(user["user_id"])))
+    db_user = result.scalar_one_or_none()
+    if db_user is None:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+    if body.full_name is not None:
+        db_user.full_name = body.full_name
+    if body.email is not None:
+        db_user.email = body.email
+    if body.preferences is not None:
+        db_user.preferences = body.preferences
+
+    await db.flush()
+
+    return UserProfileResponse(
+        user_id=str(db_user.id),
+        email=db_user.email,
+        full_name=db_user.full_name,
+        tenant_id=db_user.tenant_id,
+        role=db_user.role,
+        anonymous=False,
+        is_active=db_user.is_active,
+        preferences=db_user.preferences or {},
+    )
+
+
+@router.put("/me/password")
+async def change_password(
+    body: ChangePasswordRequest,
+    user: dict = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change current user's password."""
+    result = await db.execute(select(User).where(User.id == int(user["user_id"])))
+    db_user = result.scalar_one_or_none()
+    if db_user is None:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+    if not pwd_context.verify(body.current_password, db_user.password_hash):
+        raise HTTPException(status_code=400, detail="Senha atual incorreta")
+
+    db_user.password_hash = pwd_context.hash(body.new_password)
+    await db.flush()
+
+    return {"message": "Senha alterada com sucesso"}

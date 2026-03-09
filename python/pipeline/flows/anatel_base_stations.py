@@ -1,36 +1,94 @@
 """Anatel base station (ERB) registry pipeline.
 
-Source: Anatel STEL system
-URL: https://sistemas.anatel.gov.br/se/public/view/b/stel.php
-Format: CSV export from STEL database
+Source: Anatel open data on dados.gov.br (CKAN)
+Dataset: "licenciamento"
+Format: CSV (semicolon-delimited, ISO-8859-1)
 Fields: NumEstacao, Latitude, Longitude, Tecnologia, FreqMHz, Operadora, etc.
 
-Real download would fetch the STEL CSV export and parse station coordinates,
-technology types, frequency bands, and provider assignments.
+Downloads the full licensing CSV, parses DMS coordinates to decimal,
+maps technology codes, and loads station locations.
 """
 import logging
-import random
-import uuid
+import re
 
 import pandas as pd
 
 from python.pipeline.base import BasePipeline
 from python.pipeline.config import DataSourceURLs
+from python.pipeline.http_client import PipelineHTTPClient
 from python.pipeline.loaders.postgres_loader import upsert_batch
 
 logger = logging.getLogger(__name__)
 
-# Common frequencies for mobile technologies in Brazil
-FREQ_TECH_MAP = {
-    "2G": {"freqs": [850, 900, 1800], "power": (20, 40)},
-    "3G": {"freqs": [850, 1900, 2100], "power": (20, 40)},
-    "4G": {"freqs": [700, 1800, 2600], "power": (20, 60)},
-    "5G": {"freqs": [700, 2300, 3500], "power": (10, 40)},
+# Map Anatel technology codes to standard labels
+ANATEL_TECH_MAP = {
+    "LTE": "4G",
+    "4G": "4G",
+    "NR": "5G",
+    "5G": "5G",
+    "WCDMA": "3G",
+    "UMTS": "3G",
+    "3G": "3G",
+    "GSM": "2G",
+    "CDMA": "2G",
+    "2G": "2G",
 }
 
 
+def dms_to_decimal(dms_str: str) -> float | None:
+    """Convert Anatel DMS coordinate string to decimal degrees.
+
+    Handles formats like:
+      - 23°32'15"S or 23°32'15.5"S
+      - -23.5375 (already decimal)
+      - 23 32 15 S
+    """
+    if not dms_str or str(dms_str).strip() in ("", "nan", "None"):
+        return None
+
+    dms_str = str(dms_str).strip()
+
+    # Already decimal
+    try:
+        val = float(dms_str)
+        return val
+    except ValueError:
+        pass
+
+    # DMS pattern: degrees°minutes'seconds"direction
+    pattern = r"(\d+)[°º]\s*(\d+)['\u2019]\s*([\d.]+)[\"″]?\s*([NSEW]?)"
+    match = re.match(pattern, dms_str, re.IGNORECASE)
+    if match:
+        degrees = int(match.group(1))
+        minutes = int(match.group(2))
+        seconds = float(match.group(3))
+        direction = match.group(4).upper()
+
+        decimal = degrees + minutes / 60 + seconds / 3600
+        if direction in ("S", "W"):
+            decimal = -decimal
+        return decimal
+
+    # Space-separated: "23 32 15 S"
+    parts = dms_str.split()
+    if len(parts) >= 3:
+        try:
+            degrees = int(parts[0])
+            minutes = int(parts[1])
+            seconds = float(parts[2])
+            direction = parts[3].upper() if len(parts) > 3 else ""
+            decimal = degrees + minutes / 60 + seconds / 3600
+            if direction in ("S", "W"):
+                decimal = -decimal
+            return decimal
+        except (ValueError, IndexError):
+            pass
+
+    return None
+
+
 class AnatelBaseStationsPipeline(BasePipeline):
-    """Ingest Anatel base station registry data."""
+    """Ingest real Anatel base station registry from CKAN."""
 
     def __init__(self):
         super().__init__("anatel_base_stations")
@@ -43,127 +101,146 @@ class AnatelBaseStationsPipeline(BasePipeline):
         count = cur.fetchone()[0]
         cur.close()
         conn.close()
-        return count < 100  # Need at least 100 stations
+        return count < 1000
 
     def download(self) -> pd.DataFrame:
-        try:
-            logger.info("Attempting real Anatel base station download...")
-            raise ConnectionError("Real download not available in dev environment")
-        except Exception as e:
-            logger.info(f"Real download failed ({e}), generating synthetic data")
-            return self._generate_synthetic()
+        """Download base station CSV from dados.gov.br CKAN."""
+        with PipelineHTTPClient(timeout=600) as http:
+            logger.info("Resolving Anatel base stations CKAN resource URL...")
+            csv_url = http.resolve_ckan_resource_url(
+                self.urls.anatel_base_stations_dataset,
+                resource_format="CSV",
+                ckan_base=self.urls.anatel_ckan_base,
+            )
+            logger.info(f"Downloading base stations CSV from {csv_url}")
+            df = http.get_csv(csv_url, sep=";", encoding="iso-8859-1")
+            logger.info(f"Downloaded {len(df)} base station records")
 
-    def _generate_synthetic(self) -> pd.DataFrame:
-        """Generate realistic base station data near seed municipalities."""
+        return df
+
+    def validate_raw(self, data: pd.DataFrame) -> None:
+        if data.empty:
+            raise ValueError("Empty base stations CSV")
+        logger.info(f"Base stations CSV columns: {list(data.columns)}")
+
+    def transform(self, raw_data: pd.DataFrame) -> pd.DataFrame:
+        """Parse coordinates, map technology, filter to Brazil bounds."""
+        df = raw_data.copy()
+        df.columns = [c.strip() for c in df.columns]
+
+        # Find column names
+        col_map = {}
+        for c in df.columns:
+            cl = c.lower()
+            if "latitude" in cl or cl == "lat":
+                col_map["lat"] = c
+            elif "longitude" in cl or cl == "lon":
+                col_map["lon"] = c
+            elif "estacao" in cl or "estação" in cl or "numesta" in cl:
+                col_map["station_id"] = c
+            elif "tecnologia" in cl or "tech" in cl:
+                col_map["tech"] = c
+            elif "freq" in cl:
+                col_map.setdefault("freq", c)
+            elif "cnpj" in cl or "operadora" in cl:
+                col_map.setdefault("operator", c)
+
+        # Build provider lookup
         conn = self._get_connection()
         cur = conn.cursor()
-        cur.execute("""
-            SELECT al2.id, al2.code, al2.name,
-                   ST_X(al2.centroid::geometry) as lon,
-                   ST_Y(al2.centroid::geometry) as lat
-            FROM admin_level_2 al2
-            WHERE al2.country_code = 'BR' AND al2.centroid IS NOT NULL
-        """)
-        municipalities = cur.fetchall()
-        # Only use major providers for base stations (top 4 + some regionals)
-        cur.execute("SELECT id, name FROM providers WHERE country_code = 'BR' AND classification IN ('PGP', 'PMP') LIMIT 10")
-        providers = cur.fetchall()
+        cur.execute("SELECT national_id, id FROM providers WHERE country_code = 'BR'")
+        cnpj_to_provider = {nid: pid for nid, pid in cur.fetchall()}
+        # Fallback: get a default provider
+        cur.execute("SELECT id FROM providers WHERE country_code = 'BR' LIMIT 1")
+        default_provider = cur.fetchone()
+        default_provider_id = default_provider[0] if default_provider else None
         cur.close()
         conn.close()
 
-        random.seed(43)
         rows = []
-        techs = list(FREQ_TECH_MAP.keys())
-        tech_weights = [0.05, 0.15, 0.55, 0.25]  # 4G dominant
+        for _, row in df.iterrows():
+            # Parse coordinates
+            lat = dms_to_decimal(str(row.get(col_map.get("lat", ""), "")))
+            lon = dms_to_decimal(str(row.get(col_map.get("lon", ""), "")))
 
-        for l2_id, code, mun_name, lon, lat in municipalities:
-            if lon is None or lat is None:
+            if lat is None or lon is None:
                 continue
-            # 5-15 stations per municipality
-            num_stations = random.randint(5, 15)
-            for _ in range(num_stations):
-                prov_id, prov_name = random.choice(providers)
-                tech = random.choices(techs, weights=tech_weights)[0]
-                freq_info = FREQ_TECH_MAP[tech]
-                freq = random.choice(freq_info["freqs"])
-                power = random.uniform(*freq_info["power"])
 
-                # Random offset from centroid (up to ~5km)
-                st_lat = lat + random.uniform(-0.05, 0.05)
-                st_lon = lon + random.uniform(-0.05, 0.05)
+            # Validate Brazil bounds
+            if not (-34.0 <= lat <= 6.0 and -74.0 <= lon <= -28.0):
+                continue
 
-                station_id = f"ERB-{code}-{uuid.uuid4().hex[:8].upper()}"
-                rows.append({
-                    "country_code": "BR",
-                    "provider_id": prov_id,
-                    "station_id": station_id,
-                    "latitude": round(st_lat, 6),
-                    "longitude": round(st_lon, 6),
-                    "technology": tech,
-                    "frequency_mhz": freq,
-                    "bandwidth_mhz": random.choice([5, 10, 15, 20]),
-                    "antenna_height_m": random.uniform(15, 60),
-                    "azimuth_degrees": random.uniform(0, 360),
-                    "mechanical_tilt": random.uniform(0, 15),
-                    "power_watts": round(power, 1),
-                    "authorization_date": f"20{random.randint(15, 25):02d}-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}",
-                    "status": "active",
-                })
+            station_id = str(row.get(col_map.get("station_id", ""), "")).strip()
+            if not station_id or station_id == "nan":
+                continue
 
+            # Map technology
+            tech_raw = str(row.get(col_map.get("tech", ""), "")).strip().upper()
+            technology = ANATEL_TECH_MAP.get(tech_raw, "4G")
+
+            # Map frequency
+            freq_raw = str(row.get(col_map.get("freq", ""), "")).strip()
+            try:
+                frequency_mhz = int(float(freq_raw))
+            except (ValueError, TypeError):
+                frequency_mhz = 0
+
+            # Map operator to provider
+            operator = str(row.get(col_map.get("operator", ""), "")).strip()
+            provider_id = cnpj_to_provider.get(operator, default_provider_id)
+            if provider_id is None:
+                continue
+
+            rows.append({
+                "country_code": "BR",
+                "provider_id": provider_id,
+                "station_id": station_id,
+                "latitude": round(lat, 6),
+                "longitude": round(lon, 6),
+                "technology": technology,
+                "frequency_mhz": frequency_mhz,
+                "status": "active",
+            })
+
+        self.rows_processed = len(rows)
+        logger.info(f"Transformed {len(rows)} base stations within Brazil bounds")
         return pd.DataFrame(rows)
 
-    def validate_raw(self, data: pd.DataFrame) -> None:
-        required = ["latitude", "longitude", "technology", "provider_id"]
-        missing = set(required) - set(data.columns)
-        if missing:
-            raise ValueError(f"Missing columns: {missing}")
-        if data.empty:
-            raise ValueError("Empty dataset")
-        # Validate coordinates are in Brazil
-        out_of_bounds = data[
-            (data["latitude"] < -34) | (data["latitude"] > 6) |
-            (data["longitude"] < -74) | (data["longitude"] > -28)
-        ]
-        if len(out_of_bounds) > 0:
-            logger.warning(f"{len(out_of_bounds)} stations outside Brazil bounds")
-
-    def transform(self, raw_data: pd.DataFrame) -> pd.DataFrame:
-        df = raw_data.copy()
-        # Add PostGIS geometry WKT
-        df["geom_wkt"] = df.apply(
-            lambda r: f"SRID=4326;POINT({r['longitude']} {r['latitude']})", axis=1
-        )
-        self.rows_processed = len(df)
-        return df
-
     def load(self, data: pd.DataFrame) -> None:
-        """Insert base station records."""
+        """Upsert base station records."""
+        if data.empty:
+            logger.warning("No base stations to load")
+            return
+
         conn = self._get_connection()
         cur = conn.cursor()
-        # Clear existing synthetic stations to avoid duplicates
-        cur.execute("DELETE FROM base_stations WHERE country_code = 'BR' AND station_id LIKE 'ERB-%'")
-        conn.commit()
-
         from psycopg2.extras import execute_values
+
         values = []
         for _, row in data.iterrows():
+            geom_wkt = f"SRID=4326;POINT({row['longitude']} {row['latitude']})"
             values.append((
                 row["country_code"], row["provider_id"], row["station_id"],
-                row["geom_wkt"], row["latitude"], row["longitude"],
-                row["technology"], row["frequency_mhz"], row["bandwidth_mhz"],
-                row["antenna_height_m"], row["azimuth_degrees"],
-                row["mechanical_tilt"], row["power_watts"],
-                row["authorization_date"], row["status"],
+                geom_wkt, row["latitude"], row["longitude"],
+                row["technology"], row["frequency_mhz"], row["status"],
             ))
 
+        # Upsert by station_id
         execute_values(cur, """
             INSERT INTO base_stations
             (country_code, provider_id, station_id, geom, latitude, longitude,
-             technology, frequency_mhz, bandwidth_mhz, antenna_height_m,
-             azimuth_degrees, mechanical_tilt, power_watts, authorization_date, status)
+             technology, frequency_mhz, status)
             VALUES %s
+            ON CONFLICT (station_id) DO UPDATE
+            SET provider_id = EXCLUDED.provider_id,
+                geom = EXCLUDED.geom,
+                latitude = EXCLUDED.latitude,
+                longitude = EXCLUDED.longitude,
+                technology = EXCLUDED.technology,
+                frequency_mhz = EXCLUDED.frequency_mhz,
+                status = EXCLUDED.status
         """, values, template=(
-            "(%s, %s, %s, ST_GeomFromEWKT(%s), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            "(%s, %s, %s, ST_GeomFromEWKT(%s), %s, %s, %s, %s, %s)"
         ), page_size=1000)
         conn.commit()
         self.rows_inserted = len(values)

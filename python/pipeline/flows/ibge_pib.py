@@ -1,43 +1,25 @@
 """IBGE Municipal GDP (PIB) pipeline.
 
-Source: IBGE Contas Nacionais - PIB dos Municipios
-URL: https://www.ibge.gov.br/estatisticas/economicas/contas-nacionais/
-     9088-produto-interno-bruto-dos-municipios.html
-Format: XLSX/CSV with municipal GDP by sector
-Update: Annual, ~2 year lag (2023 data released in 2025)
-
-Real download would fetch the PIB Municipal spreadsheet and extract
-GDP, GDP per capita, and sector breakdowns per municipality.
+Source: IBGE Agregados API — Tabela 5938 (PIB dos Municipios)
+URL: https://servicodados.ibge.gov.br/api/v3/agregados/5938/periodos/-1/variaveis/37?localidades=N6[all]&view=flat
+Format: JSON (flat view with D3C=municipality code, V=value)
+Update: Annual, ~2 year lag
 """
 import json
 import logging
-import random
 
 import pandas as pd
 
 from python.pipeline.base import BasePipeline
 from python.pipeline.config import DataSourceURLs
+from python.pipeline.http_client import PipelineHTTPClient
 from python.pipeline.loaders.postgres_loader import upsert_batch
 
 logger = logging.getLogger(__name__)
 
-# Approximate GDP ranges by region (in BRL thousands)
-GDP_RANGES = {
-    "SP": (500000, 50000000),
-    "RJ": (300000, 30000000),
-    "MG": (200000, 10000000),
-    "PR": (200000, 8000000),
-    "SC": (200000, 6000000),
-    "RS": (200000, 8000000),
-    "BA": (100000, 5000000),
-    "CE": (100000, 3000000),
-    "PE": (100000, 4000000),
-    "default": (50000, 2000000),
-}
-
 
 class IBGEPIBPipeline(BasePipeline):
-    """Ingest IBGE municipal GDP data."""
+    """Ingest real IBGE municipal GDP data from Agregados API."""
 
     def __init__(self):
         super().__init__("ibge_pib")
@@ -46,98 +28,85 @@ class IBGEPIBPipeline(BasePipeline):
     def check_for_updates(self) -> bool:
         conn = self._get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM economic_indicators")
+        cur.execute("SELECT COUNT(*) FROM economic_indicators WHERE source = 'ibge_pib'")
         count = cur.fetchone()[0]
         cur.close()
         conn.close()
-        return count < 50
+        return count < 5000
 
-    def download(self) -> pd.DataFrame:
-        try:
-            logger.info("Attempting real IBGE PIB download...")
-            raise ConnectionError("Real download not available in dev environment")
-        except Exception as e:
-            logger.info(f"Real download failed ({e}), generating synthetic data")
-            return self._generate_synthetic()
+    def download(self) -> dict:
+        """Download municipal GDP from IBGE Agregados API."""
+        with PipelineHTTPClient(timeout=180) as http:
+            logger.info("Fetching municipal GDP from IBGE Agregados API...")
+            pib_data = http.get_json(self.urls.ibge_pib_municipal)
+            logger.info(f"Got {len(pib_data)} PIB records")
 
-    def _generate_synthetic(self) -> pd.DataFrame:
-        """Generate realistic municipal GDP data."""
+        return {"pib": pib_data}
+
+    def validate_raw(self, data: dict) -> None:
+        if not data["pib"]:
+            raise ValueError("No PIB data returned from IBGE API")
+        if len(data["pib"]) < 5000:
+            raise ValueError(f"Expected ~5,570 PIB records, got {len(data['pib'])}")
+
+    def transform(self, raw_data: dict) -> pd.DataFrame:
+        """Parse IBGE flat-view response into economic indicator rows."""
         conn = self._get_connection()
         cur = conn.cursor()
-        cur.execute("""
-            SELECT al2.id, al2.code, al2.name, al1.code as state_code
-            FROM admin_level_2 al2
-            JOIN admin_level_1 al1 ON al2.l1_id = al1.id
-            WHERE al2.country_code = 'BR'
-        """)
-        municipalities = cur.fetchall()
 
-        # Get population data for per-capita calculation
-        cur.execute("""
-            SELECT ct.l2_id, SUM(cd.total_population) as pop
-            FROM census_demographics cd
-            JOIN census_tracts ct ON cd.tract_id = ct.id
-            GROUP BY ct.l2_id
-        """)
-        pop_data = {row[0]: row[1] for row in cur.fetchall()}
+        # Build municipality code -> l2_id mapping
+        cur.execute("SELECT code, id FROM admin_level_2 WHERE country_code = 'BR'")
+        code_to_l2 = {code: l2_id for code, l2_id in cur.fetchall()}
+
+        # Get population for per-capita calculation
+        cur.execute("SELECT id, population FROM admin_level_2 WHERE country_code = 'BR'")
+        l2_pop = {l2_id: pop for l2_id, pop in cur.fetchall() if pop}
+
         cur.close()
         conn.close()
 
-        random.seed(45)
         rows = []
-        years = [2021, 2022, 2023]
+        for record in raw_data["pib"]:
+            mun_code = str(record.get("D3C", record.get("localidade", "")))
+            value_str = record.get("V", record.get("valor", ""))
+            period = record.get("D2C", record.get("periodo", ""))
 
-        for l2_id, code, mun_name, state_code in municipalities:
-            # Get state-appropriate GDP range
-            state_abbr = state_code[:2] if len(state_code) >= 2 else "default"
-            gdp_range = GDP_RANGES.get(state_abbr, GDP_RANGES["default"])
-            base_pib = random.uniform(*gdp_range) * 1000  # Convert to BRL
+            l2_id = code_to_l2.get(mun_code)
+            if l2_id is None:
+                continue
 
-            population = pop_data.get(l2_id, random.randint(50000, 500000))
+            try:
+                pib_value = float(value_str) * 1000  # IBGE reports in R$ thousands
+            except (ValueError, TypeError):
+                continue
 
-            for year in years:
-                growth = 1.0 + (year - 2021) * random.uniform(0.02, 0.06)
-                pib = round(base_pib * growth, 2)
-                per_capita = round(pib / max(population, 1), 2) if population else None
-                formal_employment = int(population * random.uniform(0.15, 0.40))
+            # Extract year from period
+            try:
+                year = int(str(period)[:4])
+            except (ValueError, TypeError):
+                year = 2022
 
-                sector_breakdown = json.dumps({
-                    "agropecuaria_pct": round(random.uniform(2, 20), 1),
-                    "industria_pct": round(random.uniform(10, 35), 1),
-                    "servicos_pct": round(random.uniform(45, 75), 1),
-                    "administracao_publica_pct": round(random.uniform(10, 25), 1),
-                })
+            population = l2_pop.get(l2_id, 0)
+            per_capita = round(pib_value / max(population, 1), 2) if population else None
 
-                rows.append({
-                    "l2_id": l2_id,
-                    "year": year,
-                    "pib_municipal_brl": pib,
-                    "pib_per_capita_brl": per_capita,
-                    "formal_employment": formal_employment,
-                    "sector_breakdown": sector_breakdown,
-                    "source": "ibge_pib_synthetic",
-                })
+            rows.append({
+                "l2_id": l2_id,
+                "year": year,
+                "pib_municipal_brl": round(pib_value, 2),
+                "pib_per_capita_brl": per_capita,
+                "source": "ibge_pib",
+            })
 
+        self.rows_processed = len(rows)
         return pd.DataFrame(rows)
-
-    def validate_raw(self, data: pd.DataFrame) -> None:
-        required = ["l2_id", "year", "pib_municipal_brl"]
-        missing = set(required) - set(data.columns)
-        if missing:
-            raise ValueError(f"Missing columns: {missing}")
-        if data.empty:
-            raise ValueError("Empty dataset")
-        if (data["pib_municipal_brl"] <= 0).any():
-            raise ValueError("Non-positive GDP values found")
-
-    def transform(self, raw_data: pd.DataFrame) -> pd.DataFrame:
-        self.rows_processed = len(raw_data)
-        return raw_data
 
     def load(self, data: pd.DataFrame) -> None:
         """Upsert economic indicator records."""
-        columns = ["l2_id", "year", "pib_municipal_brl", "pib_per_capita_brl",
-                    "formal_employment", "sector_breakdown", "source"]
+        if data.empty:
+            logger.warning("No PIB data to load")
+            return
+
+        columns = ["l2_id", "year", "pib_municipal_brl", "pib_per_capita_brl", "source"]
         values = [tuple(row) for row in data[columns].values]
 
         inserted, updated = upsert_batch(
@@ -145,8 +114,7 @@ class IBGEPIBPipeline(BasePipeline):
             columns=columns,
             values=values,
             conflict_columns=["l2_id", "year"],
-            update_columns=["pib_municipal_brl", "pib_per_capita_brl",
-                            "formal_employment", "sector_breakdown", "source"],
+            update_columns=["pib_municipal_brl", "pib_per_capita_brl", "source"],
             db_config=self.db_config,
         )
         self.rows_inserted = inserted

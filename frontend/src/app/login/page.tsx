@@ -2,9 +2,10 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Radio, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+import { Radio, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 import { api, setToken } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ---------------------------------------------------------------------------
 // Estados brasileiros (27 UFs)
@@ -46,6 +47,7 @@ type Tab = 'login' | 'register';
 // ---------------------------------------------------------------------------
 export default function LoginPage() {
   const router = useRouter();
+  const { login: authLogin } = useAuth();
 
   // Tab state
   const [activeTab, setActiveTab] = useState<Tab>('login');
@@ -86,8 +88,8 @@ export default function LoginPage() {
         email: loginEmail.trim(),
         password: loginPassword,
       });
-      setToken(response.access_token);
-      router.push('/map');
+      await authLogin(response.access_token);
+      router.push('/');
     } catch (err: any) {
       if (err?.status === 401) {
         setError('E-mail ou senha incorretos.');
@@ -131,8 +133,8 @@ export default function LoginPage() {
         organization: regOrganization.trim(),
         state_code: regState || undefined,
       });
-      setToken(response.access_token);
-      router.push('/map');
+      await authLogin(response.access_token);
+      router.push('/');
     } catch (err: any) {
       if (err?.status === 409) {
         setError('Este e-mail ja esta cadastrado.');
@@ -158,41 +160,42 @@ export default function LoginPage() {
   // -------------------------------------------------------------------------
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-12">
+    <div
+      className="flex min-h-screen items-center justify-center px-4 py-12"
+      style={{ backgroundColor: 'var(--bg-primary)' }}
+    >
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="mb-8 flex items-center justify-center gap-3">
-          <Radio className="text-blue-500" size={32} />
-          <span className="text-2xl font-bold tracking-tight text-slate-100">
-            ENLACE
+          <Radio style={{ color: 'var(--accent)' }} size={32} />
+          <span className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+            Pulso
           </span>
         </div>
 
         {/* Card */}
-        <div className="enlace-card p-0">
+        <div className="pulso-card p-0">
           {/* Tabs */}
-          <div className="flex border-b border-slate-700">
+          <div className="flex" style={{ borderBottom: '1px solid var(--border)' }}>
             <button
               type="button"
               onClick={() => switchTab('login')}
-              className={clsx(
-                'flex-1 px-4 py-3 text-sm font-medium transition-colors',
-                activeTab === 'login'
-                  ? 'border-b-2 border-blue-500 text-blue-400'
-                  : 'text-slate-400 hover:text-slate-200'
-              )}
+              className="flex-1 px-4 py-3 text-sm font-medium transition-colors"
+              style={{
+                borderBottom: activeTab === 'login' ? '2px solid var(--accent)' : '2px solid transparent',
+                color: activeTab === 'login' ? 'var(--accent)' : 'var(--text-secondary)',
+              }}
             >
               Entrar
             </button>
             <button
               type="button"
               onClick={() => switchTab('register')}
-              className={clsx(
-                'flex-1 px-4 py-3 text-sm font-medium transition-colors',
-                activeTab === 'register'
-                  ? 'border-b-2 border-blue-500 text-blue-400'
-                  : 'text-slate-400 hover:text-slate-200'
-              )}
+              className="flex-1 px-4 py-3 text-sm font-medium transition-colors"
+              style={{
+                borderBottom: activeTab === 'register' ? '2px solid var(--accent)' : '2px solid transparent',
+                color: activeTab === 'register' ? 'var(--accent)' : 'var(--text-secondary)',
+              }}
             >
               Cadastrar
             </button>
@@ -200,7 +203,14 @@ export default function LoginPage() {
 
           {/* Error message */}
           {error && (
-            <div className="mx-6 mt-4 flex items-start gap-2 rounded-md border border-red-500/30 bg-red-900/20 px-3 py-2.5 text-sm text-red-400">
+            <div
+              className="mx-6 mt-4 flex items-start gap-2 rounded-md px-3 py-2.5 text-sm"
+              style={{
+                border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)',
+                backgroundColor: 'color-mix(in srgb, var(--danger) 10%, transparent)',
+                color: 'var(--danger)',
+              }}
+            >
               <AlertCircle size={16} className="mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
@@ -213,7 +223,8 @@ export default function LoginPage() {
               <div>
                 <label
                   htmlFor="login-email"
-                  className="mb-1.5 block text-sm font-medium text-slate-300"
+                  className="mb-1.5 block text-sm font-medium"
+                  style={{ color: 'var(--text-secondary)' }}
                 >
                   E-mail
                 </label>
@@ -224,7 +235,7 @@ export default function LoginPage() {
                   placeholder="seu@email.com"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
-                  className="enlace-input w-full"
+                  className="pulso-input w-full"
                   disabled={loading}
                   required
                 />
@@ -234,7 +245,8 @@ export default function LoginPage() {
               <div>
                 <label
                   htmlFor="login-password"
-                  className="mb-1.5 block text-sm font-medium text-slate-300"
+                  className="mb-1.5 block text-sm font-medium"
+                  style={{ color: 'var(--text-secondary)' }}
                 >
                   Senha
                 </label>
@@ -246,14 +258,15 @@ export default function LoginPage() {
                     placeholder="Digite sua senha"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    className="enlace-input w-full pr-10"
+                    className="pulso-input w-full pr-10"
                     disabled={loading}
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowLoginPassword(!showLoginPassword)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 hover:opacity-80"
+                    style={{ color: 'var(--text-secondary)' }}
                     tabIndex={-1}
                     aria-label={
                       showLoginPassword ? 'Ocultar senha' : 'Mostrar senha'
@@ -272,9 +285,8 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="enlace-btn-primary w-full flex items-center justify-center gap-2"
+                className="pulso-btn-primary w-full flex items-center justify-center gap-2"
               >
-                {loading && <Loader2 size={16} className="animate-spin" />}
                 {loading ? 'Entrando...' : 'Entrar'}
               </button>
             </form>
@@ -287,7 +299,8 @@ export default function LoginPage() {
               <div>
                 <label
                   htmlFor="reg-name"
-                  className="mb-1.5 block text-sm font-medium text-slate-300"
+                  className="mb-1.5 block text-sm font-medium"
+                  style={{ color: 'var(--text-secondary)' }}
                 >
                   Nome completo
                 </label>
@@ -298,7 +311,7 @@ export default function LoginPage() {
                   placeholder="Seu nome completo"
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
-                  className="enlace-input w-full"
+                  className="pulso-input w-full"
                   disabled={loading}
                   required
                 />
@@ -308,7 +321,8 @@ export default function LoginPage() {
               <div>
                 <label
                   htmlFor="reg-email"
-                  className="mb-1.5 block text-sm font-medium text-slate-300"
+                  className="mb-1.5 block text-sm font-medium"
+                  style={{ color: 'var(--text-secondary)' }}
                 >
                   E-mail
                 </label>
@@ -319,7 +333,7 @@ export default function LoginPage() {
                   placeholder="seu@email.com"
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
-                  className="enlace-input w-full"
+                  className="pulso-input w-full"
                   disabled={loading}
                   required
                 />
@@ -329,7 +343,8 @@ export default function LoginPage() {
               <div>
                 <label
                   htmlFor="reg-password"
-                  className="mb-1.5 block text-sm font-medium text-slate-300"
+                  className="mb-1.5 block text-sm font-medium"
+                  style={{ color: 'var(--text-secondary)' }}
                 >
                   Senha
                 </label>
@@ -342,14 +357,15 @@ export default function LoginPage() {
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
                     minLength={6}
-                    className="enlace-input w-full pr-10"
+                    className="pulso-input w-full pr-10"
                     disabled={loading}
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowRegPassword(!showRegPassword)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 hover:opacity-80"
+                    style={{ color: 'var(--text-secondary)' }}
                     tabIndex={-1}
                     aria-label={
                       showRegPassword ? 'Ocultar senha' : 'Mostrar senha'
@@ -362,7 +378,7 @@ export default function LoginPage() {
                     )}
                   </button>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                   A senha deve ter pelo menos 6 caracteres.
                 </p>
               </div>
@@ -371,7 +387,8 @@ export default function LoginPage() {
               <div>
                 <label
                   htmlFor="reg-org"
-                  className="mb-1.5 block text-sm font-medium text-slate-300"
+                  className="mb-1.5 block text-sm font-medium"
+                  style={{ color: 'var(--text-secondary)' }}
                 >
                   Organizacao / ISP
                 </label>
@@ -382,7 +399,7 @@ export default function LoginPage() {
                   placeholder="Nome da sua empresa ou ISP"
                   value={regOrganization}
                   onChange={(e) => setRegOrganization(e.target.value)}
-                  className="enlace-input w-full"
+                  className="pulso-input w-full"
                   disabled={loading}
                   required
                 />
@@ -392,7 +409,8 @@ export default function LoginPage() {
               <div>
                 <label
                   htmlFor="reg-state"
-                  className="mb-1.5 block text-sm font-medium text-slate-300"
+                  className="mb-1.5 block text-sm font-medium"
+                  style={{ color: 'var(--text-secondary)' }}
                 >
                   Estado
                 </label>
@@ -400,7 +418,7 @@ export default function LoginPage() {
                   id="reg-state"
                   value={regState}
                   onChange={(e) => setRegState(e.target.value)}
-                  className="enlace-input w-full"
+                  className="pulso-input w-full"
                   disabled={loading}
                 >
                   <option value="">Selecione o estado</option>
@@ -416,9 +434,8 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="enlace-btn-primary w-full flex items-center justify-center gap-2"
+                className="pulso-btn-primary w-full flex items-center justify-center gap-2"
               >
-                {loading && <Loader2 size={16} className="animate-spin" />}
                 {loading ? 'Criando conta...' : 'Criar Conta'}
               </button>
             </form>
@@ -426,7 +443,7 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <p className="mt-6 text-center text-xs text-slate-500">
+        <p className="mt-6 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
           Plataforma de inteligencia para provedores de internet brasileiros.
         </p>
       </div>

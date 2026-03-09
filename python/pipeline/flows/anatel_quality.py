@@ -1,60 +1,43 @@
 """Anatel quality indicators (IDA) pipeline.
 
-Source: Anatel quality data
-URL: https://dados.gov.br/dados/conjuntos-dados/indicadores-de-qualidade
-Metrics: download_speed_mbps, upload_speed_mbps, latency_ms,
-         availability_pct, complaint_rate
+Source: Anatel open data on dados.gov.br (CKAN)
+Dataset: "indicadores-de-qualidade"
+Format: CSV (semicolon-delimited, ISO-8859-1)
+Metrics: IDA metrics mapped to download_speed, upload_speed, latency,
+         availability, complaint_rate
 
-Real download would fetch the IDA (Indicador de Desempenho no Atendimento)
-and SMP quality reports published quarterly by Anatel.
+Downloads quality indicator CSV, maps IDA metric names to schema types,
+and loads per municipality/provider/month.
 """
 import logging
-import random
 
 import pandas as pd
 
 from python.pipeline.base import BasePipeline
 from python.pipeline.config import DataSourceURLs
+from python.pipeline.http_client import PipelineHTTPClient
 from python.pipeline.loaders.postgres_loader import upsert_batch
 
 logger = logging.getLogger(__name__)
 
-# Realistic quality metric ranges by provider classification
-QUALITY_PROFILES = {
-    "PGP": {
-        "download_speed_mbps": (50, 300),
-        "upload_speed_mbps": (10, 100),
-        "latency_ms": (8, 30),
-        "availability_pct": (95.0, 99.9),
-        "complaint_rate": (0.5, 3.0),
-    },
-    "PMP": {
-        "download_speed_mbps": (30, 200),
-        "upload_speed_mbps": (5, 50),
-        "latency_ms": (12, 45),
-        "availability_pct": (92.0, 99.5),
-        "complaint_rate": (1.0, 5.0),
-    },
-    "PPP": {
-        "download_speed_mbps": (10, 100),
-        "upload_speed_mbps": (2, 30),
-        "latency_ms": (15, 60),
-        "availability_pct": (88.0, 98.0),
-        "complaint_rate": (2.0, 8.0),
-    },
+# Map Anatel IDA metric names to our schema metric types
+IDA_METRIC_MAP = {
+    "ida_disponibilidade": "availability_pct",
+    "ida_velocidade": "download_speed_mbps",
+    "ida_latencia": "latency_ms",
+    "ida_jitter": "latency_ms",
+    "ida_perda_pacotes": "availability_pct",
+    "ida": "availability_pct",
+    "velocidade media download": "download_speed_mbps",
+    "velocidade media upload": "upload_speed_mbps",
+    "latencia media": "latency_ms",
+    "disponibilidade": "availability_pct",
+    "taxa de reclamacao": "complaint_rate",
 }
-
-METRIC_TYPES = [
-    "download_speed_mbps",
-    "upload_speed_mbps",
-    "latency_ms",
-    "availability_pct",
-    "complaint_rate",
-]
 
 
 class AnatelQualityPipeline(BasePipeline):
-    """Ingest Anatel quality indicator data per municipality per provider."""
+    """Ingest real Anatel quality indicator data from CKAN."""
 
     def __init__(self):
         super().__init__("anatel_quality")
@@ -63,87 +46,132 @@ class AnatelQualityPipeline(BasePipeline):
     def check_for_updates(self) -> bool:
         conn = self._get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM quality_indicators")
+        cur.execute("SELECT COUNT(*) FROM quality_indicators WHERE source = 'anatel_ida'")
         count = cur.fetchone()[0]
         cur.close()
         conn.close()
-        return count < 100
+        return count < 1000
 
     def download(self) -> pd.DataFrame:
-        try:
-            logger.info("Attempting real Anatel quality data download...")
-            raise ConnectionError("Real download not available in dev environment")
-        except Exception as e:
-            logger.info(f"Real download failed ({e}), generating synthetic data")
-            return self._generate_synthetic()
+        """Download quality indicators CSV from dados.gov.br CKAN."""
+        with PipelineHTTPClient(timeout=300) as http:
+            logger.info("Resolving Anatel quality CKAN resource URL...")
+            csv_url = http.resolve_ckan_resource_url(
+                self.urls.anatel_quality_dataset,
+                resource_format="CSV",
+                ckan_base=self.urls.anatel_ckan_base,
+            )
+            logger.info(f"Downloading quality CSV from {csv_url}")
+            df = http.get_csv(csv_url, sep=";", encoding="iso-8859-1")
+            logger.info(f"Downloaded {len(df)} quality records")
 
-    def _generate_synthetic(self) -> pd.DataFrame:
-        """Generate realistic quality metrics per municipality/provider/month."""
+        return df
+
+    def validate_raw(self, data: pd.DataFrame) -> None:
+        if data.empty:
+            raise ValueError("Empty quality indicators CSV")
+        logger.info(f"Quality CSV columns: {list(data.columns)}")
+
+    def transform(self, raw_data: pd.DataFrame) -> pd.DataFrame:
+        """Map IDA metrics to schema and resolve lookups."""
+        df = raw_data.copy()
+        df.columns = [c.strip() for c in df.columns]
+
+        # Find columns
+        col_map = {}
+        for c in df.columns:
+            cl = c.lower()
+            if "ibge" in cl or "codigo" in cl:
+                col_map["ibge_code"] = c
+            elif "cnpj" in cl:
+                col_map["cnpj"] = c
+            elif "ano" in cl:
+                col_map["ano"] = c
+            elif "mes" in cl or "mês" in cl:
+                col_map["mes"] = c
+            elif "indicador" in cl or "metrica" in cl or "métrica" in cl:
+                col_map["metric"] = c
+            elif "valor" in cl or "value" in cl:
+                col_map["value"] = c
+            elif "resultado" in cl:
+                col_map.setdefault("value", c)
+
+        # Build lookups
         conn = self._get_connection()
         cur = conn.cursor()
-        cur.execute("""
-            SELECT al2.id, al2.name
-            FROM admin_level_2 al2
-            WHERE al2.country_code = 'BR'
-        """)
-        municipalities = cur.fetchall()
-        cur.execute("SELECT id, name, classification FROM providers WHERE country_code = 'BR'")
-        providers = cur.fetchall()
+        cur.execute("SELECT code, id FROM admin_level_2 WHERE country_code = 'BR'")
+        code_to_l2 = {code: l2_id for code, l2_id in cur.fetchall()}
+        cur.execute("SELECT national_id, id FROM providers WHERE country_code = 'BR'")
+        cnpj_to_provider = {nid: pid for nid, pid in cur.fetchall()}
         cur.close()
         conn.close()
 
-        random.seed(44)
         rows = []
+        for _, row in df.iterrows():
+            ibge_code = str(row.get(col_map.get("ibge_code", ""), "")).strip()
+            l2_id = code_to_l2.get(ibge_code)
+            if l2_id is None:
+                continue
 
-        for l2_id, mun_name in municipalities:
-            # Each municipality has 2-4 providers with quality data
-            num_providers = random.randint(2, min(4, len(providers)))
-            mun_providers = random.sample(providers, num_providers)
+            cnpj = str(row.get(col_map.get("cnpj", ""), "")).strip()
+            provider_id = cnpj_to_provider.get(cnpj)
+            if provider_id is None:
+                continue
 
-            for month_offset in range(4):  # Quarterly data: 4 quarters
-                year = 2025
-                month = (month_offset * 3) + 3  # March, June, Sept, Dec
-                ym = f"{year}-{month:02d}"
+            # Build year_month
+            ano = str(row.get(col_map.get("ano", ""), "")).strip()
+            mes = str(row.get(col_map.get("mes", ""), "")).strip()
+            try:
+                year_month = f"{int(ano)}-{int(mes):02d}"
+            except (ValueError, TypeError):
+                continue
 
-                for prov_id, prov_name, prov_class in mun_providers:
-                    profile = QUALITY_PROFILES.get(prov_class, QUALITY_PROFILES["PPP"])
+            # Map metric
+            metric_raw = str(row.get(col_map.get("metric", ""), "")).strip().lower()
+            metric_type = None
+            for pattern, mapped in IDA_METRIC_MAP.items():
+                if pattern in metric_raw:
+                    metric_type = mapped
+                    break
+            if metric_type is None:
+                metric_type = "availability_pct"  # default
 
-                    for metric_type in METRIC_TYPES:
-                        low, high = profile[metric_type]
-                        value = round(random.uniform(low, high), 2)
-                        rows.append({
-                            "l2_id": l2_id,
-                            "provider_id": prov_id,
-                            "year_month": ym,
-                            "metric_type": metric_type,
-                            "value": value,
-                            "source": "anatel_ida_synthetic",
-                        })
+            # Parse value
+            value_raw = str(row.get(col_map.get("value", ""), "")).strip()
+            try:
+                value = float(value_raw.replace(",", "."))
+            except (ValueError, TypeError):
+                continue
 
+            if value < 0:
+                continue
+
+            rows.append({
+                "l2_id": l2_id,
+                "provider_id": provider_id,
+                "year_month": year_month,
+                "metric_type": metric_type,
+                "value": round(value, 2),
+                "source": "anatel_ida",
+            })
+
+        self.rows_processed = len(rows)
+        logger.info(f"Transformed {len(rows)} quality indicators")
         return pd.DataFrame(rows)
-
-    def validate_raw(self, data: pd.DataFrame) -> None:
-        required = ["l2_id", "provider_id", "year_month", "metric_type", "value"]
-        missing = set(required) - set(data.columns)
-        if missing:
-            raise ValueError(f"Missing columns: {missing}")
-        if data.empty:
-            raise ValueError("Empty dataset")
-        if (data["value"] < 0).any():
-            raise ValueError("Negative quality metric values found")
-
-    def transform(self, raw_data: pd.DataFrame) -> pd.DataFrame:
-        df = raw_data.copy()
-        self.rows_processed = len(df)
-        return df
 
     def load(self, data: pd.DataFrame) -> None:
         """Insert quality indicator records."""
+        if data.empty:
+            logger.warning("No quality indicators to load")
+            return
+
+        # Clear existing real data to avoid duplicates on re-run
         conn = self._get_connection()
         cur = conn.cursor()
-        # Clear existing to avoid duplicates on re-run
-        cur.execute("DELETE FROM quality_indicators WHERE source = 'anatel_ida_synthetic'")
+        cur.execute("DELETE FROM quality_indicators WHERE source = 'anatel_ida'")
         conn.commit()
+        cur.close()
+        conn.close()
 
         columns = ["l2_id", "provider_id", "year_month", "metric_type", "value", "source"]
         values = [tuple(row) for row in data[columns].values]

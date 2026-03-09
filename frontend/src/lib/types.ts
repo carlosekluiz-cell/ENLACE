@@ -1,4 +1,4 @@
-// Tipos TypeScript correspondentes aos schemas do backend ENLACE
+// Tipos TypeScript correspondentes aos schemas do backend Pulso
 
 export interface Municipality {
   id: number;
@@ -13,18 +13,21 @@ export interface Municipality {
 }
 
 export interface OpportunityScore {
+  municipality_id: number;
   municipality_code: string;
-  municipality_name: string;
+  name: string;
   state_abbrev: string;
-  score: number;
-  rank?: number;
+  composite_score: number;
+  confidence: number;
+  sub_scores: {
+    demand: number;
+    competition: number;
+    infrastructure: number;
+    growth: number;
+  };
+  area_km2: number | null;
   households: number;
-  broadband_penetration_pct: number;
-  fiber_share_pct: number;
-  provider_count: number;
-  median_income?: number;
-  population_density?: number;
-  growth_rate?: number;
+  population: number;
 }
 
 export interface MarketSummary {
@@ -76,45 +79,70 @@ export interface ComplianceRegulation {
 }
 
 export interface ComplianceCheck {
-  regulation: string;
-  status: 'compliant' | 'warning' | 'non_compliant';
-  message: string;
-  details?: string;
+  regulation_id: string;
+  regulation_name: string;
+  status: string;
+  description: string;
+  action_items: string[];
+  deadline: string | null;
+  estimated_cost_brl: number | null;
+  priority: number;
+  urgency: string;
 }
 
 export interface ComplianceStatus {
-  provider_id: number;
-  overall_status: string;
+  provider_id: number | null;
+  provider_name: string;
+  state_codes: string[];
+  subscriber_count: number;
   checks: ComplianceCheck[];
-  last_updated?: string;
+  overall_status?: string;
 }
 
 export interface Norma4Impact {
-  state: string;
-  icms_rate_pct: number;
-  subscribers: number;
-  revenue_monthly: number;
-  estimated_fund_contribution: number;
-  fust_contribution: number;
-  funttel_contribution: number;
-  total_tax_burden_monthly: number;
-  compliance_requirements: string[];
-  risk_level: 'low' | 'medium' | 'high';
+  state_code: string;
+  icms_rate: number;
+  monthly_revenue_brl: number;
+  additional_monthly_tax_brl: number;
+  additional_annual_tax_brl: number;
+  pct_of_revenue: number;
+  subscriber_count: number;
+  arpu_brl: number;
+  restructuring_options: {
+    strategy: string;
+    description: string;
+    score: number;
+    pros: string[];
+    cons: string[];
+    estimated_monthly_savings_brl: number;
+    implementation_months: number;
+  }[];
+  recommended_action: string;
+  days_until_deadline: number;
+  readiness_score: number;
 }
 
 export interface LicensingCheck {
   subscriber_count: number;
-  requires_scm_license: boolean;
   threshold: number;
-  message: string;
+  above_threshold: boolean;
+  pct_of_threshold: number;
+  requirements: string[];
+  estimated_licensing_cost_brl: number;
+  estimated_annual_cost_brl: number;
+  urgency: string;
+  subscribers_until_threshold: number;
+  recommendation: string;
 }
 
 export interface ComplianceDeadline {
-  regulation: string;
-  deadline: string;
-  days_remaining: number;
-  status: string;
+  regulation_id: string;
+  name: string;
+  deadline_date: string;
   description: string;
+  urgency: string;
+  days_remaining: number;
+  milestone: boolean;
 }
 
 export interface RuralCommunity {
@@ -127,23 +155,60 @@ export interface RuralCommunity {
 }
 
 export interface RuralDesign {
-  backhaul: { technology: string; cost_brl: number; details: Record<string, any> };
-  last_mile: { technology: string; cost_brl: number; details: Record<string, any> };
-  power: { source: string; cost_brl: number; details: Record<string, any> };
-  total_cost_brl: number;
-  monthly_opex_brl: number;
-  coverage_pct: number;
-  notes: string[];
+  backhaul_technology: string;
+  backhaul_details: {
+    provider: string;
+    total_estimated_cost_brl: number;
+    monthly_service_brl: number;
+    capacity_mbps: number;
+    latency_ms: number;
+    rationale: string;
+  };
+  last_mile_technology: string;
+  last_mile_details: {
+    sites: number;
+    cpes: number;
+    subscribers: number;
+    effective_radius_km: number;
+    total_estimated_cost_brl: number;
+    monthly_cost_brl: number;
+    coverage_km2: number;
+    rationale: string;
+  };
+  power_solution: string;
+  power_details: {
+    estimated_power_kw: number;
+    battery_kwh: number;
+    total_estimated_cost_brl: number;
+    monthly_cost_brl: number;
+    rationale: string;
+  };
+  equipment_list: {
+    category: string;
+    item: string;
+    quantity: number;
+    unit: string;
+    unit_cost_brl: number;
+    total_cost_brl: number;
+  }[];
+  estimated_capex_brl: number;
+  estimated_monthly_opex_brl: number;
+  coverage_estimate_km2: number;
+  max_subscribers: number;
+  design_notes: string[];
 }
 
 export interface FundingProgram {
-  id: number;
+  id: string;
   name: string;
-  agency: string;
-  max_amount: number;
-  eligibility_criteria: string;
-  deadline?: string;
-  status: 'open' | 'closed' | 'upcoming';
+  full_name: string;
+  description: string;
+  eligibility_criteria: string[];
+  max_funding_brl: number;
+  funding_type: string;
+  application_url: string;
+  deadline: string | null;
+  notes: string;
 }
 
 export interface FundingMatch {
@@ -210,10 +275,72 @@ export interface RegisterResponse {
 export interface UserProfile {
   user_id: string;
   email: string;
+  full_name: string;
   tenant_id: string;
-  role: string;
+  role: 'admin' | 'manager' | 'analyst' | 'viewer';
   anonymous: boolean;
+  is_active?: boolean;
+  preferences?: UserPreferences;
   tenant?: Record<string, any> | null;
+}
+
+export interface UserPreferences {
+  theme?: 'dark' | 'light' | 'system';
+  language?: 'pt-BR' | 'en';
+  notifications?: boolean;
+}
+
+export interface UpdateProfileRequest {
+  full_name?: string;
+  email?: string;
+  preferences?: UserPreferences;
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export interface AdminUser {
+  id: number;
+  email: string;
+  full_name: string;
+  role: string;
+  tenant_id: string;
+  is_active: boolean;
+  created_at?: string;
+}
+
+export interface CreateUserRequest {
+  email: string;
+  password: string;
+  full_name: string;
+  role: string;
+  tenant_id?: string;
+}
+
+export interface PipelineRun {
+  id: number;
+  pipeline_name: string;
+  started_at?: string;
+  completed_at?: string;
+  status: string;
+  rows_processed?: number;
+  rows_inserted?: number;
+  error_message?: string;
+}
+
+export interface SSEEvent {
+  type: string;
+  data: Record<string, any>;
+  timestamp: string;
+}
+
+export interface Notification {
+  id: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  message: string;
+  timestamp: Date;
 }
 
 // ---------------------------------------------------------------------------
@@ -340,6 +467,34 @@ export interface LinkBudgetRequest {
   rx_antenna_gain_dbi: number;
   rx_threshold_dbm: number;
   rain_rate_mmh: number;
+}
+
+// ---------------------------------------------------------------------------
+// Network Health types
+// ---------------------------------------------------------------------------
+
+export interface WeatherRisk {
+  municipality_id: number;
+  municipality_name: string;
+  overall_risk_score: number;
+  precipitation_risk: string;
+  wind_risk: string;
+  temperature_risk: string;
+  details: Record<string, any>;
+}
+
+export interface MaintenancePriority {
+  municipality_id: number;
+  municipality_name: string;
+  priority_score: number;
+  weather_risk_score: number;
+  infrastructure_age_score: number;
+  quality_trend_score: number;
+  revenue_risk_score: number;
+  competitive_pressure_score: number;
+  recommended_action: string;
+  timing: string;
+  details: Record<string, any>;
 }
 
 export interface NavItem {

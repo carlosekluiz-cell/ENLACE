@@ -11,69 +11,65 @@ import {
   FileText,
   Menu,
   X,
-  Radio,
-  Briefcase,
   Antenna,
   LogOut,
+  Settings,
+  User,
+  Users,
+  Activity,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { clearToken, isAuthenticated } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
+  minRole?: string;
 }
 
 const navItems: NavItem[] = [
-  { label: 'Mapa', href: '/map', icon: <Map size={20} /> },
-  {
-    label: 'Oportunidades',
-    href: '/opportunities',
-    icon: <TrendingUp size={20} />,
-  },
-  {
-    label: 'Projeto RF',
-    href: '/design',
-    icon: <Antenna size={20} />,
-  },
-  { label: 'Conformidade', href: '/compliance', icon: <Shield size={20} /> },
-  { label: 'Rural', href: '/rural', icon: <Mountain size={20} /> },
-  {
-    label: 'F&A',
-    href: '/mna',
-    icon: <Briefcase size={20} />,
-  },
-  { label: 'Relatórios', href: '/reports', icon: <FileText size={20} /> },
+  { label: 'Mapa', href: '/', icon: <Map size={16} /> },
+  { label: 'Expansão', href: '/expansao', icon: <TrendingUp size={16} /> },
+  { label: 'Concorrência', href: '/concorrencia', icon: <Users size={16} /> },
+  { label: 'Projeto RF', href: '/projeto', icon: <Antenna size={16} /> },
+  { label: 'Conformidade', href: '/conformidade', icon: <Shield size={16} /> },
+  { label: 'Saúde', href: '/saude', icon: <Activity size={16} /> },
+  { label: 'Rural', href: '/rural', icon: <Mountain size={16} /> },
+  { label: 'Relatórios', href: '/relatorios', icon: <FileText size={16} /> },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, logout, hasRole } = useAuth();
+  const { resolvedTheme, setTheme } = useTheme();
 
-  const handleLogout = () => {
-    clearToken();
-    window.location.href = '/login';
-  };
-
-  // Esconder sidebar na tela de login
   if (pathname === '/login') return null;
+
+  const toggleTheme = () => {
+    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+  };
 
   return (
     <>
-      {/* Botão mobile */}
+      {/* Mobile hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed left-4 top-4 z-50 rounded-md bg-slate-800 p-2 text-slate-300 lg:hidden"
+        className="fixed left-4 top-4 z-50 rounded-md p-2 lg:hidden"
+        style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
         aria-label="Abrir menu"
       >
         <Menu size={20} />
       </button>
 
-      {/* Overlay mobile */}
+      {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -81,73 +77,183 @@ export default function Sidebar() {
       {/* Sidebar */}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-slate-900 border-r border-slate-700/50 transition-transform duration-200 lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 flex w-60 flex-col transition-transform duration-200 lg:relative lg:translate-x-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         )}
+        style={{
+          background: 'var(--bg-subtle)',
+          borderRight: '1px solid var(--border)',
+        }}
       >
         {/* Logo */}
-        <div className="flex h-16 items-center justify-between px-6 border-b border-slate-700/50">
+        <div className="flex h-12 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2">
-            <Radio className="text-blue-500" size={24} />
-            <span className="text-xl font-bold tracking-tight">
-              <span className="text-blue-500">EN</span>
-              <span className="text-slate-100">LACE</span>
+            <div
+              className="flex h-7 w-7 items-center justify-center rounded-md text-white text-xs font-bold"
+              style={{ background: 'var(--accent)' }}
+            >
+              P
+            </div>
+            <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Pulso
             </span>
           </Link>
           <button
             onClick={() => setMobileOpen(false)}
-            className="text-slate-400 hover:text-slate-200 lg:hidden"
+            className="lg:hidden"
+            style={{ color: 'var(--text-muted)' }}
             aria-label="Fechar menu"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Navegação */}
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        {/* Navigation */}
+        <nav className="flex-1 space-y-0.5 px-2 py-3">
           {navItems.map((item) => {
             const isActive =
-              pathname === item.href || pathname?.startsWith(item.href + '/');
+              item.href === '/'
+                ? pathname === '/'
+                : pathname === item.href || pathname?.startsWith(item.href + '/');
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
                 className={clsx(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-blue-600/20 text-blue-400'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                  'flex items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors',
+                  isActive ? 'border-l-2' : 'border-l-2 border-transparent'
                 )}
+                style={{
+                  height: '40px',
+                  color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                  background: isActive ? 'var(--accent-subtle)' : 'transparent',
+                  borderLeftColor: isActive ? 'var(--accent)' : 'transparent',
+                }}
               >
-                <span
-                  className={clsx(
-                    isActive ? 'text-blue-400' : 'text-slate-500'
-                  )}
-                >
+                <span style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}>
                   {item.icon}
                 </span>
                 {item.label}
               </Link>
             );
           })}
+
+          {/* Admin — hidden from nav but accessible */}
+          {hasRole('admin') && (
+            <Link
+              href="/admin"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 rounded-md px-3 text-sm font-medium border-l-2 border-transparent mt-4"
+              style={{
+                height: '40px',
+                color: pathname === '/admin' ? 'var(--accent)' : 'var(--text-muted)',
+                background: pathname === '/admin' ? 'var(--accent-subtle)' : 'transparent',
+                borderLeftColor: pathname === '/admin' ? 'var(--accent)' : 'transparent',
+              }}
+            >
+              <Settings size={16} />
+              Admin
+            </Link>
+          )}
         </nav>
 
-        {/* Rodapé */}
-        <div className="border-t border-slate-700/50 px-3 py-4 space-y-2">
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          >
-            <LogOut size={20} className="text-slate-500" />
-            Sair
-          </button>
-          <div className="px-3">
-            <p className="text-xs text-slate-500">Plataforma ENLACE</p>
-            <p className="text-xs text-slate-600">Inteligência Telecom Brasil</p>
+        {/* Footer */}
+        <div className="px-3 py-3 space-y-2" style={{ borderTop: '1px solid var(--border)' }}>
+          {user && (
+            <div className="flex items-center gap-2 px-2">
+              <div
+                className="flex h-7 w-7 items-center justify-center rounded-full text-xs"
+                style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}
+              >
+                <User size={14} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  {user.full_name || user.email}
+                </p>
+                <p className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>{user.role}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center gap-1">
+              {/* Settings */}
+              <Link
+                href="/configuracoes"
+                onClick={() => setMobileOpen(false)}
+                className="rounded p-1.5 transition-colors"
+                style={{ color: 'var(--text-muted)' }}
+                aria-label="Configurações"
+              >
+                <Settings size={16} />
+              </Link>
+
+              {/* Theme toggle */}
+              <button
+                onClick={toggleTheme}
+                className="rounded p-1.5 transition-colors"
+                style={{ color: 'var(--text-muted)' }}
+                aria-label={resolvedTheme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+              >
+                {resolvedTheme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              </button>
+            </div>
+
+            {/* Logout */}
+            <button
+              onClick={logout}
+              className="rounded p-1.5 transition-colors"
+              style={{ color: 'var(--text-muted)' }}
+              aria-label="Sair"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </aside>
+
+      {/* Mobile bottom tab bar */}
+      <BottomTabBar pathname={pathname} onNavigate={() => setMobileOpen(false)} />
     </>
+  );
+}
+
+function BottomTabBar({ pathname, onNavigate }: { pathname: string; onNavigate: () => void }) {
+  const tabs = [
+    { label: 'Mapa', href: '/', icon: <Map size={20} /> },
+    { label: 'Expansão', href: '/expansao', icon: <TrendingUp size={20} /> },
+    { label: 'Projeto', href: '/projeto', icon: <Antenna size={20} /> },
+    { label: 'Mais', href: '#', icon: <Menu size={20} /> },
+  ];
+
+  return (
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around py-2 lg:hidden"
+      style={{
+        background: 'var(--bg-surface)',
+        borderTop: '1px solid var(--border)',
+      }}
+    >
+      {tabs.map((tab) => {
+        const isActive =
+          tab.href === '/'
+            ? pathname === '/'
+            : pathname?.startsWith(tab.href);
+        return (
+          <Link
+            key={tab.label}
+            href={tab.href}
+            onClick={onNavigate}
+            className="flex flex-col items-center gap-0.5 px-3 py-1"
+            style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}
+          >
+            {tab.icon}
+            <span className="text-xs">{tab.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
