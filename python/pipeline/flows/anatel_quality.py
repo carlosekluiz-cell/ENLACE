@@ -53,8 +53,20 @@ class AnatelQualityPipeline(BasePipeline):
         return count < 1000
 
     def download(self) -> pd.DataFrame:
-        """Download quality indicators CSV from dados.gov.br CKAN."""
+        """Download quality indicators CSV. Tries direct Anatel ZIP first, falls back to CKAN."""
         with PipelineHTTPClient(timeout=300) as http:
+            # Try direct ZIP download first (dados.gov.br CKAN is blocked by AWS WAF)
+            try:
+                logger.info(f"Downloading quality ZIP from {self.urls.anatel_quality_zip}")
+                df = http.get_csv_from_zip(
+                    self.urls.anatel_quality_zip, sep=";", encoding="iso-8859-1"
+                )
+                logger.info(f"Downloaded {len(df)} quality records from direct ZIP")
+                return df
+            except Exception as e:
+                logger.warning(f"Direct ZIP download failed: {e}, trying CKAN fallback...")
+
+            # Fallback to CKAN
             logger.info("Resolving Anatel quality CKAN resource URL...")
             csv_url = http.resolve_ckan_resource_url(
                 self.urls.anatel_quality_dataset,
@@ -81,13 +93,15 @@ class AnatelQualityPipeline(BasePipeline):
         col_map = {}
         for c in df.columns:
             cl = c.lower()
-            if "ibge" in cl or "codigo" in cl:
+            if "ibge" in cl or ("codigo" in cl or "código" in cl):
                 col_map["ibge_code"] = c
             elif "cnpj" in cl:
                 col_map["cnpj"] = c
-            elif "ano" in cl:
+            elif "prestadora" in cl:
+                col_map.setdefault("provider_name", c)
+            elif cl.strip() == "ano":
                 col_map["ano"] = c
-            elif "mes" in cl or "mês" in cl:
+            elif cl.strip() in ("mes", "mês"):
                 col_map["mes"] = c
             elif "indicador" in cl or "metrica" in cl or "métrica" in cl:
                 col_map["metric"] = c
@@ -103,6 +117,9 @@ class AnatelQualityPipeline(BasePipeline):
         code_to_l2 = {code: l2_id for code, l2_id in cur.fetchall()}
         cur.execute("SELECT national_id, id FROM providers WHERE country_code = 'BR'")
         cnpj_to_provider = {nid: pid for nid, pid in cur.fetchall()}
+        # Also build name-based lookup for ZIP data that uses Prestadora instead of CNPJ
+        cur.execute("SELECT UPPER(name_normalized), id FROM providers WHERE country_code = 'BR'")
+        name_to_provider = {name: pid for name, pid in cur.fetchall()}
         cur.close()
         conn.close()
 
@@ -113,8 +130,12 @@ class AnatelQualityPipeline(BasePipeline):
             if l2_id is None:
                 continue
 
+            # Try CNPJ first (CKAN CSV), then provider name (ZIP data)
             cnpj = str(row.get(col_map.get("cnpj", ""), "")).strip()
             provider_id = cnpj_to_provider.get(cnpj)
+            if provider_id is None and "provider_name" in col_map:
+                pname = str(row.get(col_map["provider_name"], "")).strip().upper()
+                provider_id = name_to_provider.get(pname)
             if provider_id is None:
                 continue
 

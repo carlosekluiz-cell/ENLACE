@@ -8,6 +8,7 @@ import io
 import logging
 import os
 import time
+import zipfile
 from pathlib import Path
 from typing import Any, Optional
 
@@ -133,6 +134,95 @@ class PipelineHTTPClient:
             logger.info(f"Downloaded {downloaded:,} bytes to {dest}")
 
         return dest
+
+    def get_csv_from_zip(
+        self,
+        url: str,
+        sep: str = ";",
+        encoding: str = "utf-8",
+        csv_name_filter: str | None = None,
+    ) -> pd.DataFrame:
+        """Download a ZIP file, extract CSV(s), return as DataFrame.
+
+        Used for Anatel direct ZIP downloads when CKAN API is unavailable.
+        For large ZIPs, downloads to disk cache with resume support.
+        If csv_name_filter is set, only CSVs whose name contains that string are considered.
+        """
+        filename = url.split("/")[-1]
+        cache_path = get_cache_path(filename)
+
+        # Download to disk (supports resume for large files like 978MB broadband ZIP)
+        self.download_file(url, cache_path, resume=True)
+
+        with zipfile.ZipFile(cache_path) as zf:
+            csv_files = [n for n in zf.namelist() if n.lower().endswith(".csv")]
+            if csv_name_filter:
+                csv_files = [n for n in csv_files if csv_name_filter in n]
+            # Exclude _Colunas (column metadata) files
+            csv_files = [n for n in csv_files if "_colunas" not in n.lower()
+                         and "_total" not in n.lower()
+                         and "densidade" not in n.lower()]
+            if not csv_files:
+                raise ValueError(f"No CSV found in ZIP from {url} (filter={csv_name_filter}). Contents: {zf.namelist()}")
+
+            # If multiple CSVs match, pick the largest (or latest by name sort)
+            csv_name = max(csv_files, key=lambda n: zf.getinfo(n).file_size)
+            logger.info(f"Extracting {csv_name} from ZIP ({zf.getinfo(csv_name).file_size:,} bytes)")
+            return self._read_csv_from_zip_entry(zf, csv_name, sep, encoding)
+
+    def get_csvs_from_zip(
+        self,
+        url: str,
+        sep: str = ";",
+        encoding: str = "utf-8",
+        csv_name_filters: list[str] | None = None,
+    ) -> pd.DataFrame:
+        """Download a ZIP and extract+concatenate multiple CSVs matching filters.
+
+        Used for multi-year broadband ZIPs where we need recent years only.
+        """
+        filename = url.split("/")[-1]
+        cache_path = get_cache_path(filename)
+
+        self.download_file(url, cache_path, resume=True)
+
+        dfs = []
+        with zipfile.ZipFile(cache_path) as zf:
+            csv_files = [n for n in zf.namelist() if n.lower().endswith(".csv")]
+            # Exclude metadata files
+            csv_files = [n for n in csv_files if "_colunas" not in n.lower()
+                         and "_total" not in n.lower()
+                         and "densidade" not in n.lower()]
+
+            for csv_name in csv_files:
+                if csv_name_filters and not any(f in csv_name for f in csv_name_filters):
+                    continue
+                logger.info(f"Extracting {csv_name} ({zf.getinfo(csv_name).file_size:,} bytes)")
+                df = self._read_csv_from_zip_entry(zf, csv_name, sep, encoding)
+                dfs.append(df)
+
+        if not dfs:
+            raise ValueError(f"No matching CSVs in ZIP (filters={csv_name_filters})")
+        result = pd.concat(dfs, ignore_index=True)
+        logger.info(f"Concatenated {len(dfs)} CSVs: {len(result):,} total rows")
+        return result
+
+    def _read_csv_from_zip_entry(
+        self, zf: zipfile.ZipFile, csv_name: str, sep: str, encoding: str
+    ) -> pd.DataFrame:
+        """Read a single CSV entry from an open ZipFile."""
+        with zf.open(csv_name) as f:
+            raw = f.read()
+            # Try UTF-8 with BOM first (Anatel ZIPs use UTF-8), then specified, then latin-1
+            for enc in ["utf-8-sig", encoding, "iso-8859-1"]:
+                try:
+                    text = raw.decode(enc)
+                    break
+                except (UnicodeDecodeError, LookupError):
+                    continue
+            else:
+                text = raw.decode("iso-8859-1")
+            return pd.read_csv(io.StringIO(text), sep=sep, dtype=str, on_bad_lines="skip")
 
     def resolve_ckan_resource_url(
         self,

@@ -48,9 +48,9 @@ def dms_to_decimal(dms_str: str) -> float | None:
 
     dms_str = str(dms_str).strip()
 
-    # Already decimal
+    # Already decimal (handle comma as decimal separator)
     try:
-        val = float(dms_str)
+        val = float(dms_str.replace(",", "."))
         return val
     except ValueError:
         pass
@@ -104,8 +104,20 @@ class AnatelBaseStationsPipeline(BasePipeline):
         return count < 1000
 
     def download(self) -> pd.DataFrame:
-        """Download base station CSV from dados.gov.br CKAN."""
+        """Download base station CSV. Tries direct Anatel ZIP first, falls back to CKAN."""
         with PipelineHTTPClient(timeout=600) as http:
+            # Try direct ZIP download first (dados.gov.br CKAN is blocked by AWS WAF)
+            try:
+                logger.info(f"Downloading base stations ZIP from {self.urls.anatel_base_stations_zip}")
+                df = http.get_csv_from_zip(
+                    self.urls.anatel_base_stations_zip, sep=";", encoding="iso-8859-1"
+                )
+                logger.info(f"Downloaded {len(df)} base station records from direct ZIP")
+                return df
+            except Exception as e:
+                logger.warning(f"Direct ZIP download failed: {e}, trying CKAN fallback...")
+
+            # Fallback to CKAN
             logger.info("Resolving Anatel base stations CKAN resource URL...")
             csv_url = http.resolve_ckan_resource_url(
                 self.urls.anatel_base_stations_dataset,
@@ -128,21 +140,21 @@ class AnatelBaseStationsPipeline(BasePipeline):
         df = raw_data.copy()
         df.columns = [c.strip() for c in df.columns]
 
-        # Find column names
+        # Find column names — use specific patterns to avoid false matches
         col_map = {}
         for c in df.columns:
-            cl = c.lower()
-            if "latitude" in cl or cl == "lat":
+            cl = c.lower().strip()
+            if cl.startswith("latitude") or cl == "lat":
                 col_map["lat"] = c
-            elif "longitude" in cl or cl == "lon":
+            elif cl.startswith("longitude") or cl == "lon":
                 col_map["lon"] = c
-            elif "estacao" in cl or "estação" in cl or "numesta" in cl:
+            elif ("numero" in cl or "número" in cl) and ("esta" in cl):
                 col_map["station_id"] = c
-            elif "tecnologia" in cl or "tech" in cl:
+            elif cl.startswith("tecnologia") or cl == "tech":
                 col_map["tech"] = c
-            elif "freq" in cl:
-                col_map.setdefault("freq", c)
-            elif "cnpj" in cl or "operadora" in cl:
+            elif ("freq" in cl or "frequência" in cl) and "divisor" not in cl and "ind" not in cl:
+                col_map["freq"] = c
+            elif cl.startswith("cnpj") or cl == "operadora":
                 col_map.setdefault("operator", c)
 
         # Build provider lookup
@@ -202,9 +214,13 @@ class AnatelBaseStationsPipeline(BasePipeline):
                 "status": "active",
             })
 
-        self.rows_processed = len(rows)
-        logger.info(f"Transformed {len(rows)} base stations within Brazil bounds")
-        return pd.DataFrame(rows)
+        result = pd.DataFrame(rows)
+        # Deduplicate by station_id (same station may appear for different frequencies)
+        if not result.empty:
+            result = result.drop_duplicates(subset=["station_id"], keep="first")
+        self.rows_processed = len(result)
+        logger.info(f"Transformed {len(result)} unique base stations within Brazil bounds")
+        return result
 
     def load(self, data: pd.DataFrame) -> None:
         """Upsert base station records."""

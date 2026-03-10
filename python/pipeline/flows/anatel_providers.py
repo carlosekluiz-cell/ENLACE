@@ -34,8 +34,20 @@ class AnatelProvidersPipeline(BasePipeline):
         return True  # Always re-check provider registry
 
     def download(self) -> pd.DataFrame:
-        """Download provider registry CSV from dados.gov.br CKAN."""
-        with PipelineHTTPClient(timeout=120) as http:
+        """Download provider registry CSV. Tries direct Anatel ZIP first, falls back to CKAN."""
+        with PipelineHTTPClient(timeout=300) as http:
+            # Try direct ZIP download first (dados.gov.br CKAN is blocked by AWS WAF)
+            try:
+                logger.info(f"Downloading providers ZIP from {self.urls.anatel_providers_zip}")
+                df = http.get_csv_from_zip(
+                    self.urls.anatel_providers_zip, sep=";", encoding="iso-8859-1"
+                )
+                logger.info(f"Downloaded {len(df)} provider records from direct ZIP")
+                return df
+            except Exception as e:
+                logger.warning(f"Direct ZIP download failed: {e}, trying CKAN fallback...")
+
+            # Fallback to CKAN
             logger.info("Resolving Anatel providers CKAN resource URL...")
             csv_url = http.resolve_ckan_resource_url(
                 self.urls.anatel_providers_dataset,

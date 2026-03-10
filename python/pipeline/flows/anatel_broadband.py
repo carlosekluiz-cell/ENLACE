@@ -60,8 +60,24 @@ class AnatelBroadbandPipeline(BasePipeline):
         return latest < expected
 
     def download(self) -> pd.DataFrame:
-        """Download broadband subscriber CSV from dados.gov.br CKAN."""
+        """Download broadband subscriber CSV. Tries direct Anatel ZIP first, falls back to CKAN."""
+        now = datetime.utcnow()
         with PipelineHTTPClient(timeout=600) as http:
+            # Try direct ZIP download first (dados.gov.br CKAN is blocked by AWS WAF)
+            # The broadband ZIP contains per-year CSVs; extract only recent years
+            try:
+                logger.info(f"Downloading broadband ZIP from {self.urls.anatel_broadband_zip}")
+                year_filters = [str(now.year), str(now.year - 1)]
+                df = http.get_csvs_from_zip(
+                    self.urls.anatel_broadband_zip, sep=";", encoding="iso-8859-1",
+                    csv_name_filters=year_filters,
+                )
+                logger.info(f"Downloaded {len(df)} broadband records from direct ZIP (years: {year_filters})")
+                return df
+            except Exception as e:
+                logger.warning(f"Direct ZIP download failed: {e}, trying CKAN fallback...")
+
+            # Fallback to CKAN
             logger.info("Resolving Anatel broadband CKAN resource URL...")
             csv_url = http.resolve_ckan_resource_url(
                 self.urls.anatel_broadband_dataset,

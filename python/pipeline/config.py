@@ -66,6 +66,24 @@ class DataSourceURLs:
     anatel_quality_dataset: str = "indicadores-de-qualidade"
     anatel_providers_dataset: str = "prestadoras"
 
+    # --- Anatel direct ZIP downloads (fallback when CKAN/dados.gov.br is blocked) ---
+    anatel_broadband_zip: str = (
+        "https://www.anatel.gov.br/dadosabertos/paineis_de_dados/acessos"
+        "/acessos_banda_larga_fixa.zip"
+    )
+    anatel_providers_zip: str = (
+        "https://www.anatel.gov.br/dadosabertos/paineis_de_dados/outorga_e_licenciamento"
+        "/prestadoras_servicos_telecomunicacoes.zip"
+    )
+    anatel_base_stations_zip: str = (
+        "https://www.anatel.gov.br/dadosabertos/paineis_de_dados/outorga_e_licenciamento"
+        "/estacoes_licenciadas.zip"
+    )
+    anatel_quality_zip: str = (
+        "https://www.anatel.gov.br/dadosabertos/paineis_de_dados/qualidade"
+        "/indicadores_rqual.zip"
+    )
+
     # --- IBGE REST APIs ---
     ibge_api_v1: str = "https://servicodados.ibge.gov.br/api/v1"
     ibge_api_v3: str = "https://servicodados.ibge.gov.br/api/v3"
