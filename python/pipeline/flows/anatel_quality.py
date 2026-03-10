@@ -21,13 +21,42 @@ from python.pipeline.loaders.postgres_loader import upsert_batch
 logger = logging.getLogger(__name__)
 
 # Map Anatel IDA metric names to our schema metric types
+# Anatel quality ZIP uses trade names, not CNPJs. Map to provider name_normalized.
+PRESTADORA_MAP = {
+    "VIVO": "telefonica brasil sa vivo",
+    "CLARO": "claro sa",
+    "TIM": "tim sa",
+    "OI": "oi sa",
+    "ALGAR": "algar telecom",
+    "SKY": "sky servicos de banda larga",
+    "UNIFIQUE": "unifique",
+    "PROXXIMA": "proxxima telecomunicacoes",
+    "VALENET": "valenet ltda",
+    "BRISANET": "brisanet servicos de telecomunicacoes",
+    "DESKTOP": "desktop",
+    "LIGGA": "ligga telecomunicacoes",
+}
+
 IDA_METRIC_MAP = {
+    # RQUAL indicator codes (from Anatel ZIP)
+    "ind1": "availability_pct",         # Conexão de chamadas
+    "ind2": "availability_pct",         # Queda de chamadas
+    "ind3": "availability_pct",         # Conexão de dados
+    "ind4": "download_speed_mbps",      # Cumprimento velocidade
+    "ind5": "latency_ms",              # Latência bidirecional
+    "ind6": "latency_ms",              # Variação de latência (jitter)
+    "ind7": "availability_pct",         # Perda de pacotes
+    "ind8": "availability_pct",         # Disponibilidade
+    "ind9": "availability_pct",         # Cumprimento de prazo
+    "inf1": "availability_pct",         # Tempo médio instalação
+    "inf4-dl": "download_speed_mbps",   # Download speed
+    "inf4-up": "upload_speed_mbps",     # Upload speed
+    # Legacy IDA names (CKAN CSV fallback)
     "ida_disponibilidade": "availability_pct",
     "ida_velocidade": "download_speed_mbps",
     "ida_latencia": "latency_ms",
     "ida_jitter": "latency_ms",
     "ida_perda_pacotes": "availability_pct",
-    "ida": "availability_pct",
     "velocidade media download": "download_speed_mbps",
     "velocidade media upload": "upload_speed_mbps",
     "latencia media": "latency_ms",
@@ -117,9 +146,14 @@ class AnatelQualityPipeline(BasePipeline):
         code_to_l2 = {code: l2_id for code, l2_id in cur.fetchall()}
         cur.execute("SELECT national_id, id FROM providers WHERE country_code = 'BR'")
         cnpj_to_provider = {nid: pid for nid, pid in cur.fetchall()}
-        # Also build name-based lookup for ZIP data that uses Prestadora instead of CNPJ
-        cur.execute("SELECT UPPER(name_normalized), id FROM providers WHERE country_code = 'BR'")
+        # Build name-based lookup for ZIP data that uses Prestadora instead of CNPJ
+        cur.execute("SELECT LOWER(name_normalized), id FROM providers WHERE country_code = 'BR'")
         name_to_provider = {name: pid for name, pid in cur.fetchall()}
+        # Add trade name aliases
+        for trade_name, normalized in PRESTADORA_MAP.items():
+            pid = name_to_provider.get(normalized)
+            if pid:
+                name_to_provider[trade_name.lower()] = pid
         cur.close()
         conn.close()
 
@@ -134,7 +168,7 @@ class AnatelQualityPipeline(BasePipeline):
             cnpj = str(row.get(col_map.get("cnpj", ""), "")).strip()
             provider_id = cnpj_to_provider.get(cnpj)
             if provider_id is None and "provider_name" in col_map:
-                pname = str(row.get(col_map["provider_name"], "")).strip().upper()
+                pname = str(row.get(col_map["provider_name"], "")).strip().lower()
                 provider_id = name_to_provider.get(pname)
             if provider_id is None:
                 continue
