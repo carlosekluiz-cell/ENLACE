@@ -95,13 +95,10 @@ class AnatelBaseStationsPipeline(BasePipeline):
         self.urls = DataSourceURLs()
 
     def check_for_updates(self) -> bool:
-        conn = self._get_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM base_stations WHERE country_code = 'BR'")
-        count = cur.fetchone()[0]
-        cur.close()
-        conn.close()
-        return count < 1000
+        # Disabled: Anatel licensing ZIP contains ALL radio stations (823K),
+        # not just cell towers. OSM Overpass data (37K towers) is more accurate.
+        # TODO: Filter Anatel data to only mobile base stations if re-enabling.
+        return False
 
     def download(self) -> pd.DataFrame:
         """Download base station CSV. Tries direct Anatel ZIP first, falls back to CKAN."""
