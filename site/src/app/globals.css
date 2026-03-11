@@ -209,3 +209,17 @@ body {
     color: var(--text-on-dark-muted);
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Hero data sources ticker
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes hero-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.hero-ticker {
+  animation: hero-scroll 30s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-ticker { animation: none; }
+}

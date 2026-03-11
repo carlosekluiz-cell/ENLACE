@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Sobre — Pulso Network',
-  description: 'De Telebras a 13.500 ISPs: a história das telecomunicações brasileiras e o Pulso.',
+  description: 'De Telebras a 13.534 ISPs: a história das telecomunicações brasileiras e o Pulso.',
 };
 
 const timeline = [
@@ -13,14 +13,14 @@ const timeline = [
   { year: '2001', title: 'ISPs regionais', description: 'Empreendedores locais começam a oferecer internet via rádio. Anatel cria outorga SCM.' },
   { year: '2010', title: 'Explosão do mercado', description: 'Fibra acessível + demanda reprimida. ISPs ultrapassam 5.000 licenciados.' },
   { year: '2016', title: 'Revolução da fibra', description: 'Maior expansão de FTTH do mundo em termos relativos. ISPs lideram.' },
-  { year: '2024', title: '52% do mercado', description: '13.500+ ISPs. 52% dos 54M de acessos. R$ 50 bi/ano. O Pulso nasce.' },
+  { year: '2024', title: '52% do mercado', description: '13.534 ISPs. 52% dos 54M de acessos. R$ 50 bi/ano. O Pulso nasce.' },
 ];
 
 const platformStats = [
-  { value: '17M+', label: 'Registros de produção' },
-  { value: '31', label: 'Pipelines automatizados' },
-  { value: '45', label: 'Tabelas de dados' },
-  { value: '9', label: 'Módulos de inteligência' },
+  { value: '28M+', label: 'Registros de produção' },
+  { value: '38', label: 'Pipelines automatizados' },
+  { value: '62', label: 'Tabelas de dados' },
+  { value: '28', label: 'Módulos de inteligência' },
   { value: '13.534', label: 'ISPs rastreados' },
   { value: '5.572', label: 'Municípios cobertos' },
 ];
@@ -38,12 +38,12 @@ export default function SobrePage() {
             className="font-serif text-3xl font-bold tracking-tight md:text-5xl"
             style={{ color: 'var(--text-on-dark)', lineHeight: 1.1 }}
           >
-            De Telebras a 13.500 ISPs.{' '}
+            De Telebras a 13.534 ISPs.{' '}
             <span style={{ color: 'var(--text-on-dark-muted)' }}>Por que o Pulso existe.</span>
           </h1>
           <p className="mt-5 text-base leading-relaxed max-w-2xl" style={{ color: 'var(--text-on-dark-secondary)' }}>
             O Brasil construiu o maior ecossistema de provedores regionais de internet do mundo.
-            13.500+ empresas conectam 52% dos domicílios. O Pulso existe para dar inteligência de dados a esse ecossistema.
+            13.534 empresas conectam 52% dos domicílios. O Pulso existe para dar inteligência de dados a esse ecossistema.
           </p>
         </div>
       </Section>

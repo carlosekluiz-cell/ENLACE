@@ -33,7 +33,7 @@ const plans = [
     price: 'R$ 5.000',
     period: '/mês',
     audience: '10.000 a 100.000 assinantes',
-    features: ['20 usuários', 'Todos os 9 módulos', 'API REST', 'Suporte prioritário'],
+    features: ['20 usuários', 'Todos os 28 módulos', 'API REST', 'Suporte prioritário'],
     cta: 'Começar',
     ctaLink: '/cadastro',
     highlight: false,
@@ -53,7 +53,7 @@ const plans = [
 const faqs = [
   { q: 'O Gratuito é realmente gratuito?', a: 'Sim, permanente, sem cartão de crédito. Mapa interativo e dados básicos de penetração.' },
   { q: 'Posso cancelar a qualquer momento?', a: 'Sim. Mensal sem fidelidade. 15% desconto para pagamento anual.' },
-  { q: 'De onde vêm os dados?', a: '12+ fontes públicas: Anatel, IBGE, NASA/SRTM, INMET, DataSUS, INEP e mais. Detalhes na página de Dados.' },
+  { q: 'De onde vêm os dados?', a: '19+ fontes públicas: Anatel, IBGE, NASA/SRTM, INMET, DataSUS, INEP e mais. Detalhes na página de Dados.' },
   { q: 'Posso importar meus dados?', a: 'Nos planos Profissional e Empresa. Upload de bases anonimizadas para cruzamento.' },
   { q: 'LGPD?', a: 'Dados públicos e agregados por município. Dados importados criptografados e segregados.' },
   { q: 'Qual a frequência de atualização dos dados?', a: 'Dados de telecom (Anatel) são atualizados diariamente. Dados econômicos (IBGE, BNDES) semanalmente. Dados geográficos e de infraestrutura (OSM, SRTM) mensalmente.' },

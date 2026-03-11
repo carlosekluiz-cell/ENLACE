@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 const sources = [
   { name: 'Anatel STEL', description: 'Acessos de banda larga por município e provedor (4,1M registros)', frequency: 'Mensal' },
   { name: 'Anatel MOSAICO', description: 'ERBs (37.700+) e licenças de espectro georreferenciadas', frequency: 'Mensal' },
-  { name: 'IBGE Censo / Estimativas', description: 'Demografia, renda e domicílios para 5.570+ municípios', frequency: 'Anual' },
+  { name: 'IBGE Censo / Estimativas', description: 'Demografia, renda e domicílios para 5.572 municípios', frequency: 'Anual' },
   { name: 'SRTM / NASA', description: 'Modelo de elevação digital (30m) — 1.681 tiles cobrindo todo o Brasil', frequency: 'Estático' },
   { name: 'ESA Sentinel-2', description: 'Imagens satélite para índices urbanos e uso do solo (10m)', frequency: 'Quinzenal' },
   { name: 'OpenStreetMap', description: 'Malha viária (6,4M segmentos) e linhas de transmissão (16.559 trechos)', frequency: 'Semanal' },
@@ -60,8 +60,8 @@ export default function DadosPage() {
             className="font-serif text-3xl font-bold tracking-tight md:text-5xl"
             style={{ color: 'var(--text-on-dark)', lineHeight: 1.1 }}
           >
-            12+ fontes públicas.{' '}
-            <span style={{ color: 'var(--text-on-dark-muted)' }}>17M+ registros.</span>
+            19+ fontes públicas.{' '}
+            <span style={{ color: 'var(--text-on-dark-muted)' }}>28M+ registros.</span>
           </h1>
           <p className="mt-5 text-base leading-relaxed max-w-2xl" style={{ color: 'var(--text-on-dark-secondary)' }}>
             Todos os dados são de acesso público. O Pulso integra, normaliza e cruza
@@ -72,9 +72,9 @@ export default function DadosPage() {
         {/* Quick stats */}
         <div className="mt-12 grid grid-cols-2 gap-0 md:grid-cols-4" style={{ borderTop: '1px solid var(--border-dark-strong)' }}>
           {[
-            { value: '12+', label: 'Fontes' },
-            { value: '5.570+', label: 'Municípios' },
-            { value: '17M+', label: 'Registros' },
+            { value: '19+', label: 'Fontes' },
+            { value: '5.572', label: 'Municípios' },
+            { value: '28M+', label: 'Registros' },
             { value: '671', label: 'Estações meteo' },
           ].map((stat) => (
             <div key={stat.label} className="py-5 pr-6">

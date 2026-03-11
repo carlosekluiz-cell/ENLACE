@@ -8,9 +8,9 @@ export const metadata: Metadata = {
 };
 
 const heroStats = [
-  { value: '17M+', label: 'Registros de produção' },
-  { value: 'R$10,1M', label: 'Custo de reprodução' },
-  { value: '31', label: 'Pipelines automatizados' },
+  { value: '28M+', label: 'Registros de produção' },
+  { value: 'R$16,4M', label: 'Custo de reprodução' },
+  { value: '38', label: 'Pipelines automatizados' },
   { value: '9.000+', label: 'LOC Rust (motor RF)' },
 ];
 
@@ -25,10 +25,10 @@ const resources = [
       '5 dores críticas que a plataforma resolve',
       'Motor RF em Rust com 6 modelos ITU-R sobre terreno real',
       'Nenhum concorrente cobre RF + Mercado + Regulatório + M&A + Satélite',
-      'Valuation: R$10,1M (183 person-months, COCOMO II)',
+      'Valuation: R$16,4M (306 person-months, COCOMO II)',
       'ARR projetado: R$1,8M → R$16,8M em 3 anos',
     ],
-    stat: { value: 'R$10,1M', label: 'Custo de reprodução independente' },
+    stat: { value: 'R$16,4M', label: 'Custo de reprodução independente' },
   },
   {
     title: 'Calculadora de ROI',
@@ -49,7 +49,7 @@ const resources = [
     tag: 'Compradores & Avaliadores',
     description: 'Cada funcionalidade de cada módulo detalhada por tier. Gratuito, Provedor, Profissional e Empresa.',
     highlights: [
-      '9 módulos: Mercado, Expansão, Concorrência, Saúde, Conformidade, RF, Rural, M&A, Satélite',
+      '28 módulos: Mercado, Expansão, Concorrência, Espacial, Starlink, FWA, Peering, IX.br e mais',
       '70+ funcionalidades mapeadas por tier',
       'Funcionalidades transversais: API, SSE, relatórios, GeoJSON',
       'Notas sobre SLA, rate limits e onboarding',
@@ -81,12 +81,12 @@ const technicalDocs = [
       'Backend: FastAPI (Python 3.11), JWT auth, SSE',
       'RF Engine: Rust, 6 crates, gRPC+TLS, SRTM 30m',
       'DB: PostgreSQL + PostGIS, materialized views',
-      '31 pipelines (APScheduler), Sentinel-2 via GEE',
+      '38 pipelines (APScheduler), Sentinel-2 via GEE',
     ],
   },
   {
     title: 'Catálogo de Pipelines',
-    description: '31 pipelines automatizados alimentando 45 tabelas.',
+    description: '38 pipelines automatizados alimentando 62 tabelas.',
     details: [
       '7 diarios: Anatel, INMET, PNCP, DOU, Querido Diário',
       '7 semanais: IBGE, ANP, BNDES, CNPJ enriquecimento',
@@ -97,13 +97,13 @@ const technicalDocs = [
   },
   {
     title: 'Dicionário de Dados',
-    description: '45 tabelas com esquema completo e exemplos de consulta.',
+    description: '62 tabelas com esquema completo e exemplos de consulta.',
     details: [
       'providers (13.534 rows): national_id, name, uf, license_type',
       'broadband_subscribers (4,3M): provider_id, l2_id, subscribers, tech',
       'road_segments (6,4M): geom, highway_class, length_km',
       'base_stations (37.325): geom, provider_id, height_m',
-      'opportunity_scores (5.570): composite, demand, competition, growth',
+      'opportunity_scores (5.572): composite, demand, competition, growth',
     ],
   },
 ];

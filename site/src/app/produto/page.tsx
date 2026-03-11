@@ -72,7 +72,7 @@ const modules = [
     icon: Brain,
     title: 'Inteligência',
     description: 'Análise preditiva de mercado combinando todas as fontes de dados. Alertas automáticos de oportunidade, risco e tendências de mercado.',
-    metric: 'Machine learning sobre 12+ fontes',
+    metric: 'Machine learning sobre 19+ fontes',
     highlights: ['Alertas de oportunidade', 'Predição de churn por município', 'Tendências de mercado automatizadas'],
   },
   {

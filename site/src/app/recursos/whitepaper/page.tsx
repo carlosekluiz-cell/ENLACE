@@ -224,18 +224,18 @@ const competitiveMatrix = [
   { capability: 'Planejamento rural com energia solar', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
   { capability: 'Roteamento de fibra com BOM completo', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
   { capability: 'Base integrada com 17M+ registros', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
-  { capability: '31 pipelines automatizados', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
+  { capability: '38 pipelines automatizados', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
   { capability: 'Motor de cálculo Rust (sub-segundo)', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
 ];
 
 const valuationMetrics = [
-  { metric: 'Linhas de código (total)', value: '51.894' },
-  { metric: 'Arquivos', value: '198' },
-  { metric: 'Esforço de desenvolvimento', value: '183 person-months' },
-  { metric: 'Tamanho da equipe estimada', value: '10 profissionais' },
-  { metric: 'Prazo de reprodução', value: '18-22 meses' },
-  { metric: 'Custo de reprodução (Cost Approach)', value: 'R$10.080.300' },
-  { metric: 'Valor justo (Fair Value)', value: 'R$10,1M' },
+  { metric: 'Linhas de código (total)', value: '86.627' },
+  { metric: 'Arquivos', value: '340+' },
+  { metric: 'Esforço de desenvolvimento', value: '306 person-months' },
+  { metric: 'Tamanho da equipe estimada', value: '14 profissionais' },
+  { metric: 'Prazo de reprodução', value: '22-28 meses' },
+  { metric: 'Custo de reprodução (Cost Approach)', value: 'R$16.400.000' },
+  { metric: 'Valor justo (Fair Value)', value: 'R$16,4M' },
 ];
 
 const tiers = [
@@ -326,20 +326,20 @@ export default function WhitepaperPage() {
         </div>
         <div className="max-w-3xl">
           <p className="text-base leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-            O Brasil abriga o quinto maior mercado de telecomunicações do mundo, com mais de 13.500 provedores de internet
+            O Brasil abriga o quinto maior mercado de telecomunicações do mundo, com mais de 13.534 provedores de internet
             atendendo 5.572 municípios em um território de 8,5 milhões de km². A plataforma Pulso Network resolve
-            a fragmentação de dados do setor com uma solução integrada: 31 pipelines automatizados ingerem dados de 19+ fontes
+            a fragmentação de dados do setor com uma solução integrada: 38 pipelines automatizados ingerem dados de 19+ fontes
             governamentais e científicas, normalizam formatos incompatíveis, validam integridade referencial, e transformam
-            11,7 milhões de registros brutos em inteligência acionável — rankings de oportunidade, análise competitiva,
+            28 milhões de registros brutos em inteligência acionável — rankings de oportunidade, análise competitiva,
             projetos RF com terreno real, e avaliação de M&A.
           </p>
           <div className="mt-8 grid grid-cols-2 gap-0 md:grid-cols-3" style={{ border: '1px solid var(--border)' }}>
             {[
               { value: '17M+', label: 'Registros de produção' },
               { value: '19+', label: 'Fontes integradas' },
-              { value: '31', label: 'Pipelines automatizados' },
+              { value: '38', label: 'Pipelines automatizados' },
               { value: '9.000+', label: 'LOC Rust (motor RF)' },
-              { value: 'R$10,1M', label: 'Custo de reprodução' },
+              { value: 'R$16,4M', label: 'Custo de reprodução' },
               { value: '0', label: 'Concorrentes equivalentes' },
             ].map((stat) => (
               <div
@@ -427,7 +427,7 @@ export default function WhitepaperPage() {
           />
           <FlowArrow />
           <FlowStage
-            label="31 Pipelines"
+            label="38 Pipelines"
             sublabel="Extração → normalização → validação"
             items={[
               '4 Telecom — diário 02:00',
@@ -470,7 +470,7 @@ export default function WhitepaperPage() {
         <div className="grid grid-cols-2 gap-0 md:grid-cols-5" style={{ border: '1px solid var(--border)' }}>
           {[
             { value: '19+', label: 'Fontes externas' },
-            { value: '31', label: 'Pipelines' },
+            { value: '38', label: 'Pipelines' },
             { value: '45', label: 'Tabelas' },
             { value: '17M+', label: 'Registros' },
             { value: '9', label: 'Módulos' },
@@ -493,7 +493,7 @@ export default function WhitepaperPage() {
           Pipeline de Ingestão
         </div>
         <h2 className="font-serif text-2xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
-          31 pipelines: como dados brutos se tornam inteligência
+          38 pipelines: como dados brutos se tornam inteligência
         </h2>
         <p className="text-sm leading-relaxed mb-10 max-w-3xl" style={{ color: 'var(--text-secondary)' }}>
           Cada pipeline segue o mesmo ciclo: extração da fonte → normalização de formato → validação de integridade →
@@ -863,7 +863,7 @@ export default function WhitepaperPage() {
           Avaliação de PI
         </div>
         <h2 className="font-serif text-2xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
-          R$10,1M para reproduzir
+          R$16,4M para reproduzir
         </h2>
         <p className="text-sm leading-relaxed mb-8 max-w-3xl" style={{ color: 'var(--text-secondary)' }}>
           Avaliação independente usando metodologia COCOMO II (padrão IVS 210 para software), considerando

@@ -21,7 +21,7 @@ export default function Footer() {
             </div>
             <p className="text-sm leading-relaxed max-w-xs" style={{ color: 'var(--text-on-dark-muted)' }}>
               Inteligência telecom para provedores de internet brasileiros.
-              12+ fontes de dados públicos integradas em uma plataforma.
+              19+ fontes de dados públicos integradas em uma plataforma.
             </p>
           </div>
 

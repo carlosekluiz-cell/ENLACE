@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Matriz de Funcionalidades — Pulso Network',
-  description: '9 módulos x 4 tiers: funcionalidades detalhadas por nível de assinatura.',
+  description: '28 módulos x 4 tiers: funcionalidades detalhadas por nível de assinatura.',
 };
 
 const tierOverview = [
@@ -34,7 +34,7 @@ const modules: { title: string; number: string; features: Feature[] }[] = [
     title: 'Expansão e Oportunidades',
     number: '02',
     features: [
-      { name: 'Ranking de oportunidades', free: 'Top 10', provider: 'Top 100', pro: 'Todos (5.570)', enterprise: 'Todos + filtros' },
+      { name: 'Ranking de oportunidades', free: 'Top 10', provider: 'Top 100', pro: 'Todos (5.572)', enterprise: 'Todos + filtros' },
       { name: 'Score detalhado (5 dimensões)', free: '—', provider: '✓', pro: '✓', enterprise: '✓' },
       { name: 'Análise financeira (NPV, IRR, payback)', free: '—', provider: '✓', pro: '✓', enterprise: '✓' },
       { name: 'Rota de fibra (6,4M segmentos)', free: '—', provider: '1/mês', pro: '10/mês', enterprise: 'Ilimitado' },
@@ -193,11 +193,11 @@ export default function FuncionalidadesPage() {
             className="font-serif text-3xl font-bold tracking-tight md:text-5xl"
             style={{ color: 'var(--text-on-dark)', lineHeight: 1.1 }}
           >
-            9 módulos. 4 tiers.{' '}
+            28 módulos. 4 tiers.{' '}
             <span style={{ color: 'var(--text-on-dark-muted)' }}>Cada funcionalidade detalhada.</span>
           </h1>
           <p className="mt-5 text-base leading-relaxed max-w-2xl" style={{ color: 'var(--text-on-dark-secondary)' }}>
-            Todos os tiers acessam os mesmos 17M+ registros reais. A diferença está na profundidade
+            Todos os tiers acessam os mesmos 28M+ registros reais. A diferença está na profundidade
             de análise e ferramentas disponíveis.
           </p>
         </div>
@@ -263,11 +263,11 @@ export default function FuncionalidadesPage() {
       <Section background="subtle">
         <div className="max-w-3xl space-y-3">
           {[
-            'Todos os tiers incluem autenticação JWT e dados atualizados pelos 31 pipelines.',
+            'Todos os tiers incluem autenticação JWT e dados atualizados pelos 38 pipelines.',
             'O tier Gratuito é projetado para demonstrar valor e converter para tiers pagos.',
             'Preços em BRL. Provedor: cobrança mensal. Profissional e Empresa: anual com desconto de 15%.',
             'API rate limits: Profissional = 100 req/min, Empresa = sem limite.',
-            'Todos os tiers acessam os mesmos dados reais (17M+ registros).',
+            'Todos os tiers acessam os mesmos dados reais (28M+ registros).',
           ].map((note, i) => (
             <p key={i} className="flex gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
               <span className="font-mono shrink-0" style={{ color: 'var(--accent)' }}>{i + 1}.</span>

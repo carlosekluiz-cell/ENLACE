@@ -73,7 +73,7 @@ export default function ROIPage() {
             </h3>
             <ul className="space-y-3">
               {[
-                { step: 'Ranking de municípios', detail: '5.570 municípios por composite score' },
+                { step: 'Ranking de municípios', detail: '5.572 municípios por composite score' },
                 { step: 'Validação de mercado', detail: 'HHI, shares, tendência — confirmar oportunidade' },
                 { step: 'Rota de fibra', detail: 'Dijkstra sobre 6,4M segmentos + BOM' },
                 { step: 'Análise financeira', detail: 'NPV, IRR, payback com 3 cenários' },

@@ -22,10 +22,10 @@ export const BLOG_POSTS: BlogPost[] = [
     slug: 'top-50-municípios-oportunidade-isps-2026',
     title: 'Os 50 municípios com maior oportunidade para ISPs em 2026',
     excerpt:
-      'Analisamos 5.570 municípios brasileiros com nosso scoring proprietário de 15+ variáveis. Descubra onde estão as maiores oportunidades de expansão para provedores regionais.',
+      'Analisamos 5.572 municípios brasileiros com nosso scoring proprietário de 15+ variáveis. Descubra onde estão as maiores oportunidades de expansão para provedores regionais.',
     date: '2026-03-05',
     author: 'Equipe Pulso',
-    content: `O Pulso calcula um score de oportunidade para cada um dos 5.570 municípios brasileiros, cruzando dados de 12+ fontes públicas. O algoritmo pondera variáveis demográficas (população, renda, crescimento), competitivas (HHI, número de provedores, penetração de banda larga) e geográficas (densidade, presença de infraestrutura) para gerar um ranking de 0 a 100.
+    content: `O Pulso calcula um score de oportunidade para cada um dos 5.572 municípios brasileiros, cruzando dados de 19+ fontes públicas. O algoritmo pondera variáveis demográficas (população, renda, crescimento), competitivas (HHI, número de provedores, penetração de banda larga) e geográficas (densidade, presença de infraestrutura) para gerar um ranking de 0 a 100.
 
 Na atualização de março de 2026, os municípios com maior score estão concentrados em três perfis distintos. O primeiro são cidades médias do interior de São Paulo e Minas Gerais — como Ribeirão Preto (score 87), Uberlândia (84) e São José do Rio Preto (75) — que combinam população elevada, renda acima da média e penetração ainda abaixo do potencial. O segundo perfil são capitais regionais do Nordeste, como Campina Grande (79) e Feira de Santana (77), onde o HHI elevado (acima de 3.000) indica concentração e portanto espaço para novos entrantes. O terceiro são polos agroindustriais do Centro-Oeste, onde o crescimento populacional supera 3% ao ano.
 
@@ -40,7 +40,7 @@ A recomendação prática: ISPs que buscam expandir em 2026 devem priorizar muni
       'Com 4,1 milhões de registros de banda larga cobrindo 37 meses, identificamos os municípios onde a concentração de mercado está diminuindo — e o que isso significa para ISPs.',
     date: '2026-03-08',
     author: 'Equipe Pulso',
-    content: `O Índice Herfindahl-Hirschman (HHI) é o indicador padrão para medir concentração de mercado. No contexto de banda larga brasileira, o Pulso calcula o HHI mensal para cada município usando dados reais da Anatel — são 4,1 milhões de registros cobrindo 37 meses (janeiro de 2023 a janeiro de 2026), distribuídos entre 13.500+ provedores em 5.570 municípios.
+    content: `O Índice Herfindahl-Hirschman (HHI) é o indicador padrão para medir concentração de mercado. No contexto de banda larga brasileira, o Pulso calcula o HHI mensal para cada município usando dados reais da Anatel — são 4,1 milhões de registros cobrindo 37 meses (janeiro de 2023 a janeiro de 2026), distribuídos entre 13.534 provedores em 5.572 municípios.
 
 A tendência geral é de queda: o HHI médio nacional caiu de 4.850 em janeiro de 2023 para 4.320 em janeiro de 2026, uma redução de 11% em três anos. Isso reflete a entrada contínua de ISPs regionais em mercados antes dominados por grandes operadoras. Os municípios com queda mais acentuada (acima de 20%) estão concentrados no Norte e Nordeste, regiões onde a fibra óptica chegou mais tarde e os ISPs estão capturando share rapidamente. Em cidades como Marabá (PA), Imperatriz (MA) e Vitória da Conquista (BA), o HHI caiu mais de 1.500 pontos no período.
 
@@ -147,7 +147,7 @@ A recomendação para ISPs em 2026: a fibra é inevitável como tecnologia princ
       },
       {
         type: 'text',
-        content: 'A lógica de distribuição inverte a concentração econômica: Norte e Nordeste recebem 57% dos recursos. Isso reflete o critério principal da chamada pública — municípios com menos de 30 mil habitantes e penetração de banda larga abaixo de 40%. Dos 5.570 municípios brasileiros monitorados pelo Pulso, 4.392 atendem ao critério populacional. Destes, 2.871 tem penetração abaixo de 40%, o que os torna elegíveis para submissão de projetos.\n\nO processo de submissão mudou em 2025. Antes, era necessário um projeto executivo completo (engenharia, orçamento detalhado, cronograma de 36 meses). Agora, a primeira fase exige apenas um pré-projeto com escopo, estimativa de custos e área de cobertura pretendida. Provedores selecionados na pré-fase recebem assistência técnica para elaborar o projeto completo.',
+        content: 'A lógica de distribuição inverte a concentração econômica: Norte e Nordeste recebem 57% dos recursos. Isso reflete o critério principal da chamada pública — municípios com menos de 30 mil habitantes e penetração de banda larga abaixo de 40%. Dos 5.572 municípios brasileiros monitorados pelo Pulso, 4.392 atendem ao critério populacional. Destes, 2.871 tem penetração abaixo de 40%, o que os torna elegíveis para submissão de projetos.\n\nO processo de submissão mudou em 2025. Antes, era necessário um projeto executivo completo (engenharia, orçamento detalhado, cronograma de 36 meses). Agora, a primeira fase exige apenas um pré-projeto com escopo, estimativa de custos e área de cobertura pretendida. Provedores selecionados na pré-fase recebem assistência técnica para elaborar o projeto completo.',
       },
       {
         type: 'table',
@@ -228,7 +228,7 @@ A recomendação para ISPs em 2026: a fibra é inevitável como tecnologia princ
     slug: 'internet-rural-municipios-30-mil',
     title: 'Internet rural: municípios com menos de 30 mil habitantes',
     excerpt:
-      'Dos 5.570 municípios brasileiros, 4.392 tem menos de 30 mil habitantes. A maioria ainda opera com penetração abaixo de 40%. Onde estão as oportunidades — e os custos reais.',
+      'Dos 5.572 municípios brasileiros, 4.392 tem menos de 30 mil habitantes. A maioria ainda opera com penetração abaixo de 40%. Onde estão as oportunidades — e os custos reais.',
     date: '2026-02-28',
     author: 'Equipe Pulso',
     content: '',

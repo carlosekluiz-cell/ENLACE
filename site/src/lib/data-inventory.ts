@@ -1,8 +1,8 @@
 export const DATA_INVENTORY = {
-  providers: { count: 13534, display: '13.500+' },
-  municipalities: { count: 5572, display: '5.570+' },
-  totalRecords: '17M+',
-  dataSources: '12+',
+  providers: { count: 13534, display: '13.534' },
+  municipalities: { count: 5572, display: '5.572' },
+  totalRecords: '28M+',
+  dataSources: '19+',
   weatherStations: { count: 671, display: '671' },
   roadSegments: { count: 6457585, display: '6,4M' },
   baseStations: { count: 37325, display: '37.300+' },
@@ -10,7 +10,7 @@ export const DATA_INVENTORY = {
   qualityIndicators: { count: 6111347, display: '6,1M' },
   activeSubscribers: { count: 54429216, display: '54M+' },
   srtmTiles: { count: 1681, display: '1.681' },
-  modules: 9,
-  pipelineFlows: 31,
-  tables: 45,
+  modules: 28,
+  pipelineFlows: 38,
+  tables: 62,
 } as const;

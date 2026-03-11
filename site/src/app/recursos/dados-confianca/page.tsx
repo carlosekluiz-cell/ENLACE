@@ -103,8 +103,8 @@ const a3Sources: SourceEntry[] = [
 ];
 
 const b1Sources: SourceEntry[] = [
-  { dataset: 'Scores de oportunidade', table: 'opportunity_scores', records: '5.570', level: 'B1' },
-  { dataset: 'Análise competitiva (HHI)', table: 'competitive_analysis', records: '~5.570', level: 'B1' },
+  { dataset: 'Scores de oportunidade', table: 'opportunity_scores', records: '5.572', level: 'B1' },
+  { dataset: 'Análise competitiva (HHI)', table: 'competitive_analysis', records: '~5.572', level: 'B1' },
   { dataset: 'Atribuição de operadora', table: 'base_stations', records: '37.325', level: 'B1' },
   { dataset: 'Indicadores de qualidade', table: 'quality_indicators', records: '6.111.347', level: 'B1' },
 ];
