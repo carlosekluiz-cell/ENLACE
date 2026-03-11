@@ -4,6 +4,7 @@ export const APP_URL = 'https://app.pulso.network';
 export const API_URL = 'https://api.pulso.network';
 
 export const NAV_LINKS = [
+  { label: 'Raio-X', href: '/raio-x' },
   { label: 'Produto', href: '/produto' },
   { label: 'Dados', href: '/dados' },
   { label: 'Preços', href: '/precos' },
@@ -14,6 +15,7 @@ export const NAV_LINKS = [
 
 export const FOOTER_LINKS = {
   product: [
+    { label: 'Raio-X do Provedor', href: '/raio-x' },
     { label: 'Produto', href: '/produto' },
     { label: 'Dados', href: '/dados' },
     { label: 'Preços', href: '/precos' },

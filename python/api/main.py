@@ -57,6 +57,8 @@ from python.api.routers import (
     ixp,
     # Wave 3 — cross-reference analytics
     cross_analytics,
+    # Public (no auth)
+    public,
 )
 
 # Initialize structured JSON logging before anything else
@@ -153,6 +155,9 @@ app.include_router(ixp.router)
 
 # Wave 3 — cross-reference analytics
 app.include_router(cross_analytics.router)
+
+# Public (no auth required)
+app.include_router(public.router)
 
 
 @app.get("/health")
