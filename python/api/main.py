@@ -31,6 +31,32 @@ from python.api.routers import (
     admin,
     events,
     satellite,
+    intelligence,
+    research,
+    # Wave 1 — new feature routers
+    buildings,
+    fiber,
+    h3,
+    timeseries,
+    speedtest,
+    coverage,
+    colocation,
+    alerts,
+    mna_enhanced,
+    pulso_score,
+    credit,
+    # Wave 2 — research-driven feature routers
+    spatial_analytics,
+    starlink_threat,
+    fwa_fiber,
+    backhaul,
+    weather_risk,
+    compliance_rgst,
+    obligations,
+    peering,
+    ixp,
+    # Wave 3 — cross-reference analytics
+    cross_analytics,
 )
 
 # Initialize structured JSON logging before anything else
@@ -98,6 +124,35 @@ app.include_router(mna.router)
 app.include_router(admin.router)
 app.include_router(events.router)
 app.include_router(satellite.router)
+app.include_router(intelligence.router)
+app.include_router(research.router)
+
+# Wave 1 — new feature routers
+app.include_router(buildings.router)
+app.include_router(fiber.router)
+app.include_router(h3.router)
+app.include_router(timeseries.router)
+app.include_router(speedtest.router)
+app.include_router(coverage.router)
+app.include_router(colocation.router)
+app.include_router(alerts.router)
+app.include_router(mna_enhanced.router)
+app.include_router(pulso_score.router)
+app.include_router(credit.router)
+
+# Wave 2 — research-driven feature routers
+app.include_router(spatial_analytics.router)
+app.include_router(starlink_threat.router)
+app.include_router(fwa_fiber.router)
+app.include_router(backhaul.router)
+app.include_router(weather_risk.router)
+app.include_router(compliance_rgst.router)
+app.include_router(obligations.router)
+app.include_router(peering.router)
+app.include_router(ixp.router)
+
+# Wave 3 — cross-reference analytics
+app.include_router(cross_analytics.router)
 
 
 @app.get("/health")

@@ -56,7 +56,7 @@ export default function SettingsPage() {
 
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
-      setPwMsg('As senhas nao coincidem');
+      setPwMsg('As senhas não coincidem');
       return;
     }
     setPwSaving(true);
@@ -79,13 +79,13 @@ export default function SettingsPage() {
 
   const tabs = [
     { key: 'profile' as Tab, label: 'Perfil', icon: User },
-    { key: 'security' as Tab, label: 'Seguranca', icon: Lock },
-    { key: 'preferences' as Tab, label: 'Preferencias', icon: Settings },
+    { key: 'security' as Tab, label: 'Segurança', icon: Lock },
+    { key: 'preferences' as Tab, label: 'Preferências', icon: Settings },
   ];
 
   return (
     <div className="p-6">
-      <h1 className="mb-6 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Configuracoes</h1>
+      <h1 className="mb-6 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Configurações</h1>
 
       {/* Tabs */}
       <div
@@ -111,7 +111,7 @@ export default function SettingsPage() {
       {/* Profile Tab */}
       {activeTab === 'profile' && (
         <div className="pulso-card max-w-lg space-y-4">
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Informacoes do Perfil</h2>
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Informações do Perfil</h2>
           <div>
             <label className="mb-1 block text-sm" style={{ color: 'var(--text-secondary)' }}>Nome completo</label>
             <input
@@ -131,7 +131,7 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm" style={{ color: 'var(--text-secondary)' }}>Funcao</label>
+            <label className="mb-1 block text-sm" style={{ color: 'var(--text-secondary)' }}>Função</label>
             <input
               type="text"
               value={user?.role || ''}
@@ -205,7 +205,7 @@ export default function SettingsPage() {
       {/* Preferences Tab */}
       {activeTab === 'preferences' && (
         <div className="pulso-card max-w-lg space-y-6">
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Preferencias</h2>
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Preferências</h2>
 
           {/* Theme */}
           <div>
@@ -232,7 +232,7 @@ export default function SettingsPage() {
             <label className="mb-2 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Idioma</label>
             <div className="flex gap-2">
               {[
-                { code: 'pt-BR', label: 'Portugues (BR)' },
+                { code: 'pt-BR', label: 'Português (BR)' },
                 { code: 'en', label: 'English' },
               ].map((lang) => (
                 <button

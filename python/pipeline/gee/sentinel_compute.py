@@ -48,9 +48,12 @@ def _require_ee():
 # Configuration
 # ---------------------------------------------------------------------------
 
-GEE_SERVICE_ACCOUNT_KEY = os.getenv("GEE_SERVICE_ACCOUNT_KEY", "")
+GEE_SERVICE_ACCOUNT_KEY = os.getenv(
+    "GEE_SERVICE_ACCOUNT_KEY",
+    os.path.expanduser("~/enlace/secrets/gee_service_account.json"),
+)
 GEE_EXPORT_BUCKET = os.getenv("GEE_EXPORT_BUCKET", "enlace-sentinel")
-GEE_PROJECT = os.getenv("GEE_PROJECT", "enlace-platform")
+GEE_PROJECT = os.getenv("GEE_PROJECT", "")
 
 # Sentinel-2 Surface Reflectance collection
 S2_SR_COLLECTION = "COPERNICUS/S2_SR_HARMONIZED"
@@ -65,10 +68,16 @@ S2_BANDS = ["B2", "B3", "B4", "B8", "B11", "B12", "SCL"]
 #   10 = Thin Cirrus
 SCL_MASK_VALUES = [3, 8, 9, 10]
 
-# Pixel size in metres for reductions and exports (Sentinel-2 native 10 m
-# bands are used, but 10 m over large areas is expensive; 30 m is a good
-# balance between accuracy and compute budget).
+# Default pixel size in metres for reductions and exports.
 EXPORT_SCALE_METRES = 30
+
+# Area thresholds (km²) for adaptive scaling.  Larger municipalities use
+# coarser resolution to stay within GEE's memory budget.
+_SCALE_THRESHOLDS: List[Tuple[float, int]] = [
+    (50_000, 500),
+    (10_000, 250),
+    (3_000, 100),
+]
 
 # Default maximum cloud cover percentage for pre-filtering the image collection.
 DEFAULT_CLOUD_THRESHOLD = 20
@@ -91,6 +100,7 @@ class MunicipalitySpec:
     code: str            # IBGE municipality code (7-digit string)
     bbox: List[float]    # [min_lon, min_lat, max_lon, max_lat]
     name: str = ""       # Optional human-readable name
+    geojson: Optional[Dict[str, Any]] = None  # Exact polygon geometry
 
 
 @dataclass
@@ -138,14 +148,20 @@ def initialize_gee() -> None:
             key_data = json.load(f)
         service_account = key_data.get("client_email", "")
         credentials = ee.ServiceAccountCredentials(service_account, key_path)
-        ee.Initialize(credentials=credentials, project=GEE_PROJECT)
+        init_kwargs: Dict[str, Any] = {"credentials": credentials}
+        if GEE_PROJECT:
+            init_kwargs["project"] = GEE_PROJECT
+        ee.Initialize(**init_kwargs)
     else:
         logger.info(
             "No service account key found; falling back to interactive / "
             "application-default credentials"
         )
         ee.Authenticate()
-        ee.Initialize(project=GEE_PROJECT)
+        init_kwargs = {}
+        if GEE_PROJECT:
+            init_kwargs["project"] = GEE_PROJECT
+        ee.Initialize(**init_kwargs)
 
     _initialised = True
     logger.info("Google Earth Engine initialised (project=%s)", GEE_PROJECT)
@@ -216,12 +232,36 @@ def _classify_builtup(image: ee.Image) -> ee.Image:
 # Composite building
 # ---------------------------------------------------------------------------
 
+def _adaptive_scale(area_km2: Optional[float]) -> int:
+    """Choose a pixel scale that keeps GEE within memory budget."""
+    if area_km2 is not None:
+        for threshold, scale in _SCALE_THRESHOLDS:
+            if area_km2 >= threshold:
+                return scale
+    return EXPORT_SCALE_METRES
+
+
+def _make_aoi(
+    bbox: List[float],
+    geojson: Optional[Dict[str, Any]] = None,
+) -> ee.Geometry:
+    """Create an ee.Geometry from a GeoJSON dict or a bbox fallback.
+
+    Using the exact polygon instead of a bounding box dramatically reduces
+    memory usage in GEE for large or oddly-shaped municipalities.
+    """
+    if geojson is not None:
+        return ee.Geometry(geojson)
+    return ee.Geometry.Rectangle(bbox)
+
+
 def _build_annual_composite(
     bbox: List[float],
     year: int,
     cloud_threshold: int = DEFAULT_CLOUD_THRESHOLD,
+    geojson: Optional[Dict[str, Any]] = None,
 ) -> ee.Image:
-    """Build a cloud-free annual median composite for a bounding box.
+    """Build a cloud-free annual median composite for an area of interest.
 
     Steps:
         1. Filter Sentinel-2 SR collection to AOI, date range, cloud cover.
@@ -232,14 +272,17 @@ def _build_annual_composite(
         6. Classify built-up pixels.
 
     Args:
-        bbox: [min_lon, min_lat, max_lon, max_lat].
+        bbox: [min_lon, min_lat, max_lon, max_lat] (used if *geojson* is None).
         year: Calendar year for the composite.
         cloud_threshold: Maximum CLOUDY_PIXEL_PERCENTAGE for pre-filtering.
+        geojson: Optional GeoJSON geometry dict for the municipality polygon.
+            When provided, uses the exact shape instead of the bounding box,
+            which avoids GEE memory errors on large municipalities.
 
     Returns:
         ee.Image with bands B2-B12, SCL, NDVI, NDBI, MNDWI, BSI, builtup.
     """
-    aoi = ee.Geometry.Rectangle(bbox)
+    aoi = _make_aoi(bbox, geojson)
 
     start_date = f"{year}-01-01"
     end_date = f"{year + 1}-01-01"
@@ -269,6 +312,8 @@ def _reduce_to_stats(
     bbox: List[float],
     municipality_code: str,
     year: int,
+    geojson: Optional[Dict[str, Any]] = None,
+    area_km2: Optional[float] = None,
 ) -> ee.Feature:
     """Reduce a composite image to municipality-level statistics.
 
@@ -280,8 +325,8 @@ def _reduce_to_stats(
     Returns an ``ee.Feature`` (point geometry at AOI centroid) whose
     properties contain the statistics plus metadata.
     """
-    aoi = ee.Geometry.Rectangle(bbox)
-    scale = EXPORT_SCALE_METRES
+    aoi = _make_aoi(bbox, geojson)
+    scale = _adaptive_scale(area_km2)
 
     # Mean indices
     mean_indices = composite.select(["NDVI", "NDBI", "MNDWI", "BSI"]).reduceRegion(
@@ -410,6 +455,7 @@ def compute_municipality_indices(
     bbox: List[float],
     year: int,
     cloud_threshold: int = DEFAULT_CLOUD_THRESHOLD,
+    geojson: Optional[Dict[str, Any]] = None,
 ) -> TaskPair:
     """Submit GEE export tasks for one municipality/year.
 
@@ -423,6 +469,9 @@ def compute_municipality_indices(
         year: Calendar year for the composite.
         cloud_threshold: Maximum ``CLOUDY_PIXEL_PERCENTAGE`` for image
             pre-filtering (default 20).
+        geojson: Optional GeoJSON geometry dict. When provided, uses the
+            exact polygon instead of the bbox, avoiding memory errors on
+            large municipalities.
 
     Returns:
         A ``TaskPair`` containing the submitted GEE tasks for stats and RGB
@@ -437,8 +486,8 @@ def compute_municipality_indices(
         cloud_threshold,
     )
 
-    composite = _build_annual_composite(bbox, year, cloud_threshold)
-    stats_feature = _reduce_to_stats(composite, bbox, municipality_code, year)
+    composite = _build_annual_composite(bbox, year, cloud_threshold, geojson=geojson)
+    stats_feature = _reduce_to_stats(composite, bbox, municipality_code, year, geojson=geojson)
 
     # Submit export tasks
     stats_task = _export_stats_to_gcs(stats_feature, municipality_code, year)

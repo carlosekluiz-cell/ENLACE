@@ -82,16 +82,17 @@ export default function RuralPage() {
   const costBreakdown: { name: string; value: number }[] = designResult
     ? [
         { name: 'Backhaul', value: designResult.backhaul_details?.total_estimated_cost_brl ?? 0 },
-        { name: 'Ultima Milha', value: designResult.last_mile_details?.total_estimated_cost_brl ?? 0 },
+        { name: 'Última Milha', value: designResult.last_mile_details?.total_estimated_cost_brl ?? 0 },
         { name: 'Energia', value: designResult.power_details?.total_estimated_cost_brl ?? 0 },
       ]
     : [];
 
   const fundingTypeLabel: Record<string, string> = {
-    credit: 'Credito',
+    credit: 'Crédito',
     grant: 'Fundo perdido',
-    subsidy: 'Subsidio',
+    subsidy: 'Subsídio',
     mixed: 'Misto',
+    partnership: 'Parceria',
   };
 
   return (
@@ -101,7 +102,7 @@ export default function RuralPage() {
         <div className="pulso-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Comunidades Nao Atendidas</p>
+              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Programas Cadastrados</p>
               <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
                 {programsLoading ? 'Carregando...' : programs ? `${programs.length}` : '---'}
               </p>
@@ -113,7 +114,7 @@ export default function RuralPage() {
         <div className="pulso-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Populacao Rural</p>
+              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>População Rural</p>
               <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
                 {programsLoading
                   ? 'Carregando...'
@@ -131,7 +132,7 @@ export default function RuralPage() {
         <div className="pulso-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Financiamento Disponivel</p>
+              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Financiamento Disponível</p>
               <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
                 {programsLoading
                   ? 'Carregando...'
@@ -151,7 +152,7 @@ export default function RuralPage() {
         <div className="pulso-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Custo Medio/Domicilio</p>
+              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Custo Médio/Domicílio</p>
               <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
                 {programsLoading
                   ? 'Carregando...'
@@ -220,7 +221,7 @@ export default function RuralPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>
-                  Populacao
+                  População
                 </label>
                 <input
                   type="number"
@@ -231,7 +232,7 @@ export default function RuralPage() {
               </div>
               <div>
                 <label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>
-                  Area (km2)
+                  Área (km²)
                 </label>
                 <input
                   type="number"
@@ -260,7 +261,7 @@ export default function RuralPage() {
                 </div>
               </label>
               <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                Rede Eletrica Disponivel
+                Rede Elétrica Disponível
               </span>
             </div>
 
@@ -321,7 +322,7 @@ export default function RuralPage() {
                 {/* Last Mile */}
                 <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--bg-subtle)' }}>
                   <p className="mb-1 text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>
-                    Ultima Milha
+                    Última Milha
                   </p>
                   <p className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>
                     {designResult.last_mile_technology?.toUpperCase()}
@@ -407,7 +408,7 @@ export default function RuralPage() {
               {designResult.design_notes && designResult.design_notes.length > 0 && (
                 <div className="mt-4 rounded-lg p-4" style={{ backgroundColor: 'var(--bg-subtle)' }}>
                   <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>
-                    Observacoes
+                    Observações
                   </p>
                   <ul className="space-y-1">
                     {designResult.design_notes.map((note, idx) => (
@@ -442,7 +443,7 @@ export default function RuralPage() {
           <div>
             <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               <DollarSign size={16} style={{ color: 'var(--accent)' }} />
-              Programas de Financiamento Compativeis
+              Programas de Financiamento Compatíveis
             </h2>
 
             {programsError && (
@@ -502,7 +503,7 @@ export default function RuralPage() {
                       </div>
                       <div className="ml-4 text-right">
                         <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                          Ate R${' '}
+                          Até R${' '}
                           {((program.max_funding_brl ?? 0) / 1e6).toFixed(1)}M
                         </p>
                         {program.deadline && (

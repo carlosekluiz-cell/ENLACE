@@ -1,48 +1,127 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Map,
-  TrendingUp,
-  Shield,
-  Mountain,
-  FileText,
   Menu,
   X,
-  Antenna,
   LogOut,
   Settings,
   User,
-  Users,
-  Activity,
-  Satellite,
   Sun,
   Moon,
+  ChevronDown,
+  Map,
+  TrendingUp,
+  Antenna,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { navSections, findSectionForPath, type NavSection, type NavItem } from '@/lib/navigation';
 
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ReactNode;
-  minRole?: string;
+// ── SidebarNavLink ───────────────────────────────────────────────────────
+
+function SidebarNavLink({
+  item,
+  pathname,
+  onClick,
+}: {
+  item: NavItem;
+  pathname: string;
+  onClick: () => void;
+}) {
+  const Icon = item.icon;
+  const isActive =
+    item.href === '/'
+      ? pathname === '/'
+      : pathname === item.href || pathname.startsWith(item.href + '/');
+
+  return (
+    <Link
+      href={item.href}
+      onClick={onClick}
+      className={clsx(
+        'flex items-center gap-3 rounded-md px-3 text-[13px] font-medium transition-colors',
+        isActive ? 'border-l-2' : 'border-l-2 border-transparent'
+      )}
+      style={{
+        height: '34px',
+        color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+        background: isActive ? 'var(--accent-subtle)' : 'transparent',
+        borderLeftColor: isActive ? 'var(--accent)' : 'transparent',
+      }}
+    >
+      <span style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}>
+        <Icon size={15} />
+      </span>
+      <span className="flex-1">{item.label}</span>
+      {item.badge && (
+        <span
+          className="rounded px-1.5 py-0.5 text-[9px] font-bold leading-none"
+          style={{
+            background: item.badge === 'NEW' ? 'var(--accent)' : 'var(--text-muted)',
+            color: '#fff',
+          }}
+        >
+          {item.badge}
+        </span>
+      )}
+    </Link>
+  );
 }
 
-const navItems: NavItem[] = [
-  { label: 'Mapa', href: '/', icon: <Map size={16} /> },
-  { label: 'Expansão', href: '/expansao', icon: <TrendingUp size={16} /> },
-  { label: 'Concorrência', href: '/concorrencia', icon: <Users size={16} /> },
-  { label: 'Projeto RF', href: '/projeto', icon: <Antenna size={16} /> },
-  { label: 'Conformidade', href: '/conformidade', icon: <Shield size={16} /> },
-  { label: 'Saúde', href: '/saude', icon: <Activity size={16} /> },
-  { label: 'Rural', href: '/rural', icon: <Mountain size={16} /> },
-  { label: 'Satélite', href: '/satelite', icon: <Satellite size={16} /> },
-  { label: 'Relatórios', href: '/relatorios', icon: <FileText size={16} /> },
-];
+// ── SidebarSection ───────────────────────────────────────────────────────
+
+function SidebarSection({
+  section,
+  isOpen,
+  onToggle,
+  pathname,
+  onNavigate,
+}: {
+  section: NavSection;
+  isOpen: boolean;
+  onToggle: () => void;
+  pathname: string;
+  onNavigate: () => void;
+}) {
+  return (
+    <div className="mb-1">
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center justify-between rounded px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-colors hover:opacity-80"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        {section.label}
+        <ChevronDown
+          size={14}
+          className={clsx('transition-transform duration-200', isOpen ? 'rotate-0' : '-rotate-90')}
+        />
+      </button>
+      <div
+        className={clsx(
+          'overflow-hidden transition-all duration-200 ease-in-out',
+          isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+        )}
+      >
+        <div className="space-y-0.5 py-0.5">
+          {section.items.map((item) => (
+            <SidebarNavLink
+              key={item.href}
+              item={item}
+              pathname={pathname}
+              onClick={onNavigate}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Sidebar ─────────────────────────────────────────────────────────
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -50,7 +129,35 @@ export default function Sidebar() {
   const { user, logout, hasRole } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
 
+  // Track which sections are expanded
+  const [openSections, setOpenSections] = useState<Set<string>>(new Set());
+
+  // Auto-expand the section containing the active path
+  useEffect(() => {
+    const activeSection = findSectionForPath(pathname);
+    if (activeSection) {
+      setOpenSections((prev) => {
+        if (prev.has(activeSection)) return prev;
+        const next = new Set(prev);
+        next.add(activeSection);
+        return next;
+      });
+    }
+  }, [pathname]);
+
   if (pathname === '/login') return null;
+
+  const toggleSection = (id: string) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const toggleTheme = () => {
     setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
@@ -110,53 +217,37 @@ export default function Sidebar() {
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 space-y-0.5 px-2 py-3">
-          {navItems.map((item) => {
-            const isActive =
-              item.href === '/'
-                ? pathname === '/'
-                : pathname === item.href || pathname?.startsWith(item.href + '/');
-            return (
+        {/* Navigation — Grouped Sections */}
+        <nav className="flex-1 overflow-y-auto px-2 py-2">
+          {navSections.map((section) => (
+            <SidebarSection
+              key={section.id}
+              section={section}
+              isOpen={openSections.has(section.id)}
+              onToggle={() => toggleSection(section.id)}
+              pathname={pathname}
+              onNavigate={() => setMobileOpen(false)}
+            />
+          ))}
+
+          {/* Admin — role-gated, outside sections */}
+          {hasRole('admin') && (
+            <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
               <Link
-                key={item.href}
-                href={item.href}
+                href="/admin"
                 onClick={() => setMobileOpen(false)}
-                className={clsx(
-                  'flex items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors',
-                  isActive ? 'border-l-2' : 'border-l-2 border-transparent'
-                )}
+                className="flex items-center gap-3 rounded-md px-3 text-[13px] font-medium border-l-2 border-transparent"
                 style={{
-                  height: '40px',
-                  color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
-                  background: isActive ? 'var(--accent-subtle)' : 'transparent',
-                  borderLeftColor: isActive ? 'var(--accent)' : 'transparent',
+                  height: '34px',
+                  color: pathname === '/admin' ? 'var(--accent)' : 'var(--text-muted)',
+                  background: pathname === '/admin' ? 'var(--accent-subtle)' : 'transparent',
+                  borderLeftColor: pathname === '/admin' ? 'var(--accent)' : 'transparent',
                 }}
               >
-                <span style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}>
-                  {item.icon}
-                </span>
-                {item.label}
+                <Settings size={15} />
+                Admin
               </Link>
-            );
-          })}
-
-          {/* Admin — hidden from nav but accessible */}
-          {hasRole('admin') && (
-            <Link
-              href="/admin"
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 rounded-md px-3 text-sm font-medium border-l-2 border-transparent mt-4"
-              style={{
-                height: '40px',
-                color: pathname === '/admin' ? 'var(--accent)' : 'var(--text-muted)',
-                background: pathname === '/admin' ? 'var(--accent-subtle)' : 'transparent',
-                borderLeftColor: pathname === '/admin' ? 'var(--accent)' : 'transparent',
-              }}
-            >
-              <Settings size={16} />
-              Admin
-            </Link>
+            </div>
           )}
         </nav>
 
@@ -181,7 +272,6 @@ export default function Sidebar() {
 
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-1">
-              {/* Settings */}
               <Link
                 href="/configuracoes"
                 onClick={() => setMobileOpen(false)}
@@ -192,7 +282,6 @@ export default function Sidebar() {
                 <Settings size={16} />
               </Link>
 
-              {/* Theme toggle */}
               <button
                 onClick={toggleTheme}
                 className="rounded p-1.5 transition-colors"
@@ -203,7 +292,6 @@ export default function Sidebar() {
               </button>
             </div>
 
-            {/* Logout */}
             <button
               onClick={logout}
               className="rounded p-1.5 transition-colors"
@@ -221,6 +309,8 @@ export default function Sidebar() {
     </>
   );
 }
+
+// ── Mobile Bottom Tab Bar ────────────────────────────────────────────────
 
 function BottomTabBar({ pathname, onNavigate }: { pathname: string; onNavigate: () => void }) {
   const tabs = [

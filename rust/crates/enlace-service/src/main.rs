@@ -12,7 +12,7 @@ mod proto {
     tonic::include_proto!("enlace.rf");
 }
 
-use tonic::transport::Server;
+use tonic::transport::{Identity, Server, ServerTlsConfig};
 use tracing_subscriber as _;
 
 use config::ServiceConfig;
@@ -30,12 +30,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("SRTM tile directory: {}", config.srtm_tile_dir);
     tracing::info!("Listening on {}", addr);
 
-    let service = RfEngineService::new(config);
+    let service = RfEngineService::new(config.clone());
+    let rf_service = RfEngineServer::new(service);
 
-    Server::builder()
-        .add_service(RfEngineServer::new(service))
-        .serve(addr)
-        .await?;
+    let mut builder = Server::builder();
+
+    if let (Some(cert_path), Some(key_path)) = (&config.tls_cert, &config.tls_key) {
+        let cert = std::fs::read(cert_path)?;
+        let key = std::fs::read(key_path)?;
+        let identity = Identity::from_pem(cert, key);
+        let tls_config = ServerTlsConfig::new().identity(identity);
+        tracing::info!("TLS enabled");
+        builder
+            .tls_config(tls_config)?
+            .add_service(rf_service)
+            .serve(addr)
+            .await?;
+    } else {
+        tracing::info!("TLS disabled (set TLS_CERT and TLS_KEY to enable)");
+        builder
+            .add_service(rf_service)
+            .serve(addr)
+            .await?;
+    }
 
     Ok(())
 }

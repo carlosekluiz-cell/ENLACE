@@ -38,11 +38,18 @@ let DeckGLComponent: any = null;
 let TileLayerClass: any = null;
 let BitmapLayerClass: any = null;
 
+interface FlyToTarget {
+  latitude: number;
+  longitude: number;
+  zoom?: number;
+}
+
 interface MapViewProps {
   layers?: any[];
   onMapClick?: (info: any) => void;
   className?: string;
   initialViewState?: Partial<typeof BRAZIL_VIEW>;
+  flyTo?: FlyToTarget | null;
   satelliteTileUrl?: string;
   showSatelliteLayer?: boolean;
   satelliteOpacity?: number;
@@ -118,13 +125,27 @@ function MapPlaceholder({ className }: { className?: string }) {
   );
 }
 
-function InteractiveMap({ layers, onMapClick, className, initialViewState, satelliteTileUrl, showSatelliteLayer, satelliteOpacity }: MapViewProps) {
+function InteractiveMap({ layers, onMapClick, className, initialViewState, flyTo, satelliteTileUrl, showSatelliteLayer, satelliteOpacity }: MapViewProps) {
   const [viewState, setViewState] = useState({ ...BRAZIL_VIEW, ...initialViewState });
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
   const [containerReady, setContainerReady] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme } = useTheme();
+
+  // Fly to a location when the flyTo prop changes
+  useEffect(() => {
+    if (flyTo) {
+      setViewState((prev) => ({
+        ...prev,
+        latitude: flyTo.latitude,
+        longitude: flyTo.longitude,
+        zoom: flyTo.zoom ?? 10,
+        pitch: 45,
+        bearing: -15,
+      }));
+    }
+  }, [flyTo]);
 
   // Always render container div so ref is attached from first render.
   // Check dimensions once mapReady flips (dynamic imports done).

@@ -514,6 +514,102 @@ export interface NavItem {
   icon: string;
 }
 
+// ---------------------------------------------------------------------------
+// Intelligence Fusion types
+// ---------------------------------------------------------------------------
+
+export interface MunicipalityFusion {
+  municipality_id: number;
+  name: string;
+  state: string;
+  population: number | null;
+  opportunity: {
+    score: number;
+    rank: number;
+    sub_scores: {
+      demand: number;
+      competition: number;
+      infrastructure: number;
+      growth: number;
+      social: number | null;
+    };
+    details: Record<string, any>;
+  } | null;
+  infrastructure: {
+    backhaul: string;
+    has_fiber: boolean;
+    schools_offline: number;
+    schools_total: number;
+    health_offline: number;
+    health_total: number;
+    building_density_km2: number | null;
+  };
+  economic: {
+    formal_jobs: number | null;
+    telecom_jobs: number | null;
+    net_hires: number | null;
+    avg_salary_brl: number | null;
+    government_contracts_12m: number;
+    contract_value_total_brl: number;
+    bndes_loans_active: number;
+    bndes_total_brl: number;
+  };
+  regulatory: {
+    has_plano_diretor: boolean;
+    has_building_code: boolean;
+    has_zoning_law: boolean;
+    has_digital_governance: boolean;
+    recent_gazette_mentions: number;
+    mention_types: string[];
+    regulatory_risk: string;
+  };
+  competition: {
+    provider_count: number;
+    hhi: number | null;
+    leader_market_share: number | null;
+    growth_trend: string | null;
+    threat_level: string | null;
+    avg_quality_score: number | null;
+    fiber_share_pct: number | null;
+  };
+  safety: {
+    risk_score: number | null;
+    homicide_rate: number | null;
+  };
+  recommendation: string;
+}
+
+export interface FundingEligibility {
+  municipality_id: number;
+  municipality_name: string;
+  state: string;
+  population: number;
+  programs: {
+    program: string;
+    description: string;
+    eligible: boolean;
+    reason: string;
+    estimated_value_brl: number | null;
+    requirements: string[];
+  }[];
+  total_eligible: number;
+  total_estimated_brl: number;
+}
+
+export interface GazetteAlert {
+  id: number;
+  date: string | null;
+  municipality: string;
+  state: string;
+  type: string;
+  excerpt: string | null;
+  keywords: string[];
+  url: string | null;
+  opportunity_score: number;
+  demand_score: number | null;
+  days_ago: number | null;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Satellite Intelligence
 // ═══════════════════════════════════════════════════════════════════════════════

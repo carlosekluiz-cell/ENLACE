@@ -76,102 +76,102 @@ FUNDING_PROGRAMS: list[FundingProgram] = [
         id="fust",
         name="FUST",
         full_name="Fundo de Universalização dos Serviços de Telecomunicações",
-        description="Universal telecom service fund for underserved areas",
+        description="Fundo universal de telecomunicações para áreas não atendidas",
         eligibility_criteria=[
-            "Municipality < 30,000 inhabitants",
-            "Underserved area (no broadband > 10 Mbps)",
-            "SCM licensed provider",
+            "Município com menos de 30.000 habitantes",
+            "Área não atendida (sem banda larga > 10 Mbps)",
+            "Provedor com licença SCM",
         ],
         max_funding_brl=5_000_000,
         funding_type="credit",
         application_url="https://gov.br/mcom/fust",
         deadline=None,
-        notes="BNDES credit lines available. Interest rates below market. Up to 10 year terms.",
+        notes="Linhas de crédito BNDES disponíveis. Taxas abaixo do mercado. Prazo de até 10 anos.",
     ),
     FundingProgram(
         id="norte_conectado",
         name="Norte Conectado",
         full_name="Programa Norte Conectado",
-        description="Amazon region fiber backbone program",
+        description="Programa de backbone de fibra para a região amazônica",
         eligibility_criteria=[
-            "Location in Legal Amazon",
-            "Community along approved fiber backbone routes",
+            "Localização na Amazônia Legal",
+            "Comunidade ao longo das rotas aprovadas de backbone de fibra",
         ],
         max_funding_brl=None,
         funding_type="partnership",
         application_url="https://gov.br/mcom/norte-conectado",
         deadline=None,
-        notes="Public backbone (government-funded), private last-mile. 12,000+ km of fiber along rivers.",
+        notes="Backbone público (governo), última milha privada. Mais de 12.000 km de fibra ao longo dos rios.",
     ),
     FundingProgram(
         id="new_pac",
-        name="New PAC Connectivity",
+        name="Novo PAC Conectividade",
         full_name="Novo PAC — Eixo Inclusão Digital",
-        description="4G/5G expansion to unserved municipalities",
+        description="Expansão 4G/5G para municípios não atendidos",
         eligibility_criteria=[
-            "Municipality without 4G coverage",
-            "On New PAC target municipality list",
+            "Município sem cobertura 4G",
+            "Na lista de municípios-alvo do Novo PAC",
         ],
         max_funding_brl=10_000_000,
         funding_type="partnership",
         application_url="https://gov.br/planalto/novo-pac",
         deadline=None,
-        notes="4G to 6,800+ villages, 5G to all municipalities. Operators partner with government.",
+        notes="4G para mais de 6.800 vilas, 5G para todos os municípios. Operadoras em parceria com o governo.",
     ),
     FundingProgram(
         id="5g_obligations",
-        name="5G Auction Obligations",
+        name="Obrigações do Leilão 5G",
         full_name="Obrigações do Leilão 5G",
-        description="Coverage obligations from 5G spectrum auction",
+        description="Obrigações de cobertura do leilão de espectro 5G",
         eligibility_criteria=[
-            "Community in operator obligation area",
-            "Partnership with obligation-holding operator (Claro, Vivo, TIM, etc.)",
+            "Comunidade na área de obrigação de operadora",
+            "Parceria com operadora detentora da obrigação (Claro, Vivo, TIM, etc.)",
         ],
         max_funding_brl=None,
         funding_type="partnership",
         application_url="https://anatel.gov.br/leilao5g",
         deadline="2028-12-31",
         notes=(
-            "Operators must cover specific underserved areas by 2028. "
-            "Partner with obligation-holding operator for shared infrastructure."
+            "Operadoras devem cobrir áreas não atendidas específicas até 2028. "
+            "Parceria com operadora detentora para infraestrutura compartilhada."
         ),
     ),
     FundingProgram(
         id="wifi_brasil",
         name="WiFi Brasil / GESAC",
         full_name="Programa WiFi Brasil (antigo GESAC)",
-        description="Free community WiFi hotspots via satellite",
+        description="Pontos de WiFi comunitário gratuito via satélite",
         eligibility_criteria=[
-            "Public institution (school, health unit, community center)",
-            "Municipality without broadband",
-            "Located in priority area (rural, indigenous, quilombola)",
+            "Instituição pública (escola, unidade de saúde, centro comunitário)",
+            "Município sem banda larga",
+            "Localizado em área prioritária (rural, indígena, quilombola)",
         ],
         max_funding_brl=None,
         funding_type="grant",
         application_url="https://gov.br/mcom/wifi-brasil",
         deadline=None,
         notes=(
-            "Government provides satellite terminal + WiFi AP. "
-            "Uses Telebras SGDC satellite. Free for eligible institutions."
+            "Governo fornece terminal satelital + AP WiFi. "
+            "Usa satélite SGDC da Telebras. Gratuito para instituições elegíveis."
         ),
     ),
     FundingProgram(
         id="bndes_proconectividade",
         name="BNDES ProConectividade",
         full_name="BNDES ProConectividade",
-        description="Development bank credit line for ISP infrastructure",
+        description="Linha de crédito do banco de desenvolvimento para infraestrutura de ISP",
         eligibility_criteria=[
-            "Registered ISP (SCM or Comunicação Prévia)",
-            "Valid CNPJ with positive credit history",
-            "Project in underserved municipality (< 60,000 inhabitants)",
+            "ISP registrado (SCM ou Comunicação Prévia)",
+            "CNPJ válido com histórico de crédito positivo",
+            "Projeto em município não atendido (< 60.000 habitantes)",
         ],
         max_funding_brl=20_000_000,
         funding_type="credit",
         application_url="https://bndes.gov.br/proconectividade",
         deadline=None,
         notes=(
-            "Interest rate: TLP + 1.3% to 1.8%. Up to 80% financing. "
-            "12 year repayment with 2 year grace period."
+            "Taxa de juros: TLP + 1,3% a 1,8%. Financiamento de até 80%. "
+            "Prazo de 12 anos com 2 anos de carência."
         ),
     ),
 ]

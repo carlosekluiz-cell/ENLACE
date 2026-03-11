@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { ScatterplotLayer } from 'deck.gl';
 import SidePanel from '@/components/layout/SidePanel';
 import { useApi } from '@/hooks/useApi';
 import { api } from '@/lib/api';
-import type { HeatmapFeatureCollection } from '@/lib/types';
-import { Users, BarChart3, AlertTriangle, ChevronDown, Layers } from 'lucide-react';
+import type { HeatmapFeatureCollection, MunicipalityFusion } from '@/lib/types';
+import { formatPct, formatNumber as fmtNum, formatBRL } from '@/lib/format';
+import { Users, BarChart3, AlertTriangle, ChevronDown, Layers, TrendingUp, Shield, Landmark, Wifi } from 'lucide-react';
 
 const MapView = dynamic(() => import('@/components/map/MapView'), {
   ssr: false,
@@ -41,6 +41,15 @@ export default function ConcorrenciaPage() {
   const [layer, setLayer] = useState<LayerType>('hhi');
   const [layerDropdownOpen, setLayerDropdownOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const deckRef = useRef<{ ScatterplotLayer: any } | null>(null);
+  const [deckReady, setDeckReady] = useState(false);
+
+  useEffect(() => {
+    import('@deck.gl/layers').then((mod) => {
+      deckRef.current = { ScatterplotLayer: mod.ScatterplotLayer };
+      setDeckReady(true);
+    });
+  }, []);
 
   const { data: heatmapData, loading } = useApi<HeatmapFeatureCollection>(
     () => api.market.heatmap(DEFAULT_BBOX, 'penetration'),
@@ -55,8 +64,17 @@ export default function ConcorrenciaPage() {
     [selectedId]
   );
 
+  const { data: fusionData, loading: fusionLoading } = useApi<MunicipalityFusion | null>(
+    () => {
+      if (selectedId == null) return Promise.resolve(null);
+      return api.intelligence.fusion(selectedId);
+    },
+    [selectedId]
+  );
+
   const layers = useMemo(() => {
-    if (!heatmapData?.features?.length) return [];
+    if (!heatmapData?.features?.length || !deckRef.current) return [];
+    const { ScatterplotLayer } = deckRef.current;
     return [
       new ScatterplotLayer({
         id: 'competition-layer',
@@ -65,7 +83,8 @@ export default function ConcorrenciaPage() {
         getRadius: 6000,
         getFillColor: (d: any) => {
           if (layer === 'hhi') {
-            const hhi = d.properties.hhi || d.properties.value * 100 || 2500;
+            const provCount = d.properties.provider_count || 1;
+            const hhi = d.properties.hhi || (provCount <= 1 ? 10000 : Math.round(10000 / provCount));
             return hhiColor(hhi);
           }
           const count = d.properties.provider_count || 1;
@@ -78,7 +97,7 @@ export default function ConcorrenciaPage() {
         updateTriggers: { getFillColor: [layer] },
       }),
     ];
-  }, [heatmapData, layer]);
+  }, [heatmapData, layer, deckReady]);
 
   const handleMapClick = useCallback((info: any) => {
     if (info?.object?.properties?.municipality_id) {
@@ -126,7 +145,7 @@ export default function ConcorrenciaPage() {
         </div>
       </div>
 
-      {/* Legend */}
+      {/* Legend + attribution */}
       <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 rounded-md px-3 py-2 text-xs"
         style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
         {layer === 'hhi' ? (
@@ -142,6 +161,8 @@ export default function ConcorrenciaPage() {
         ) : (
           <span>Opacidade = número de provedores</span>
         )}
+        <span className="mx-1">|</span>
+        <span>Fonte: Anatel / IBGE 2024</span>
       </div>
 
       {/* Detail panel */}
@@ -159,6 +180,56 @@ export default function ConcorrenciaPage() {
               <KeyValue icon={<BarChart3 size={14} />} label="Índice HHI" value={competitors.hhi?.toLocaleString('pt-BR') || 'N/A'} />
               <KeyValue icon={<Users size={14} />} label="Provedores" value={String(competitors.provider_count || 'N/A')} />
             </div>
+
+            {/* Fusion intelligence */}
+            {fusionLoading && (
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Carregando inteligência...</p>
+            )}
+            {fusionData?.competition && (
+              <div className="space-y-3 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                <h4 className="text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Inteligência Competitiva</h4>
+                {fusionData.competition.leader_market_share != null && (
+                  <KeyValue icon={<TrendingUp size={14} />} label="Líder (market share)" value={formatPct(fusionData.competition.leader_market_share)} />
+                )}
+                {fusionData.competition.growth_trend && (
+                  <KeyValue icon={<TrendingUp size={14} />} label="Tendência" value={fusionData.competition.growth_trend} />
+                )}
+                {fusionData.competition.threat_level && (
+                  <div className="flex items-center justify-between py-1" style={{ borderBottom: '1px solid var(--border)' }}>
+                    <div className="flex items-center gap-2">
+                      <span style={{ color: 'var(--text-muted)' }}><Shield size={14} /></span>
+                      <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Nível de ameaça</span>
+                    </div>
+                    <span className={`rounded px-2 py-0.5 text-xs font-bold ${
+                      fusionData.competition.threat_level === 'high' ? 'pulso-badge-red' :
+                      fusionData.competition.threat_level === 'moderate' ? 'pulso-badge-yellow' : 'pulso-badge-green'
+                    }`}>
+                      {fusionData.competition.threat_level === 'high' ? 'ALTO' :
+                       fusionData.competition.threat_level === 'moderate' ? 'MÉDIO' : 'BAIXO'}
+                    </span>
+                  </div>
+                )}
+                {fusionData.competition.avg_quality_score != null && (
+                  <KeyValue icon={<BarChart3 size={14} />} label="Qualidade média" value={(fusionData.competition.avg_quality_score ?? 0).toFixed(1)} />
+                )}
+                {fusionData.competition.fiber_share_pct != null && (
+                  <KeyValue icon={<Wifi size={14} />} label="% Fibra" value={formatPct(fusionData.competition.fiber_share_pct)} />
+                )}
+              </div>
+            )}
+
+            {/* Economic signals */}
+            {fusionData && (fusionData.economic.government_contracts_12m > 0 || fusionData.economic.bndes_loans_active > 0) && (
+              <div className="space-y-3 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                <h4 className="text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Sinais Econômicos</h4>
+                {fusionData.economic.government_contracts_12m > 0 && (
+                  <KeyValue icon={<Landmark size={14} />} label="Contratos gov. (12m)" value={`${fusionData.economic.government_contracts_12m} (${formatBRL(fusionData.economic.contract_value_total_brl)})`} />
+                )}
+                {fusionData.economic.bndes_loans_active > 0 && (
+                  <KeyValue icon={<Landmark size={14} />} label="BNDES ativos" value={`${fusionData.economic.bndes_loans_active} (${formatBRL(fusionData.economic.bndes_total_brl)})`} />
+                )}
+              </div>
+            )}
 
             {competitors.providers?.length > 0 && (
               <div>
@@ -183,6 +254,23 @@ export default function ConcorrenciaPage() {
                   <p key={i} className="text-sm mb-1" style={{ color: 'var(--text-secondary)' }}>{a}</p>
                 ))}
               </div>
+            )}
+
+            {/* Fusion recommendation */}
+            {fusionData?.recommendation && (
+              <p
+                className="rounded-lg p-2 text-[10px]"
+                style={{
+                  backgroundColor: fusionData.recommendation.startsWith('HIGH')
+                    ? 'color-mix(in srgb, var(--success) 10%, transparent)'
+                    : 'var(--bg-subtle)',
+                  color: fusionData.recommendation.startsWith('HIGH')
+                    ? 'var(--success)'
+                    : 'var(--text-muted)',
+                }}
+              >
+                {fusionData.recommendation}
+              </p>
             )}
           </div>
         ) : (

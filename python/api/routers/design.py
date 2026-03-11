@@ -59,7 +59,27 @@ async def compute_coverage(
 
     try:
         result = await loop.run_in_executor(None, _run)
-        return result
+        # Flatten nested response to match frontend CoverageResult type:
+        # Frontend expects: {coverage_pct, coverage_area_km2, avg_signal_dbm,
+        #                    min_signal_dbm, max_signal_dbm, grid: [{lat, lon, signal_dbm}]}
+        stats = result.get("stats", {})
+        grid = [
+            {
+                "lat": p.get("latitude", p.get("lat", 0)),
+                "lon": p.get("longitude", p.get("lon", 0)),
+                "signal_dbm": p.get("signal_strength_dbm", p.get("signal_dbm", 0)),
+            }
+            for p in result.get("points", [])
+        ]
+        return {
+            "coverage_pct": stats.get("coverage_pct", 0),
+            "coverage_area_km2": stats.get("covered_area_km2", stats.get("area_km2", 0)),
+            "avg_signal_dbm": stats.get("avg_signal_dbm", 0),
+            "min_signal_dbm": stats.get("min_signal_dbm", 0),
+            "max_signal_dbm": stats.get("max_signal_dbm", 0),
+            "grid": grid,
+            "_mock": result.get("_mock", False),
+        }
     except Exception as e:
         logger.error("Coverage computation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")

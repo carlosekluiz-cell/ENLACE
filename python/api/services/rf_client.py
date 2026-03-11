@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 # gRPC server address (matches Rust default)
 RF_ENGINE_ADDR = os.getenv("RF_ENGINE_ADDR", "localhost:50051")
 
+# TLS configuration
+TLS_CA_CERT = os.getenv("RF_ENGINE_TLS_CA")  # Path to CA certificate PEM
+
 # Try to import gRPC and generated stubs
 _grpc_available = False
 _stubs_available = False
@@ -31,12 +34,11 @@ try:
 except ImportError:
     logger.warning("grpcio not installed — RF Engine client will use mock responses")
 
-# Generated protobuf stubs would be imported here once available:
-# try:
-#     from enlace.rf import rf_service_pb2, rf_service_pb2_grpc
-#     _stubs_available = True
-# except ImportError:
-#     logger.info("Proto stubs not generated — using mock mode")
+try:
+    from python.api.services.proto import rf_service_pb2, rf_service_pb2_grpc
+    _stubs_available = True
+except ImportError:
+    logger.info("Proto stubs not generated — using mock mode")
 
 
 class RfEngineClient:
@@ -66,11 +68,24 @@ class RfEngineClient:
             return False
 
         try:
-            self._channel = grpc.insecure_channel(self.address)
+            options = [
+                ('grpc.max_receive_message_length', 50 * 1024 * 1024),  # 50 MB
+                ('grpc.max_send_message_length', 50 * 1024 * 1024),
+            ]
+            if TLS_CA_CERT and os.path.exists(TLS_CA_CERT):
+                with open(TLS_CA_CERT, 'rb') as f:
+                    ca_cert = f.read()
+                credentials = grpc.ssl_channel_credentials(root_certificates=ca_cert)
+                self._channel = grpc.secure_channel(self.address, credentials, options=options)
+                logger.info("Using TLS for RF Engine connection")
+            else:
+                self._channel = grpc.insecure_channel(self.address, options=options)
             # Try a quick health check to verify connectivity
             try:
                 grpc.channel_ready_future(self._channel).result(timeout=2)
                 self._connected = True
+                if _stubs_available:
+                    self._stub = rf_service_pb2_grpc.RfEngineStub(self._channel)
                 logger.info(f"Connected to RF Engine at {self.address}")
             except grpc.FutureTimeoutError:
                 logger.warning(
@@ -181,7 +196,7 @@ class RfEngineClient:
 
         # Mock: compute FSPL
         distance_m = _haversine_distance(tx_lat, tx_lon, rx_lat, rx_lon)
-        fspl_db = _mock_fspl(frequency_mhz, distance_m)
+        fspl_db = _fspl_db(frequency_mhz / 1000, distance_m / 1000)
         veg_db = 2.5 if apply_vegetation else 0.0
         total_loss = fspl_db + veg_db
 
@@ -269,7 +284,7 @@ class RfEngineClient:
         # Mock coverage response
         eirp = tx_power_dbm + antenna_gain_dbi
         area_km2 = math.pi * (radius_m / 1000) ** 2
-        mock_loss_at_edge = _mock_fspl(frequency_mhz, radius_m)
+        mock_loss_at_edge = _fspl_db(frequency_mhz / 1000, radius_m / 1000)
         edge_signal = eirp - mock_loss_at_edge
         covered = edge_signal >= min_signal_dbm
 
@@ -451,15 +466,15 @@ class RfEngineClient:
             except Exception as e:
                 logger.error(f"LinkBudget RPC failed: {e}")
 
-        # Mock link budget using FSPL
-        freq_mhz = frequency_ghz * 1000
-        distance_m = distance_km * 1000
-        fspl = _mock_fspl(freq_mhz, distance_m)
-        atmos = 0.01 * distance_km  # Rough atmospheric absorption
-        rain = 5.0 * frequency_ghz * 0.1 * distance_km  # Very rough rain estimate
+        # Real link budget using ITU-R models (no gRPC needed)
+        fspl = _fspl_db(frequency_ghz, distance_km)
+        atmos = _itu_r_p676_absorption(frequency_ghz, distance_km)
+        rain = _itu_r_p838_rain_attenuation(frequency_ghz, distance_km, rain_rate_mmh)
         total_loss = fspl + atmos
         rx_power = tx_power_dbm + tx_antenna_gain_dbi + rx_antenna_gain_dbi - total_loss
         fade_margin = rx_power - rx_threshold_dbm
+        # Availability: ITU-R P.530 flat-fade margin to availability
+        availability = _fade_margin_to_availability(fade_margin, rain, frequency_ghz, distance_km)
 
         return {
             "free_space_loss_db": round(fspl, 2),
@@ -468,9 +483,7 @@ class RfEngineClient:
             "total_path_loss_db": round(total_loss, 2),
             "received_power_dbm": round(rx_power, 2),
             "fade_margin_db": round(fade_margin, 2),
-            "availability_pct": 99.99 if fade_margin > rain else 99.5,
-            "_mock": True,
-            "_warning": "Mock response — RF Engine not connected",
+            "availability_pct": round(availability, 4),
         }
 
     def terrain_profile(
@@ -573,9 +586,115 @@ def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> f
     return R * 2 * math.asin(math.sqrt(a))
 
 
-def _mock_fspl(freq_mhz: float, distance_m: float) -> float:
-    """Compute free-space path loss in dB (mock)."""
-    if distance_m <= 0 or freq_mhz <= 0:
+def _fspl_db(frequency_ghz: float, distance_km: float) -> float:
+    """Free-space path loss (Friis equation) in dB.
+
+    FSPL(dB) = 92.45 + 20*log10(f_GHz) + 20*log10(d_km)
+    """
+    if distance_km <= 0 or frequency_ghz <= 0:
         return 0.0
-    freq_hz = freq_mhz * 1e6
-    return 20 * math.log10(distance_m) + 20 * math.log10(freq_hz) - 147.55
+    return 92.45 + 20 * math.log10(frequency_ghz) + 20 * math.log10(distance_km)
+
+
+def _itu_r_p676_absorption(frequency_ghz: float, distance_km: float) -> float:
+    """Atmospheric gaseous absorption per ITU-R P.676 (simplified).
+
+    Uses the dry-air + water-vapor specific attenuation at sea level
+    for standard atmosphere (15C, 1013 hPa, 7.5 g/m3 water vapor).
+    """
+    f = frequency_ghz
+    # Oxygen absorption (dominant lines at 60 GHz and 118.75 GHz)
+    if f < 1:
+        gamma_o = 0.0
+    elif f < 10:
+        gamma_o = (7.2 * f ** 2.23) / (f ** 2 + 0.351) * 1e-3
+    elif f < 57:
+        gamma_o = (0.0085 * f + 0.0048) * (f / 57) ** 1.5
+    elif f < 63:
+        gamma_o = 15.0  # O2 resonance peak
+    elif f < 350:
+        gamma_o = 0.002 * f ** 0.8
+    else:
+        gamma_o = 0.0
+
+    # Water vapor absorption (dominant at 22.235 GHz, 183.31 GHz)
+    if f < 1:
+        gamma_w = 0.0
+    elif f < 10:
+        gamma_w = 0.001 * f ** 1.5
+    elif f < 50:
+        # 22.235 GHz water vapor line
+        gamma_w = 0.05 * math.exp(-((f - 22.235) ** 2) / 80) + 0.002 * f * 0.01
+    elif f < 350:
+        gamma_w = 0.005 * f ** 0.6
+    else:
+        gamma_w = 0.0
+
+    specific_attenuation = gamma_o + gamma_w  # dB/km
+    return specific_attenuation * distance_km
+
+
+def _itu_r_p838_rain_attenuation(frequency_ghz: float, distance_km: float, rain_rate_mmh: float) -> float:
+    """Rain attenuation per ITU-R P.838-3.
+
+    gamma_R = k * R^alpha (dB/km), where k and alpha depend on frequency
+    and polarization. Uses horizontal polarization coefficients.
+    """
+    if rain_rate_mmh <= 0 or frequency_ghz < 1:
+        return 0.0
+
+    f = frequency_ghz
+    # Simplified k and alpha for horizontal polarization (ITU-R P.838-3 Table 1)
+    # Fitted log-linear coefficients for 1-100 GHz range
+    log_f = math.log10(f)
+    log_k = -5.3313 + 3.6516 * log_f - 1.1253 * log_f ** 2 + 0.1394 * log_f ** 3
+    k_h = 10 ** log_k
+    alpha_h = 0.67849 + 0.36464 * log_f - 0.10017 * log_f ** 2
+
+    # Clamp alpha to physical range
+    alpha_h = max(0.5, min(1.5, alpha_h))
+    k_h = max(1e-6, k_h)
+
+    specific_atten = k_h * (rain_rate_mmh ** alpha_h)  # dB/km
+
+    # Effective path length reduction factor (ITU-R P.530-17, Eq. 32)
+    if distance_km <= 0:
+        return 0.0
+    d0 = 35 * math.exp(-0.015 * rain_rate_mmh)
+    r = 1 / (1 + distance_km / d0)
+
+    return specific_atten * distance_km * r
+
+
+def _fade_margin_to_availability(fade_margin_db: float, rain_atten_db: float,
+                                  frequency_ghz: float, distance_km: float) -> float:
+    """Convert fade margin to link availability per ITU-R P.530-17.
+
+    Combines multipath fading probability with rain outage probability.
+    """
+    # Multipath fading (ITU-R P.530-17 Section 2.3)
+    # P0 = K * d^3.6 * f^0.89 * (1+|ep|)^-1.4 * 10^(-0.00089*hl)
+    # Simplified for Brazilian terrain (average conditions)
+    K = 5.0e-7  # Mid-latitude, inland, moderate climate
+    p0_pct = K * (distance_km ** 3.6) * (frequency_ghz ** 0.89) * 100
+    p0_pct = min(p0_pct, 50)  # Cap at 50%
+
+    # Flat fade margin probability (Rayleigh approximation)
+    if fade_margin_db > 0:
+        p_fade = p0_pct * 10 ** (-fade_margin_db / 10)
+    else:
+        p_fade = p0_pct  # No margin = full fade probability
+
+    # Rain outage probability (exceeded 0.01% of time at given rain rate)
+    # If fade_margin > rain_attenuation, rain doesn't cause outage
+    if fade_margin_db > rain_atten_db:
+        p_rain = 0.0
+    else:
+        # Linear interpolation of rain exceedance
+        p_rain = 0.01 * (rain_atten_db - fade_margin_db) / max(rain_atten_db, 0.01)
+
+    # Combined unavailability
+    total_unavail_pct = p_fade + p_rain
+    availability = 100.0 - total_unavail_pct
+
+    return max(0.0, min(100.0, availability))

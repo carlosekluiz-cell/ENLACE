@@ -130,103 +130,95 @@ async def market_competitors(
     """
     Provider-level competitive breakdown for a municipality.
 
-    Queries the competitive_analysis table for the latest year_month,
-    and enriches with provider details from broadband_subscribers.
+    Computes HHI and provider shares directly from broadband_subscribers
+    for the latest available month.
     """
-    # Get latest competitive analysis record
-    ca_sql = text("""
+    # Get provider breakdown from live broadband data
+    sql = text("""
         SELECT
-            ca.hhi_index,
-            ca.provider_details,
-            ca.growth_trend,
-            ca.threat_level,
-            ca.year_month
-        FROM competitive_analysis ca
-        WHERE ca.l2_id = :municipality_id
-        ORDER BY ca.year_month DESC
-        LIMIT 1
+            p.id AS provider_id,
+            p.name,
+            SUM(bs.subscribers) AS subscribers,
+            (SELECT MAX(bs2.year_month)
+             FROM broadband_subscribers bs2
+             WHERE bs2.l2_id = :municipality_id) AS year_month
+        FROM broadband_subscribers bs
+        JOIN providers p ON bs.provider_id = p.id
+        WHERE bs.l2_id = :municipality_id
+          AND bs.year_month = (
+              SELECT MAX(bs2.year_month)
+              FROM broadband_subscribers bs2
+              WHERE bs2.l2_id = :municipality_id
+          )
+        GROUP BY p.id, p.name
+        ORDER BY subscribers DESC
     """)
 
-    ca_result = await db.execute(ca_sql, {"municipality_id": municipality_id})
-    ca_row = ca_result.fetchone()
+    result = await db.execute(sql, {"municipality_id": municipality_id})
+    rows = result.fetchall()
 
-    if not ca_row:
+    if not rows:
         raise HTTPException(
             status_code=404,
-            detail="No competitive analysis found for this municipality",
+            detail="No broadband data found for this municipality",
         )
 
-    # Build provider breakdown from provider_details JSON
+    total_subs = sum(r.subscribers for r in rows)
+
+    # Get dominant technology per provider
+    tech_sql = text("""
+        SELECT provider_id, technology, SUM(subscribers) AS subs
+        FROM broadband_subscribers
+        WHERE l2_id = :municipality_id
+          AND year_month = :year_month
+        GROUP BY provider_id, technology
+        ORDER BY provider_id, subs DESC
+    """)
+    tech_result = await db.execute(
+        tech_sql,
+        {"municipality_id": municipality_id, "year_month": rows[0].year_month.strip()},
+    )
+    tech_map: dict[int, str] = {}
+    for tr in tech_result.fetchall():
+        if tr.provider_id not in tech_map:
+            tech_map[tr.provider_id] = tr.technology
+
+    # Build provider list and compute HHI
     providers: list[ProviderBreakdown] = []
-    provider_details = ca_row.provider_details or []
-
-    if provider_details:
-        # Get provider names for the IDs in provider_details
-        provider_ids = [p["provider_id"] for p in provider_details if "provider_id" in p]
-
-        if provider_ids:
-            names_sql = text("""
-                SELECT id, name FROM providers WHERE id = ANY(:ids)
-            """)
-            names_result = await db.execute(names_sql, {"ids": provider_ids})
-            name_map = {row.id: row.name for row in names_result.fetchall()}
-
-            # Get technology info from broadband_subscribers for latest month
-            tech_sql = text("""
-                SELECT
-                    provider_id,
-                    technology,
-                    SUM(subscribers) AS subs
-                FROM broadband_subscribers
-                WHERE l2_id = :municipality_id
-                  AND year_month = :year_month
-                  AND provider_id = ANY(:ids)
-                GROUP BY provider_id, technology
-                ORDER BY provider_id, subs DESC
-            """)
-            tech_result = await db.execute(
-                tech_sql,
-                {
-                    "municipality_id": municipality_id,
-                    "year_month": ca_row.year_month,
-                    "ids": provider_ids,
-                },
+    hhi = 0.0
+    for row in rows:
+        share = row.subscribers / total_subs if total_subs > 0 else 0
+        hhi += (share * 100) ** 2
+        providers.append(
+            ProviderBreakdown(
+                provider_id=row.provider_id,
+                name=row.name,
+                subscribers=row.subscribers,
+                share_pct=round(share * 100, 2),
+                technology=tech_map.get(row.provider_id),
+                growth_3m=None,
             )
-            tech_rows = tech_result.fetchall()
-
-            # Map provider_id -> dominant technology
-            tech_map: dict[int, str] = {}
-            for tr in tech_rows:
-                if tr.provider_id not in tech_map:
-                    tech_map[tr.provider_id] = tr.technology
-
-            for pd in provider_details:
-                pid = pd.get("provider_id")
-                providers.append(
-                    ProviderBreakdown(
-                        provider_id=pid,
-                        name=name_map.get(pid, f"Provider {pid}"),
-                        subscribers=pd.get("subscribers", 0),
-                        share_pct=round(pd.get("market_share", 0) * 100, 2),
-                        technology=tech_map.get(pid),
-                        growth_3m=None,
-                    )
-                )
-
-    # Build threats list
-    threats: list[dict[str, Any]] = []
-    if ca_row.threat_level:
-        threats.append(
-            {
-                "level": ca_row.threat_level,
-                "trend": ca_row.growth_trend,
-                "description": f"Market concentration (HHI: {ca_row.hhi_index:.0f}) "
-                f"with {ca_row.threat_level} threat level",
-            }
         )
+
+    # Determine threat level based on HHI
+    if hhi > 2500:
+        threat_level = "high"
+    elif hhi > 1500:
+        threat_level = "moderate"
+    else:
+        threat_level = "low"
+
+    threats: list[dict[str, Any]] = [
+        {
+            "level": threat_level,
+            "hhi": round(hhi, 1),
+            "description": f"Market concentration HHI: {hhi:.0f} — "
+            f"{len(providers)} providers, top provider has {providers[0].share_pct:.1f}% share",
+        }
+    ]
 
     return CompetitorResponse(
-        hhi_index=ca_row.hhi_index or 0.0,
+        hhi_index=round(hhi, 1),
         providers=providers,
         threats=threats,
     )
@@ -349,3 +341,40 @@ async def market_heatmap(
         "type": "FeatureCollection",
         "features": features,
     }
+
+
+@router.get("/{municipality_id}/quality-seals")
+async def quality_seals(
+    municipality_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
+):
+    """Quality seals (RQUAL/IQS) for providers in a municipality."""
+    sql = text("""
+        SELECT qs.year_half, qs.overall_score, qs.availability_score,
+               qs.speed_score, qs.latency_score, qs.seal_level,
+               p.name AS provider_name
+        FROM quality_seals qs
+        LEFT JOIN providers p ON qs.provider_id = p.id
+        WHERE qs.l2_id = :municipality_id
+        ORDER BY qs.overall_score DESC
+    """)
+
+    result = await db.execute(sql, {"municipality_id": municipality_id})
+    rows = result.fetchall()
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="No quality seals found")
+
+    return [
+        {
+            "provider": r.provider_name,
+            "year_half": r.year_half,
+            "overall_score": _to_float(r.overall_score),
+            "availability_score": _to_float(r.availability_score),
+            "speed_score": _to_float(r.speed_score),
+            "latency_score": _to_float(r.latency_score),
+            "seal_level": r.seal_level,
+        }
+        for r in rows
+    ]

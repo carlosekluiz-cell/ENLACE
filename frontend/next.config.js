@@ -9,6 +9,9 @@ const nextConfig = {
     '@deck.gl/geo-layers',
     '@luma.gl/core',
   ],
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'recharts'],
+  },
 
   // Security headers for all routes
   async headers() {

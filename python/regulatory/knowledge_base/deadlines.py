@@ -109,9 +109,9 @@ _SUPPLEMENTARY_DEADLINES: list[Deadline] = [
         name="Norma no. 4 — Sistema de faturamento ICMS",
         deadline_date=date(2026, 7, 1),
         description=(
-            "Billing systems must be adapted to calculate and display ICMS "
-            "on customer invoices. Nota fiscal eletronica (NF-e) integration "
-            "must be operational."
+            "Sistemas de faturamento devem ser adaptados para calcular e exibir ICMS "
+            "nas faturas dos clientes. Integração com nota fiscal eletrônica (NF-e) "
+            "deve estar operacional."
         ),
         milestone=True,
     ),
@@ -120,9 +120,9 @@ _SUPPLEMENTARY_DEADLINES: list[Deadline] = [
         name="Norma no. 4 — Registro Anatel SCM",
         deadline_date=date(2026, 10, 1),
         description=(
-            "ISPs must complete SCM registration with Anatel, including "
-            "submission of technical documentation, network topology, and "
-            "coverage area declarations."
+            "ISPs devem completar o registro SCM na Anatel, incluindo "
+            "envio de documentação técnica, topologia de rede e "
+            "declarações de área de cobertura."
         ),
         milestone=True,
     ),
@@ -131,9 +131,9 @@ _SUPPLEMENTARY_DEADLINES: list[Deadline] = [
         name="Norma no. 4 — Prazo final de conformidade",
         deadline_date=date(2027, 1, 1),
         description=(
-            "Full compliance deadline for SVA-to-SCM transition. All ISPs "
-            "must be operating under SCM classification with ICMS collection, "
-            "Anatel licensing, and quality reporting in place."
+            "Prazo final de conformidade para transição SVA para SCM. Todos os ISPs "
+            "devem operar sob classificação SCM com recolhimento de ICMS, "
+            "licenciamento Anatel e relatórios de qualidade em vigor."
         ),
         milestone=False,
     ),
@@ -142,8 +142,8 @@ _SUPPLEMENTARY_DEADLINES: list[Deadline] = [
         name="Relatório trimestral IDA — Q1",
         deadline_date=date(2026, 4, 15),
         description=(
-            "Submit Q1 quarterly quality report (IDA metrics) to Anatel "
-            "via the SIQ system. Applies to ISPs with >5,000 subscribers."
+            "Enviar relatório trimestral de qualidade Q1 (métricas IDA) à Anatel "
+            "pelo sistema SIQ. Aplica-se a ISPs com mais de 5.000 assinantes."
         ),
         milestone=True,
     ),
@@ -152,8 +152,8 @@ _SUPPLEMENTARY_DEADLINES: list[Deadline] = [
         name="Relatório trimestral IDA — Q2",
         deadline_date=date(2026, 7, 15),
         description=(
-            "Submit Q2 quarterly quality report (IDA metrics) to Anatel "
-            "via the SIQ system."
+            "Enviar relatório trimestral de qualidade Q2 (métricas IDA) à Anatel "
+            "pelo sistema SIQ."
         ),
         milestone=True,
     ),
@@ -162,8 +162,8 @@ _SUPPLEMENTARY_DEADLINES: list[Deadline] = [
         name="Relatório trimestral IDA — Q3",
         deadline_date=date(2026, 10, 15),
         description=(
-            "Submit Q3 quarterly quality report (IDA metrics) to Anatel "
-            "via the SIQ system."
+            "Enviar relatório trimestral de qualidade Q3 (métricas IDA) à Anatel "
+            "pelo sistema SIQ."
         ),
         milestone=True,
     ),
@@ -172,8 +172,8 @@ _SUPPLEMENTARY_DEADLINES: list[Deadline] = [
         name="Relatório trimestral IDA — Q4",
         deadline_date=date(2027, 1, 15),
         description=(
-            "Submit Q4 quarterly quality report (IDA metrics) to Anatel "
-            "via the SIQ system."
+            "Enviar relatório trimestral de qualidade Q4 (métricas IDA) à Anatel "
+            "pelo sistema SIQ."
         ),
         milestone=True,
     ),
@@ -207,7 +207,7 @@ def get_all_deadlines() -> list[Deadline]:
                     regulation_id=reg.id,
                     name=f"{reg.name} — Prazo final",
                     deadline_date=reg.deadline,
-                    description=f"Final compliance deadline for {reg.full_name}",
+                    description=f"Prazo final de conformidade para {reg.full_name}",
                     milestone=False,
                 )
             )

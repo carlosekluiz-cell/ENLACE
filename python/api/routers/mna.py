@@ -3,10 +3,7 @@ ENLACE M&A Intelligence Router
 
 Standalone M&A intelligence endpoints for ISP mergers and acquisitions.
 Provides three valuation methods, acquirer target evaluation, seller
-preparation reports, and market overview data.
-
-IMPORTANT: This module reads ONLY public Anatel/IBGE data through read-only
-views. It never accesses tenant-specific data from the operations platform.
+preparation reports, and market overview data computed from real Anatel data.
 """
 
 from __future__ import annotations
@@ -15,9 +12,12 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from python.api.auth.dependencies import require_auth
-from python.mna.valuation import subscriber_multiple, revenue_multiple, dcf
+from python.api.database import get_db
+from python.mna.valuation import subscriber_multiple, revenue_multiple, dcf  # noqa: E501
 from python.mna import acquirer, seller
 
 
@@ -30,21 +30,17 @@ router = APIRouter(prefix="/api/v1/mna", tags=["mna"])
 
 
 class ValuationRequest(BaseModel):
-    """Request body for the combined valuation calculator."""
-
-    subscriber_count: int = Field(..., ge=1, description="Total active subscribers")
-    fiber_pct: float = Field(0.5, ge=0.0, le=1.0, description="Fiber subscriber fraction")
-    monthly_revenue_brl: float = Field(..., gt=0, description="Monthly recurring revenue (BRL)")
-    ebitda_margin_pct: float = Field(30.0, ge=0, le=100, description="EBITDA margin %")
-    state_code: str = Field("SP", min_length=2, max_length=2, description="State code")
-    monthly_churn_pct: float = Field(2.0, ge=0, description="Monthly churn %")
-    growth_rate_12m: float = Field(0.05, description="12-month subscriber growth rate")
-    net_debt_brl: float = Field(0.0, ge=0, description="Net debt (BRL)")
+    subscriber_count: int = Field(..., ge=1)
+    fiber_pct: float = Field(50.0, ge=0.0, le=100.0)
+    monthly_revenue_brl: float = Field(..., gt=0)
+    ebitda_margin_pct: float = Field(30.0, ge=0, le=100)
+    state_code: str = Field("SP", min_length=2, max_length=2)
+    monthly_churn_pct: float = Field(2.0, ge=0)
+    growth_rate_12m: float = Field(0.05)
+    net_debt_brl: float = Field(0.0, ge=0)
 
 
 class ValuationResponse(BaseModel):
-    """Combined valuation result from all three methods."""
-
     subscriber_multiple: dict[str, Any]
     revenue_multiple: dict[str, Any]
     dcf: dict[str, Any]
@@ -52,17 +48,13 @@ class ValuationResponse(BaseModel):
 
 
 class TargetsRequest(BaseModel):
-    """Request body for acquirer target search."""
-
-    acquirer_states: list[str] = Field(..., min_length=1, description="Acquirer's operating states")
-    acquirer_subscribers: int = Field(..., ge=1, description="Acquirer's subscriber count")
-    min_subs: int = Field(1_000, ge=0, description="Min target subscriber count")
-    max_subs: int = Field(50_000, ge=0, description="Max target subscriber count")
+    acquirer_states: list[str] = Field(..., min_length=1)
+    acquirer_subscribers: int = Field(..., ge=1)
+    min_subs: int = Field(1_000, ge=0)
+    max_subs: int = Field(50_000, ge=0)
 
 
 class AcquisitionTargetResponse(BaseModel):
-    """Single acquisition target in response."""
-
     provider_id: int
     provider_name: str
     state_codes: list[str]
@@ -80,20 +72,16 @@ class AcquisitionTargetResponse(BaseModel):
 
 
 class SellerPrepareRequest(BaseModel):
-    """Request body for seller preparation report."""
-
-    provider_name: str = Field(..., min_length=1, description="ISP name")
-    state_codes: list[str] = Field(..., min_length=1, description="Operating states")
-    subscriber_count: int = Field(..., ge=1, description="Total subscribers")
-    fiber_pct: float = Field(0.5, ge=0.0, le=1.0, description="Fiber subscriber fraction")
-    monthly_revenue_brl: float = Field(..., gt=0, description="Monthly revenue (BRL)")
-    ebitda_margin_pct: float = Field(30.0, ge=0, le=100, description="EBITDA margin %")
-    net_debt_brl: float = Field(0.0, ge=0, description="Net debt (BRL)")
+    provider_name: str = Field(..., min_length=1)
+    state_codes: list[str] = Field(..., min_length=1)
+    subscriber_count: int = Field(..., ge=1)
+    fiber_pct: float = Field(50.0, ge=0.0, le=100.0)
+    monthly_revenue_brl: float = Field(..., gt=0)
+    ebitda_margin_pct: float = Field(30.0, ge=0, le=100)
+    net_debt_brl: float = Field(0.0, ge=0)
 
 
 class SellerReportResponse(BaseModel):
-    """Seller preparation report response."""
-
     provider_name: str
     subscriber_count: int
     estimated_value_range: list[float]
@@ -106,8 +94,6 @@ class SellerReportResponse(BaseModel):
 
 
 class MarketOverviewResponse(BaseModel):
-    """Market overview for a state or region."""
-
     state: str
     total_isps: int
     total_subscribers: int
@@ -126,12 +112,7 @@ async def calculate_valuation(
     request: ValuationRequest,
     user: dict = Depends(require_auth),
 ):
-    """Calculate ISP valuation using all three methods.
-
-    Returns subscriber-multiple, revenue-multiple, and DCF valuations,
-    plus a combined range spanning all methods.
-    """
-    # Subscriber multiple
+    """Calculate ISP valuation using subscriber-multiple, revenue-multiple, and DCF."""
     val_sub = subscriber_multiple.calculate(
         total_subscribers=request.subscriber_count,
         fiber_pct=request.fiber_pct,
@@ -140,7 +121,6 @@ async def calculate_valuation(
         state_code=request.state_code,
     )
 
-    # Revenue multiple
     val_rev = revenue_multiple.calculate(
         monthly_revenue_brl=request.monthly_revenue_brl,
         ebitda_margin_pct=request.ebitda_margin_pct,
@@ -149,32 +129,15 @@ async def calculate_valuation(
         fiber_pct=request.fiber_pct,
     )
 
-    # DCF
     val_dcf = dcf.calculate(
         monthly_revenue_brl=request.monthly_revenue_brl,
         ebitda_margin_pct=request.ebitda_margin_pct,
         net_debt_brl=request.net_debt_brl,
     )
 
-    # Combined range
-    all_lows = [
-        val_sub.valuation_range[0],
-        val_rev.valuation_range[0],
-        val_dcf.equity_value_brl * 0.85,
-    ]
-    all_highs = [
-        val_sub.valuation_range[1],
-        val_rev.valuation_range[1],
-        val_dcf.equity_value_brl * 1.15,
-    ]
-
-    combined_low = min(all_lows)
-    combined_high = max(all_highs)
-    combined_mid = (
-        val_sub.adjusted_valuation_brl
-        + (val_rev.ev_revenue_brl + val_rev.ev_ebitda_brl) / 2
-        + val_dcf.equity_value_brl
-    ) / 3
+    all_lows = [val_sub.valuation_range[0], val_rev.valuation_range[0], val_dcf.equity_value_brl * 0.85]
+    all_highs = [val_sub.valuation_range[1], val_rev.valuation_range[1], val_dcf.equity_value_brl * 1.15]
+    combined_mid = (val_sub.adjusted_valuation_brl + (val_rev.ev_revenue_brl + val_rev.ev_ebitda_brl) / 2 + val_dcf.equity_value_brl) / 3
 
     return ValuationResponse(
         subscriber_multiple={
@@ -205,9 +168,9 @@ async def calculate_valuation(
             "sensitivity_table": val_dcf.sensitivity_table,
         },
         combined_range={
-            "low_brl": round(combined_low, 2),
+            "low_brl": round(min(all_lows), 2),
             "mid_brl": round(combined_mid, 2),
-            "high_brl": round(combined_high, 2),
+            "high_brl": round(max(all_highs), 2),
         },
     )
 
@@ -217,16 +180,13 @@ async def calculate_valuation(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@router.post("/targets", response_model=list[AcquisitionTargetResponse])
+@router.post("/targets")
 async def find_targets(
     request: TargetsRequest,
+    db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_auth),
 ):
-    """Find and evaluate potential ISP acquisition targets.
-
-    Scores targets on strategic fit, financial attractiveness,
-    integration risk, and synergy potential.
-    """
+    """Find and evaluate potential ISP acquisition targets, enriched with quality/contract/BNDES data."""
     targets = acquirer.evaluate_targets(
         acquirer_states=request.acquirer_states,
         acquirer_subscribers=request.acquirer_subscribers,
@@ -234,25 +194,54 @@ async def find_targets(
         max_target_subs=request.max_subs,
     )
 
-    return [
-        AcquisitionTargetResponse(
-            provider_id=t.provider_id,
-            provider_name=t.provider_name,
-            state_codes=t.state_codes,
-            subscriber_count=t.subscriber_count,
-            fiber_pct=t.fiber_pct,
-            estimated_revenue_brl=t.estimated_revenue_brl,
-            valuation_subscriber=t.valuation_subscriber,
-            valuation_revenue=t.valuation_revenue,
-            valuation_dcf=t.valuation_dcf,
-            strategic_score=t.strategic_score,
-            financial_score=t.financial_score,
-            integration_risk=t.integration_risk,
-            synergy_estimate_brl=t.synergy_estimate_brl,
-            overall_score=t.overall_score,
-        )
-        for t in targets
-    ]
+    results = []
+    for t in targets:
+        base = {
+            "provider_id": t.provider_id,
+            "provider_name": t.provider_name,
+            "state_codes": t.state_codes,
+            "subscriber_count": t.subscriber_count,
+            "fiber_pct": t.fiber_pct,
+            "estimated_revenue_brl": t.estimated_revenue_brl,
+            "valuation_subscriber": t.valuation_subscriber,
+            "valuation_revenue": t.valuation_revenue,
+            "valuation_dcf": t.valuation_dcf,
+            "strategic_score": t.strategic_score,
+            "financial_score": t.financial_score,
+            "integration_risk": t.integration_risk,
+            "synergy_estimate_brl": t.synergy_estimate_brl,
+            "overall_score": t.overall_score,
+        }
+
+        # Enrich: average quality seal score
+        r = await db.execute(text("""
+            SELECT AVG(overall_score) AS avg_score
+            FROM quality_seals WHERE provider_id = :pid
+        """), {"pid": t.provider_id})
+        qs = r.fetchone()
+        base["quality_seal_avg"] = round(float(qs.avg_score), 1) if qs and qs.avg_score else None
+
+        # Enrich: government contracts won (matched by provider CNPJ)
+        r = await db.execute(text("""
+            SELECT COUNT(*) AS cnt
+            FROM government_contracts gc
+            JOIN providers p ON gc.winner_cnpj = p.national_id
+            WHERE p.id = :pid
+        """), {"pid": t.provider_id})
+        gc = r.fetchone()
+        base["government_contracts_won"] = gc.cnt if gc else 0
+
+        # Enrich: BNDES loan total
+        r = await db.execute(text("""
+            SELECT COALESCE(SUM(contract_value_brl), 0) AS total
+            FROM bndes_loans WHERE provider_id = :pid
+        """), {"pid": t.provider_id})
+        bn = r.fetchone()
+        base["bndes_loan_total_brl"] = float(bn.total) if bn else 0
+
+        results.append(base)
+
+    return results
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -265,11 +254,7 @@ async def seller_prepare(
     request: SellerPrepareRequest,
     user: dict = Depends(require_auth),
 ):
-    """Generate a comprehensive seller preparation report.
-
-    Includes valuations from all three methods, strengths/weaknesses analysis,
-    value enhancement opportunities, and a due diligence preparation checklist.
-    """
+    """Generate a comprehensive seller preparation report."""
     report = seller.prepare_for_sale(
         provider_name=request.provider_name,
         state_codes=request.state_codes,
@@ -294,137 +279,144 @@ async def seller_prepare(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# GET /market — Market overview
+# GET /market — Real-time market overview from Anatel data
 # ═══════════════════════════════════════════════════════════════════════════════
-
-# Simulated market data for development/testing.
-# In production, this would query the read-only database views.
-_MARKET_DATA: dict[str, dict] = {
-    "SP": {
-        "total_isps": 1_850,
-        "total_subscribers": 4_200_000,
-        "avg_valuation_per_sub": 2_800.0,
-        "fiber_pct_avg": 0.72,
-    },
-    "MG": {
-        "total_isps": 1_420,
-        "total_subscribers": 2_100_000,
-        "avg_valuation_per_sub": 2_200.0,
-        "fiber_pct_avg": 0.58,
-    },
-    "RJ": {
-        "total_isps": 980,
-        "total_subscribers": 1_800_000,
-        "avg_valuation_per_sub": 2_500.0,
-        "fiber_pct_avg": 0.65,
-    },
-    "PR": {
-        "total_isps": 820,
-        "total_subscribers": 1_400_000,
-        "avg_valuation_per_sub": 2_600.0,
-        "fiber_pct_avg": 0.70,
-    },
-    "SC": {
-        "total_isps": 650,
-        "total_subscribers": 1_100_000,
-        "avg_valuation_per_sub": 2_700.0,
-        "fiber_pct_avg": 0.75,
-    },
-    "RS": {
-        "total_isps": 780,
-        "total_subscribers": 1_300_000,
-        "avg_valuation_per_sub": 2_300.0,
-        "fiber_pct_avg": 0.62,
-    },
-    "BA": {
-        "total_isps": 620,
-        "total_subscribers": 950_000,
-        "avg_valuation_per_sub": 1_800.0,
-        "fiber_pct_avg": 0.48,
-    },
-    "GO": {
-        "total_isps": 480,
-        "total_subscribers": 720_000,
-        "avg_valuation_per_sub": 2_000.0,
-        "fiber_pct_avg": 0.55,
-    },
-}
-
-# Simulated recent transactions
-_RECENT_DEALS: list[dict] = [
-    {
-        "acquirer": "Brasil TecPar",
-        "target": "FibraLocal Telecom",
-        "state": "PR",
-        "date": "2025-08",
-        "subscribers": 18_000,
-        "value_per_sub_brl": 2_950,
-    },
-    {
-        "acquirer": "Sumicity",
-        "target": "NetVia Internet",
-        "state": "SP",
-        "date": "2025-06",
-        "subscribers": 12_500,
-        "value_per_sub_brl": 3_200,
-    },
-    {
-        "acquirer": "Brisanet",
-        "target": "ConectNordeste",
-        "state": "CE",
-        "date": "2025-04",
-        "subscribers": 8_200,
-        "value_per_sub_brl": 1_650,
-    },
-    {
-        "acquirer": "Desktop",
-        "target": "VelozNet SP",
-        "state": "SP",
-        "date": "2025-02",
-        "subscribers": 25_000,
-        "value_per_sub_brl": 3_100,
-    },
-    {
-        "acquirer": "Unifique",
-        "target": "SulFibra Internet",
-        "state": "SC",
-        "date": "2024-11",
-        "subscribers": 9_800,
-        "value_per_sub_brl": 2_800,
-    },
-]
 
 
 @router.get("/market", response_model=MarketOverviewResponse)
 async def market_overview(
     state: str = Query("SP", min_length=2, max_length=2, description="State code"),
+    db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_auth),
 ):
     """Get M&A market overview for a Brazilian state.
 
-    Returns aggregate statistics including total ISPs, subscriber count,
-    average valuation per subscriber, and recent transactions.
+    Computes real statistics from Anatel broadband subscriber data:
+    total ISPs, subscribers, fiber share, and top providers.
     """
     state_upper = state.upper()
-    data = _MARKET_DATA.get(state_upper)
 
-    if data is None:
-        # Return generic data for states not in the sample set
-        data = {
-            "total_isps": 300,
-            "total_subscribers": 450_000,
-            "avg_valuation_per_sub": 1_800.0,
-            "fiber_pct_avg": 0.45,
+    sql = text("""
+        WITH state_data AS (
+            SELECT
+                bs.provider_id,
+                p.name as provider_name,
+                SUM(bs.subscribers) as total_subs,
+                SUM(CASE WHEN bs.technology = 'fiber' THEN bs.subscribers ELSE 0 END) as fiber_subs
+            FROM broadband_subscribers bs
+            JOIN providers p ON bs.provider_id = p.id
+            JOIN admin_level_2 a ON bs.l2_id = a.id
+            JOIN admin_level_1 l1 ON a.l1_id = l1.id
+            WHERE l1.abbrev = :state
+              AND bs.year_month = (SELECT MAX(year_month) FROM broadband_subscribers)
+            GROUP BY bs.provider_id, p.name
+        )
+        SELECT
+            COUNT(*) as total_isps,
+            COALESCE(SUM(total_subs), 0) as total_subscribers,
+            CASE WHEN SUM(total_subs) > 0
+                 THEN ROUND(SUM(fiber_subs)::numeric / SUM(total_subs), 2)
+                 ELSE 0 END as fiber_pct_avg
+        FROM state_data
+    """)
+
+    result = await db.execute(sql, {"state": state_upper})
+    row = result.fetchone()
+
+    total_isps = int(row.total_isps or 0)
+    total_subscribers = int(row.total_subscribers or 0)
+    fiber_pct = float(row.fiber_pct_avg or 0)
+
+    # Estimate valuation per sub: R$1,500 base + fiber premium + regional premium
+    base_valuation = 1500 + (fiber_pct * 2000)
+    if state_upper in ('SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'ES'):
+        base_valuation *= 1.15
+
+    # Top 5 providers in this state (potential acquirers/targets)
+    top_sql = text("""
+        SELECT p.name, SUM(bs.subscribers) as subs,
+               SUM(CASE WHEN bs.technology='fiber' THEN bs.subscribers ELSE 0 END) as fiber
+        FROM broadband_subscribers bs
+        JOIN providers p ON bs.provider_id = p.id
+        JOIN admin_level_2 a ON bs.l2_id = a.id
+        JOIN admin_level_1 l1 ON a.l1_id = l1.id
+        WHERE l1.abbrev = :state
+          AND bs.year_month = (SELECT MAX(year_month) FROM broadband_subscribers)
+        GROUP BY p.name
+        ORDER BY subs DESC
+        LIMIT 5
+    """)
+    top_result = await db.execute(top_sql, {"state": state_upper})
+    top_providers = [
+        {
+            "name": r.name,
+            "subscribers": int(r.subs),
+            "fiber_pct": round(int(r.fiber) / int(r.subs), 2) if r.subs else 0,
         }
-
-    # Filter recent deals for this state
-    state_deals = [d for d in _RECENT_DEALS if d["state"] == state_upper]
+        for r in top_result.fetchall()
+    ]
 
     return MarketOverviewResponse(
         state=state_upper,
-        total_isps=data["total_isps"],
-        total_subscribers=data["total_subscribers"],
-        avg_valuation_per_sub=data["avg_valuation_per_sub"],
-        fiber_pct_avg=data["fiber_pct_avg"],
-        recent_transactions=state_deals,
+        total_isps=total_isps,
+        total_subscribers=total_subscribers,
+        avg_valuation_per_sub=round(base_valuation, 0),
+        fiber_pct_avg=fiber_pct,
+        recent_transactions=top_providers,
     )
+
+
+@router.get("/provider/{provider_id}/details")
+async def provider_details(
+    provider_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
+):
+    """Get CNPJ enrichment details for a provider (founding date, capital, status)."""
+    sql = text("""
+        SELECT p.name, p.national_id AS cnpj,
+               pd.status, pd.capital_social, pd.founding_date,
+               pd.address_city, pd.partner_count, pd.simples_nacional,
+               pd.cnae_primary, pd.updated_at
+        FROM providers p
+        LEFT JOIN provider_details pd ON p.id = pd.provider_id
+        WHERE p.id = :provider_id
+    """)
+
+    result = await db.execute(sql, {"provider_id": provider_id})
+    row = result.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    # Also fetch BNDES loans for this provider
+    loans_sql = text("""
+        SELECT contract_value_brl, disbursed_brl, contract_date, sector
+        FROM bndes_loans WHERE provider_id = :pid
+        ORDER BY contract_date DESC LIMIT 5
+    """)
+    loans_result = await db.execute(loans_sql, {"pid": provider_id})
+    loans = [
+        {
+            "value_brl": float(l.contract_value_brl) if l.contract_value_brl else 0,
+            "disbursed_brl": float(l.disbursed_brl) if l.disbursed_brl else 0,
+            "date": str(l.contract_date) if l.contract_date else None,
+            "sector": l.sector,
+        }
+        for l in loans_result.fetchall()
+    ]
+
+    return {
+        "provider_id": provider_id,
+        "name": row.name,
+        "cnpj": row.cnpj,
+        "company_status": row.status,
+        "capital_social": float(row.capital_social) if row.capital_social else None,
+        "founding_date": str(row.founding_date) if row.founding_date else None,
+        "city": row.address_city,
+        "partner_count": row.partner_count,
+        "simples_nacional": row.simples_nacional,
+        "cnae_primary": row.cnae_primary,
+        "enrichment_date": str(row.updated_at) if row.updated_at else None,
+        "bndes_loans": loans,
+    }

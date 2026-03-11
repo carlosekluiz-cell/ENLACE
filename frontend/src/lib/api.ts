@@ -41,9 +41,12 @@ import type {
   SatelliteYearData,
   SatelliteGrowthComparison,
   SatelliteGrowthRanking,
+  MunicipalityFusion,
+  FundingEligibility,
+  GazetteAlert,
 } from './types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.pulso.network';
 const TOKEN_KEY = 'pulso_access_token';
 
 // ---------------------------------------------------------------------------
@@ -140,6 +143,34 @@ export async function fetchBlob(path: string): Promise<Blob> {
   return res.blob();
 }
 
+/** POST que baixa HTML como arquivo (relatórios). */
+export async function fetchReportDownload(
+  path: string,
+  body: Record<string, any>,
+): Promise<{ blob: Blob; filename: string }> {
+  const url = `${API_BASE}${path}`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new ApiError(`Erro ${res.status}: ${text || res.statusText}`, res.status);
+  }
+
+  const disposition = res.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="?([^";\s]+)"?/);
+  const filename = match?.[1] || `relatorio-${Date.now()}.html`;
+
+  const blob = await res.blob();
+  return { blob, filename };
+}
+
 // ---------------------------------------------------------------------------
 // Funções de API tipadas organizadas por domínio
 // ---------------------------------------------------------------------------
@@ -229,6 +260,8 @@ export const api = {
       fetchApi<any>(
         `/api/v1/compliance/quality/check?provider_id=${providerId}`
       ),
+    rgst777: (providerId: number) => fetchApi<any>(`/api/v1/compliance/rgst777/${providerId}`),
+    rgst777Overview: () => fetchApi<any>('/api/v1/compliance/rgst777/overview'),
   },
 
   // ── Conectividade rural ──────────────────────────────────────────────
@@ -411,6 +444,372 @@ export const api = {
     marketOverview: (state: string) =>
       fetchApi<MnaMarketOverview>(`/api/v1/mna/market?state=${state}`),
   },
+
+  // ── Inteligência Agregada ────────────────────────────────────────────
+  intelligence: {
+    fusion: (municipalityId: number) =>
+      fetchApi<MunicipalityFusion>(`/api/v1/intelligence/${municipalityId}/fusion`),
+    profile: (municipalityId: number) =>
+      fetchApi<any>(`/api/v1/intelligence/${municipalityId}/profile`),
+    infrastructureGaps: (municipalityId: number) =>
+      fetchApi<any>(`/api/v1/intelligence/${municipalityId}/infrastructure-gaps`),
+    fundingEligibility: (municipalityId: number) =>
+      fetchApi<FundingEligibility>(`/api/v1/intelligence/${municipalityId}/funding-eligibility`),
+    contracts: (params?: Record<string, string>) => {
+      const qs = params ? `?${new URLSearchParams(params)}` : '';
+      return fetchApi<any[]>(`/api/v1/intelligence/contracts${qs}`);
+    },
+    gazetteAlerts: (params?: Record<string, string>) => {
+      const qs = params ? `?${new URLSearchParams(params)}` : '';
+      return fetchApi<GazetteAlert[]>(`/api/v1/intelligence/gazette-alerts${qs}`);
+    },
+    regulatoryFeed: (params?: Record<string, string>) => {
+      const qs = params ? `?${new URLSearchParams(params)}` : '';
+      return fetchApi<any[]>(`/api/v1/intelligence/regulatory-feed${qs}`);
+    },
+    bndes: (params?: Record<string, string>) => {
+      const qs = params ? `?${new URLSearchParams(params)}` : '';
+      return fetchApi<any[]>(`/api/v1/intelligence/bndes${qs}`);
+    },
+    gazetteMentions: (params?: Record<string, string>) => {
+      const qs = params ? `?${new URLSearchParams(params)}` : '';
+      return fetchApi<any[]>(`/api/v1/intelligence/gazette-mentions${qs}`);
+    },
+  },
+
+  // ── Geográfico ──────────────────────────────────────────────────────
+  geo: {
+    search: (q: string, limit = 20) =>
+      fetchApi<Array<{
+        id: number;
+        code: string;
+        name: string;
+        state_abbrev: string;
+        country_code: string;
+        area_km2: number | null;
+        latitude: number;
+        longitude: number;
+      }>>(`/api/v1/geo/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  },
+
+  // ── Fiber Route Planning ────────────────────────────────────────────
+  fiber: {
+    route: (data: { start_lat: number; start_lon: number; end_lat: number; end_lon: number }) =>
+      fetchApi<any>('/api/v1/fiber/route', { method: 'POST', body: JSON.stringify(data) }),
+    corridor: (data: { start_lat: number; start_lon: number; end_lat: number; end_lon: number; width_m?: number }) =>
+      fetchApi<any>('/api/v1/fiber/corridor', { method: 'POST', body: JSON.stringify(data) }),
+    bom: (params: { distance_km: number; terrain?: string }) => {
+      const qs = new URLSearchParams({ distance_km: String(params.distance_km), ...(params.terrain ? { terrain: params.terrain } : {}) });
+      return fetchApi<any>(`/api/v1/fiber/bom?${qs}`);
+    },
+  },
+
+  // ── H3 Hexagonal Grid ──────────────────────────────────────────────
+  h3: {
+    cells: (params: { bbox: string; resolution?: number; metric?: string }) => {
+      const qs = new URLSearchParams({ bbox: params.bbox, ...(params.resolution ? { resolution: String(params.resolution) } : {}), ...(params.metric ? { metric: params.metric } : {}) });
+      return fetchApi<any>(`/api/v1/h3/cells?${qs}`);
+    },
+    analysis: (municipalityId: number) =>
+      fetchApi<any>(`/api/v1/h3/${municipalityId}/analysis`),
+    compute: (municipalityId: number) =>
+      fetchApi<any>(`/api/v1/h3/${municipalityId}/compute`, { method: 'POST' }),
+  },
+
+  // ── Time Series ────────────────────────────────────────────────────
+  timeseries: {
+    subscribers: (params: { municipality_id?: number; interval?: string }) => {
+      const qs = new URLSearchParams();
+      if (params.municipality_id) qs.set('municipality_id', String(params.municipality_id));
+      if (params.interval) qs.set('interval', params.interval);
+      return fetchApi<any>(`/api/v1/timeseries/subscribers?${qs}`);
+    },
+    growth: (params?: { state?: string; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any>(`/api/v1/timeseries/growth?${qs}`);
+    },
+    forecast: (params: { municipality_id: number; months_ahead?: number }) => {
+      const qs = new URLSearchParams({ municipality_id: String(params.municipality_id) });
+      if (params.months_ahead) qs.set('months_ahead', String(params.months_ahead));
+      return fetchApi<any>(`/api/v1/timeseries/forecast?${qs}`);
+    },
+  },
+
+  // ── Speedtest ──────────────────────────────────────────────────────
+  speedtest: {
+    municipality: (id: number) => fetchApi<any>(`/api/v1/speedtest/${id}`),
+    ranking: (params?: { state?: string; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any[]>(`/api/v1/speedtest/ranking/?${qs}`);
+    },
+    heatmap: (params: { bbox: string; metric?: string }) => {
+      const qs = new URLSearchParams({ bbox: params.bbox });
+      if (params.metric) qs.set('metric', params.metric);
+      return fetchApi<any>(`/api/v1/speedtest/heatmap/?${qs}`);
+    },
+    history: (id: number) => fetchApi<any[]>(`/api/v1/speedtest/history/${id}`),
+  },
+
+  // ── Coverage Validation ────────────────────────────────────────────
+  coverage: {
+    validation: (id: number) => fetchApi<any>(`/api/v1/coverage/${id}/validation`),
+    gaps: (params?: { state?: string; min_gap?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.min_gap) qs.set('min_gap', String(params.min_gap));
+      return fetchApi<any[]>(`/api/v1/coverage/gaps?${qs}`);
+    },
+    towers: (id: number) => fetchApi<any>(`/api/v1/coverage/${id}/towers`),
+  },
+
+  // ── Tower Co-location ──────────────────────────────────────────────
+  colocation: {
+    opportunities: (params?: { state?: string; min_score?: number; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.min_score) qs.set('min_score', String(params.min_score));
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any[]>(`/api/v1/colocation/opportunities?${qs}`);
+    },
+    analysis: (baseStationId: number, recompute = false) =>
+      fetchApi<any>(`/api/v1/colocation/${baseStationId}/analysis?recompute=${recompute}`),
+    compute: (municipalityId: number) =>
+      fetchApi<any>(`/api/v1/colocation/compute/${municipalityId}`, { method: 'POST' }),
+    summary: (params?: { state?: string }) => {
+      const qs = params?.state ? `?state=${params.state}` : '';
+      return fetchApi<any>(`/api/v1/colocation/summary${qs}`);
+    },
+  },
+
+  // ── Smart Alerts ───────────────────────────────────────────────────
+  alerts: {
+    rules: () => fetchApi<any[]>('/api/v1/alerts/rules'),
+    createRule: (data: any) => fetchApi<any>('/api/v1/alerts/rules', { method: 'POST', body: JSON.stringify(data) }),
+    deleteRule: (id: number) => fetchApi<any>(`/api/v1/alerts/rules/${id}`, { method: 'DELETE' }),
+    events: (params?: { unread?: boolean; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.unread != null) qs.set('unread', String(params.unread));
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any[]>(`/api/v1/alerts/events?${qs}`);
+    },
+    eventCount: (unread = true) =>
+      fetchApi<{ count: number }>(`/api/v1/alerts/events/count?unread=${unread}`),
+    acknowledge: (eventId: number) =>
+      fetchApi<any>(`/api/v1/alerts/events/${eventId}/acknowledge`, { method: 'POST' }),
+    evaluate: () =>
+      fetchApi<any>('/api/v1/alerts/evaluate', { method: 'POST' }),
+  },
+
+  // ── Enhanced M&A ───────────────────────────────────────────────────
+  mnaEnhanced: {
+    comparableAnalysis: (data: { provider_id: number; subscriber_range?: [number, number]; fiber_range?: [number, number]; states?: string[] }) =>
+      fetchApi<any>('/api/v1/mna/comparable-analysis', { method: 'POST', body: JSON.stringify(data) }),
+    synergyModel: (data: { acquirer_id: number; target_id: number }) =>
+      fetchApi<any>('/api/v1/mna/synergy-model', { method: 'POST', body: JSON.stringify(data) }),
+    dueDiligence: (data: { target_provider_name: string; state_codes?: string[] }) =>
+      fetchApi<any>('/api/v1/mna/due-diligence', { method: 'POST', body: JSON.stringify(data) }),
+    integrationTimeline: (acquirerSubs: number, targetSubs: number) =>
+      fetchApi<any>(`/api/v1/mna/integration-timeline?acquirer_subs=${acquirerSubs}&target_subs=${targetSubs}`),
+  },
+
+  // ── Pulso Score ────────────────────────────────────────────────────
+  pulsoScore: {
+    provider: (id: number) => fetchApi<any>(`/api/v1/score/provider/${id}`),
+    ranking: (params?: { state?: string; tier?: string; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.tier) qs.set('tier', params.tier);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any[]>(`/api/v1/score/ranking?${qs}`);
+    },
+    distribution: () => fetchApi<any>('/api/v1/score/distribution'),
+    compute: (id: number) => fetchApi<any>(`/api/v1/score/compute/${id}`, { method: 'POST' }),
+  },
+
+  // ── ISP Credit Scoring ─────────────────────────────────────────────
+  credit: {
+    score: (id: number) => fetchApi<any>(`/api/v1/credit/${id}`),
+    ranking: (params?: { state?: string; min_rating?: string; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.min_rating) qs.set('min_rating', params.min_rating);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any[]>(`/api/v1/credit/ranking?${qs}`);
+    },
+    distribution: () => fetchApi<any>('/api/v1/credit/distribution'),
+    compute: (id: number) => fetchApi<any>(`/api/v1/credit/compute/${id}`, { method: 'POST' }),
+  },
+
+  // ── Buildings ──────────────────────────────────────────────────────
+  buildings: {
+    stats: (municipalityId: number) => fetchApi<any>(`/api/v1/buildings/geo/${municipalityId}/buildings/stats`),
+    list: (municipalityId: number, bbox?: string) => {
+      const qs = bbox ? `?bbox=${bbox}` : '';
+      return fetchApi<any>(`/api/v1/buildings/geo/${municipalityId}/buildings${qs}`);
+    },
+  },
+
+  // ── Spatial Analytics ───────────────────────────────────────────────
+  spatial: {
+    clusters: (params?: { num_clusters?: number; state?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.num_clusters) qs.set('num_clusters', String(params.num_clusters));
+      if (params?.state) qs.set('state', params.state);
+      return fetchApi<any>(`/api/v1/spatial/clusters?${qs}`);
+    },
+    voronoi: (params?: { state?: string; provider_id?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.provider_id) qs.set('provider_id', String(params.provider_id));
+      return fetchApi<any>(`/api/v1/spatial/voronoi?${qs}`);
+    },
+    footprint: (providerId: number) =>
+      fetchApi<any>(`/api/v1/spatial/footprint/${providerId}`),
+  },
+
+  // ── Starlink Threat Index ───────────────────────────────────────────
+  starlink: {
+    threat: (params?: { state?: string; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any>(`/api/v1/starlink/threat?${qs}`);
+    },
+    municipality: (l2Id: number) =>
+      fetchApi<any>(`/api/v1/starlink/threat/${l2Id}`),
+  },
+
+  // ── FWA vs Fiber Calculator ─────────────────────────────────────────
+  fwaFiber: {
+    compare: (params: { l2_id: number; target_subscribers?: number }) =>
+      fetchApi<any>('/api/v1/fwa-fiber/compare', { method: 'POST', body: JSON.stringify(params) }),
+    presets: () => fetchApi<any[]>('/api/v1/fwa-fiber/presets'),
+  },
+
+  // ── Backhaul Utilization ────────────────────────────────────────────
+  backhaul: {
+    utilization: (params?: { state?: string }) => {
+      const qs = params?.state ? `?state=${params.state}` : '';
+      return fetchApi<any>(`/api/v1/backhaul/utilization${qs}`);
+    },
+    forecast: (l2Id: number) =>
+      fetchApi<any>(`/api/v1/backhaul/forecast/${l2Id}`),
+  },
+
+  // ── Weather Risk ────────────────────────────────────────────────────
+  weatherRisk: {
+    risk: (params?: { state?: string }) => {
+      const qs = params?.state ? `?state=${params.state}` : '';
+      return fetchApi<any>(`/api/v1/weather-risk/risk${qs}`);
+    },
+    seasonal: (params?: { state?: string }) => {
+      const qs = params?.state ? `?state=${params.state}` : '';
+      return fetchApi<any>(`/api/v1/weather-risk/seasonal${qs}`);
+    },
+    municipality: (l2Id: number) =>
+      fetchApi<any>(`/api/v1/weather-risk/${l2Id}`),
+  },
+
+  // ── Peering ─────────────────────────────────────────────────────────
+  peering: {
+    networks: () => fetchApi<any>('/api/v1/peering/networks'),
+    ixps: () => fetchApi<any>('/api/v1/peering/ixps'),
+    stats: () => fetchApi<any>('/api/v1/peering/stats'),
+  },
+
+  // ── IXP ─────────────────────────────────────────────────────────────
+  ixp: {
+    locations: (params?: { state?: string }) => {
+      const qs = params?.state ? `?state=${params.state}` : '';
+      return fetchApi<any>(`/api/v1/ixp/locations${qs}`);
+    },
+    traffic: () => fetchApi<any>('/api/v1/ixp/traffic'),
+    trafficHistory: (code: string) => fetchApi<any>(`/api/v1/ixp/traffic/${code}`),
+  },
+
+  // ── 5G Obligations ──────────────────────────────────────────────────
+  obligations: {
+    fiveG: () => fetchApi<any>('/api/v1/obligations/5g'),
+    provider: (name: string) => fetchApi<any>(`/api/v1/obligations/5g/${encodeURIComponent(name)}`),
+    gapAnalysis: () => fetchApi<any>('/api/v1/obligations/5g/gap-analysis'),
+  },
+
+  // ── Cross-Reference Analytics ──────────────────────────────────────
+  analytics: {
+    hhi: (params?: { state?: string; year_month?: string; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.year_month) qs.set('year_month', params.year_month);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any>(`/api/v1/analytics/hhi?${qs}`);
+    },
+    coverageGaps: (params?: { state?: string; min_population?: number; max_towers_per_1000?: number; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.min_population) qs.set('min_population', String(params.min_population));
+      if (params?.max_towers_per_1000) qs.set('max_towers_per_1000', String(params.max_towers_per_1000));
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any>(`/api/v1/analytics/coverage-gaps?${qs}`);
+    },
+    providerOverlap: (providerA: number, providerB: number) =>
+      fetchApi<any>(`/api/v1/analytics/provider-overlap?provider_a=${providerA}&provider_b=${providerB}`),
+    towerDensity: (params?: { state?: string; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any>(`/api/v1/analytics/tower-density?${qs}`);
+    },
+    weatherCorrelation: (params?: { state?: string; months?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.months) qs.set('months', String(params.months));
+      return fetchApi<any>(`/api/v1/analytics/weather-correlation?${qs}`);
+    },
+    employmentCorrelation: (params?: { state?: string; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any>(`/api/v1/analytics/employment-correlation?${qs}`);
+    },
+    schoolGaps: (params?: { state?: string; max_distance_km?: number; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.max_distance_km) qs.set('max_distance_km', String(params.max_distance_km));
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any>(`/api/v1/analytics/school-gaps?${qs}`);
+    },
+    healthGaps: (params?: { state?: string; max_distance_km?: number; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.max_distance_km) qs.set('max_distance_km', String(params.max_distance_km));
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any>(`/api/v1/analytics/health-gaps?${qs}`);
+    },
+    investmentPriority: (params?: { state?: string; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any>(`/api/v1/analytics/investment-priority?${qs}`);
+    },
+    anomalies: (params?: { state?: string; lookback_months?: number; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.state) qs.set('state', params.state);
+      if (params?.lookback_months) qs.set('lookback_months', String(params.lookback_months));
+      if (params?.limit) qs.set('limit', String(params.limit));
+      return fetchApi<any>(`/api/v1/analytics/anomalies?${qs}`);
+    },
+  },
+
+  // ── Spectrum Valuation (M&A) ────────────────────────────────────────
+  spectrum: {
+    holdings: (providerId: number) => fetchApi<any>(`/api/v1/mna/spectrum/${providerId}`),
+    valuation: (providerId: number) => fetchApi<any>(`/api/v1/mna/spectrum/valuation/${providerId}`),
+  },
+
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -422,9 +821,13 @@ export async function getSatelliteIndices(
   fromYear = 2016,
   toYear = 2026,
 ): Promise<SatelliteYearData[]> {
-  return fetchApi(
-    `/api/v1/satellite/${municipalityCode}/indices?from_year=${fromYear}&to_year=${toYear}`,
-  );
+  try {
+    return await fetchApi(
+      `/api/v1/satellite/${municipalityCode}/indices?from_year=${fromYear}&to_year=${toYear}`,
+    );
+  } catch {
+    return [];
+  }
 }
 
 export async function getSatelliteGrowth(
@@ -439,9 +842,13 @@ export async function getSatelliteRanking(
   years = 3,
   limit = 50,
 ): Promise<SatelliteGrowthRanking[]> {
-  const params = new URLSearchParams({ metric, years: String(years), limit: String(limit) });
-  if (state) params.append('state', state);
-  return fetchApi(`/api/v1/satellite/ranking?${params}`);
+  try {
+    const params = new URLSearchParams({ metric, years: String(years), limit: String(limit) });
+    if (state) params.append('state', state);
+    return await fetchApi(`/api/v1/satellite/ranking?${params}`);
+  } catch {
+    return [];
+  }
 }
 
 export function getSatelliteTileUrl(
@@ -449,4 +856,31 @@ export function getSatelliteTileUrl(
   year: number,
 ): string {
   return `${API_BASE}/api/v1/satellite/${municipalityCode}/tiles/${year}/{z}/{x}/{y}.png`;
+}
+
+export interface SatelliteComputeResult {
+  status: 'cached' | 'computed' | 'computing';
+  municipality_code: string;
+  years_computed?: number;
+  message?: string;
+  data?: Array<{
+    year: number;
+    ndvi_mean: number | null;
+    ndbi_mean: number | null;
+    mndwi_mean: number | null;
+    bsi_mean: number | null;
+    built_up_area_km2: number | null;
+    built_up_pct: number | null;
+    built_up_change_km2: number | null;
+    built_up_change_pct: number | null;
+    ndvi_change_pct: number | null;
+  }>;
+}
+
+export async function computeSatelliteAnalysis(
+  municipalityCode: string,
+): Promise<SatelliteComputeResult> {
+  return fetchApi(`/api/v1/satellite/${municipalityCode}/compute`, {
+    method: 'POST',
+  });
 }

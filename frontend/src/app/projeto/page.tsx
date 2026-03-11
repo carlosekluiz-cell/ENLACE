@@ -22,6 +22,7 @@ import {
   Send,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { formatDecimal } from '@/lib/format';
 
 // ---------------------------------------------------------------------------
 // Tab definitions
@@ -31,7 +32,7 @@ type TabKey = 'coverage' | 'optimize' | 'linkbudget' | 'terrain';
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'coverage', label: 'Cobertura RF', icon: <Signal size={16} /> },
-  { key: 'optimize', label: 'Otimizacao de Torres', icon: <Antenna size={16} /> },
+  { key: 'optimize', label: 'Otimização de Torres', icon: <Antenna size={16} /> },
   { key: 'linkbudget', label: 'Link Budget', icon: <Radio size={16} /> },
   { key: 'terrain', label: 'Perfil de Terreno', icon: <Mountain size={16} /> },
 ];
@@ -114,7 +115,7 @@ export default function DesignPage() {
     executeCoverage(params);
   };
 
-  // -- Tab 2: Otimizacao de Torres
+  // -- Tab 2: Otimização de Torres
   const [optLat, setOptLat] = useState('-15.7939');
   const [optLon, setOptLon] = useState('-47.8828');
   const [optRadius, setOptRadius] = useState('5000');
@@ -210,19 +211,16 @@ export default function DesignPage() {
 
   // -- Helpers
   const fmtNum = (v: number | null | undefined, decimals = 1) =>
-    (v ?? 0).toLocaleString('pt-BR', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    });
+    formatDecimal(v, decimals);
 
   // Build terrain chart data
-  const terrainChartData: { name: string; elevacao: number }[] = [];
-  if (terrainData?.profile) {
-    const profile = terrainData.profile as { distance_m: number; elevation_m: number }[];
+  const terrainChartData: { name: string; elevação: number }[] = [];
+  if (terrainData?.points) {
+    const profile = terrainData.points as { distance_m: number; elevation_m: number }[];
     for (const pt of profile) {
       terrainChartData.push({
         name: `${(pt.distance_m / 1000).toFixed(1)} km`,
-        elevacao: pt.elevation_m,
+        elevação: pt.elevation_m,
       });
     }
   }
@@ -237,7 +235,7 @@ export default function DesignPage() {
           Projeto de Cobertura RF
         </h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Simulacao de cobertura, otimizacao de torres, link budget e perfil de terreno
+          Simulação de cobertura, otimização de torres, link budget e perfil de terreno
         </p>
       </div>
 
@@ -266,7 +264,7 @@ export default function DesignPage() {
           <div className="pulso-card lg:col-span-1">
             <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               <Signal size={16} style={{ color: 'var(--accent)' }} />
-              Parametros de Cobertura
+              Parâmetros de Cobertura
             </h2>
 
             <div className="space-y-4">
@@ -287,7 +285,7 @@ export default function DesignPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Frequencia (MHz)</label>
+                <label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Frequência (MHz)</label>
                 <select value={covFreq} onChange={(e) => setCovFreq(e.target.value)} className="pulso-input w-full">
                   {FREQ_OPTIONS.map((f) => (<option key={f} value={f}>{f} MHz</option>))}
                 </select>
@@ -295,7 +293,7 @@ export default function DesignPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Potencia TX (dBm)</label>
+                  <label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Potência TX (dBm)</label>
                   <input type="number" value={covPower} onChange={(e) => setCovPower(e.target.value)} className="pulso-input w-full" />
                 </div>
                 <div>
@@ -310,7 +308,7 @@ export default function DesignPage() {
                   <input type="number" value={covRadius} onChange={(e) => setCovRadius(e.target.value)} className="pulso-input w-full" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Resolucao (m)</label>
+                  <label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Resolução (m)</label>
                   <input type="number" value={covResolution} onChange={(e) => setCovResolution(e.target.value)} className="pulso-input w-full" />
                 </div>
               </div>
@@ -320,7 +318,7 @@ export default function DesignPage() {
                   <input type="checkbox" checked={covVegetation} onChange={(e) => setCovVegetation(e.target.checked)} className="peer sr-only" />
                   <div className="h-5 w-9 rounded-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-full" style={{ backgroundColor: covVegetation ? 'var(--accent)' : 'var(--bg-subtle)' }} />
                 </label>
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Correcao de Vegetacao</span>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Correção de Vegetação</span>
               </div>
 
               <button
@@ -344,7 +342,7 @@ export default function DesignPage() {
           <div className="space-y-4 lg:col-span-2">
             {!coverageData && !coverageLoading && (
               <div className="pulso-card flex items-center justify-center py-16 text-sm" style={{ color: 'var(--text-muted)' }}>
-                Defina os parametros e clique em &quot;Calcular Cobertura&quot; para visualizar os resultados.
+                Defina os parâmetros e clique em &quot;Calcular Cobertura&quot; para visualizar os resultados.
               </div>
             )}
 
@@ -358,9 +356,9 @@ export default function DesignPage() {
               <>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <StatBox title="Cobertura" value={`${fmtNum(coverageData.coverage_pct)}%`} icon={<Signal size={18} style={{ color: 'var(--accent)' }} />} subtitle="Percentual coberto" />
-                  <StatBox title="Area de Cobertura" value={`${fmtNum(coverageData.coverage_area_km2, 2)} km2`} icon={<Maximize2 size={18} style={{ color: 'var(--success)' }} />} subtitle="Area total" />
-                  <StatBox title="Sinal Medio" value={`${fmtNum(coverageData.avg_signal_dbm)} dBm`} icon={<Radio size={18} className="text-cyan-400" />} subtitle="Media na area" />
-                  <StatBox title="Sinal Minimo" value={`${fmtNum(coverageData.min_signal_dbm)} dBm`} icon={<Zap size={18} style={{ color: 'var(--warning)' }} />} subtitle="Pior caso" />
+                  <StatBox title="Área de Cobertura" value={`${fmtNum(coverageData.coverage_area_km2, 2)} km2`} icon={<Maximize2 size={18} style={{ color: 'var(--success)' }} />} subtitle="Área total" />
+                  <StatBox title="Sinal Médio" value={`${fmtNum(coverageData.avg_signal_dbm)} dBm`} icon={<Radio size={18} className="text-cyan-400" />} subtitle="Média na área" />
+                  <StatBox title="Sinal Mínimo" value={`${fmtNum(coverageData.min_signal_dbm)} dBm`} icon={<Zap size={18} style={{ color: 'var(--warning)' }} />} subtitle="Pior caso" />
                 </div>
 
                 {/* Grid points summary */}
@@ -376,11 +374,11 @@ export default function DesignPage() {
                         <p className="mt-1 text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{(coverageData.grid?.length ?? 0).toLocaleString('pt-BR')}</p>
                       </div>
                       <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-subtle)' }}>
-                        <p className="text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Sinal Maximo</p>
+                        <p className="text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Sinal Máximo</p>
                         <p className="mt-1 text-lg font-bold" style={{ color: 'var(--success)' }}>{fmtNum(coverageData.max_signal_dbm)} dBm</p>
                       </div>
                       <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-subtle)' }}>
-                        <p className="text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Resolucao da Grade</p>
+                        <p className="text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Resolução da Grade</p>
                         <p className="mt-1 text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{covResolution} m</p>
                       </div>
                     </div>
@@ -388,7 +386,7 @@ export default function DesignPage() {
                     {/* Signal distribution summary */}
                     {(coverageData.grid?.length ?? 0) > 0 && (
                       <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--bg-subtle)' }}>
-                        <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Distribuicao do Sinal</p>
+                        <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Distribuição do Sinal</p>
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                           {[
                             { label: 'Excelente (> -65 dBm)', count: (coverageData.grid ?? []).filter(p => p.signal_dbm > -65).length, color: 'var(--success)' },
@@ -412,13 +410,13 @@ export default function DesignPage() {
         </div>
       )}
 
-      {/* TAB 2 -- Otimizacao de Torres */}
+      {/* TAB 2 -- Otimização de Torres */}
       {activeTab === 'optimize' && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="pulso-card lg:col-span-1">
             <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               <Antenna size={16} style={{ color: 'var(--accent)' }} />
-              Parametros de Otimizacao
+              Parâmetros de Otimização
             </h2>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -430,12 +428,12 @@ export default function DesignPage() {
                 <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Cobertura Alvo (%)</label><input type="number" value={optTarget} onChange={(e) => setOptTarget(e.target.value)} className="pulso-input w-full" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Sinal Minimo (dBm)</label><input type="number" value={optMinSignal} onChange={(e) => setOptMinSignal(e.target.value)} className="pulso-input w-full" /></div>
+                <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Sinal Mínimo (dBm)</label><input type="number" value={optMinSignal} onChange={(e) => setOptMinSignal(e.target.value)} className="pulso-input w-full" /></div>
                 <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Max. Torres</label><input type="number" value={optMaxTowers} onChange={(e) => setOptMaxTowers(e.target.value)} className="pulso-input w-full" /></div>
               </div>
-              <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Frequencia (MHz)</label><input type="number" value={optFreq} onChange={(e) => setOptFreq(e.target.value)} className="pulso-input w-full" /></div>
+              <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Frequência (MHz)</label><input type="number" value={optFreq} onChange={(e) => setOptFreq(e.target.value)} className="pulso-input w-full" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Potencia TX (dBm)</label><input type="number" value={optPower} onChange={(e) => setOptPower(e.target.value)} className="pulso-input w-full" /></div>
+                <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Potência TX (dBm)</label><input type="number" value={optPower} onChange={(e) => setOptPower(e.target.value)} className="pulso-input w-full" /></div>
                 <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Ganho da Antena (dBi)</label><input type="number" value={optGain} onChange={(e) => setOptGain(e.target.value)} className="pulso-input w-full" /></div>
               </div>
               <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Altura da Antena (m)</label><input type="number" value={optAntennaHeight} onChange={(e) => setOptAntennaHeight(e.target.value)} className="pulso-input w-full" /></div>
@@ -456,7 +454,7 @@ export default function DesignPage() {
           <div className="space-y-4 lg:col-span-2">
             {!optimizeData && !optimizeLoading && (
               <div className="pulso-card flex items-center justify-center py-16 text-sm" style={{ color: 'var(--text-muted)' }}>
-                Defina os parametros e clique em &quot;Otimizar Posicionamento&quot; para visualizar os resultados.
+                Defina os parâmetros e clique em &quot;Otimizar Posicionamento&quot; para visualizar os resultados.
               </div>
             )}
 
@@ -469,9 +467,9 @@ export default function DesignPage() {
             {optimizeData && (
               <>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <StatBox title="Torres Necessarias" value={String(optimizeData.tower_count ?? optimizeData.towers?.length ?? '---')} icon={<Antenna size={18} style={{ color: 'var(--accent)' }} />} subtitle="Posicoes otimizadas" />
-                  <StatBox title="Cobertura Alcancada" value={optimizeData.coverage_achieved_pct != null ? `${fmtNum(optimizeData.coverage_achieved_pct)}%` : '---'} icon={<Signal size={18} style={{ color: 'var(--success)' }} />} subtitle={`Meta: ${optTarget}%`} />
-                  <StatBox title="Area Coberta" value={optimizeData.coverage_area_km2 != null ? `${fmtNum(optimizeData.coverage_area_km2, 2)} km2` : '---'} icon={<Maximize2 size={18} className="text-cyan-400" />} subtitle="Estimativa" />
+                  <StatBox title="Torres Necessárias" value={String(optimizeData.tower_count ?? optimizeData.towers?.length ?? '---')} icon={<Antenna size={18} style={{ color: 'var(--accent)' }} />} subtitle="Posições otimizadas" />
+                  <StatBox title="Cobertura Alcançada" value={optimizeData.coverage_achieved_pct != null ? `${fmtNum(optimizeData.coverage_achieved_pct)}%` : '---'} icon={<Signal size={18} style={{ color: 'var(--success)' }} />} subtitle={`Meta: ${optTarget}%`} />
+                  <StatBox title="Área Coberta" value={optimizeData.coverage_area_km2 != null ? `${fmtNum(optimizeData.coverage_area_km2, 2)} km2` : '---'} icon={<Maximize2 size={18} className="text-cyan-400" />} subtitle="Estimativa" />
                   <StatBox title="CAPEX Estimado" value={optimizeData.estimated_capex_brl != null ? `R$ ${(optimizeData.estimated_capex_brl / 1000).toFixed(0)}k` : '---'} icon={<Zap size={18} style={{ color: 'var(--warning)' }} />} subtitle="Investimento total" />
                 </div>
 
@@ -479,7 +477,7 @@ export default function DesignPage() {
                   <div className="pulso-card">
                     <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                       <MapPin size={16} style={{ color: 'var(--accent)' }} />
-                      Posicoes das Torres
+                      Posições das Torres
                     </h3>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
@@ -510,7 +508,7 @@ export default function DesignPage() {
 
                 {optimizeData.notes && optimizeData.notes.length > 0 && (
                   <div className="pulso-card">
-                    <h3 className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--text-secondary)' }}>Observacoes</h3>
+                    <h3 className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--text-secondary)' }}>Observações</h3>
                     <ul className="space-y-1">
                       {optimizeData.notes.map((note: string, idx: number) => (
                         <li key={idx} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -533,14 +531,14 @@ export default function DesignPage() {
           <div className="pulso-card lg:col-span-1">
             <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               <Radio size={16} style={{ color: 'var(--accent)' }} />
-              Parametros do Link Budget
+              Parâmetros do Link Budget
             </h2>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Frequencia (GHz)</label><input type="number" value={lbFreq} onChange={(e) => setLbFreq(e.target.value)} className="pulso-input w-full" /></div>
-                <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Distancia (km)</label><input type="number" value={lbDist} onChange={(e) => setLbDist(e.target.value)} className="pulso-input w-full" /></div>
+                <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Frequência (GHz)</label><input type="number" value={lbFreq} onChange={(e) => setLbFreq(e.target.value)} className="pulso-input w-full" /></div>
+                <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Distância (km)</label><input type="number" value={lbDist} onChange={(e) => setLbDist(e.target.value)} className="pulso-input w-full" /></div>
               </div>
-              <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Potencia TX (dBm)</label><input type="number" value={lbPower} onChange={(e) => setLbPower(e.target.value)} className="pulso-input w-full" /></div>
+              <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Potência TX (dBm)</label><input type="number" value={lbPower} onChange={(e) => setLbPower(e.target.value)} className="pulso-input w-full" /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Ganho Antena TX (dBi)</label><input type="number" value={lbTxGain} onChange={(e) => setLbTxGain(e.target.value)} className="pulso-input w-full" /></div>
                 <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Ganho Antena RX (dBi)</label><input type="number" value={lbRxGain} onChange={(e) => setLbRxGain(e.target.value)} className="pulso-input w-full" /></div>
@@ -549,7 +547,7 @@ export default function DesignPage() {
               <div>
                 <label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Taxa de Chuva (mm/h)</label>
                 <input type="number" value={lbRain} onChange={(e) => setLbRain(e.target.value)} className="pulso-input w-full" />
-                <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>Padrao tropical Brasil</p>
+                <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>Padrão tropical Brasil</p>
               </div>
 
               <button onClick={handleLinkBudget} disabled={linkLoading} className={clsx('pulso-btn-primary flex w-full items-center justify-center gap-2', linkLoading && 'cursor-wait opacity-70')}>
@@ -568,7 +566,7 @@ export default function DesignPage() {
           <div className="space-y-4 lg:col-span-2">
             {!linkData && !linkLoading && (
               <div className="pulso-card flex items-center justify-center py-16 text-sm" style={{ color: 'var(--text-muted)' }}>
-                Defina os parametros e clique em &quot;Calcular Link Budget&quot; para visualizar os resultados.
+                Defina os parâmetros e clique em &quot;Calcular Link Budget&quot; para visualizar os resultados.
               </div>
             )}
 
@@ -581,11 +579,11 @@ export default function DesignPage() {
             {linkData && (
               <>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <StatBox title="EIRP" value={linkData.eirp_dbm != null ? `${fmtNum(linkData.eirp_dbm)} dBm` : '---'} icon={<Zap size={18} style={{ color: 'var(--accent)' }} />} subtitle="Potencia efetiva irradiada" />
-                  <StatBox title="Perda no Espaco Livre" value={linkData.free_space_loss_db != null ? `${fmtNum(linkData.free_space_loss_db)} dB` : '---'} icon={<Ruler size={18} className="text-cyan-400" />} subtitle="FSL" />
-                  <StatBox title="Atenuacao por Chuva" value={linkData.rain_attenuation_db != null ? `${fmtNum(linkData.rain_attenuation_db)} dB` : '---'} icon={<Mountain size={18} style={{ color: 'var(--warning)' }} />} subtitle={`${lbRain} mm/h`} />
-                  <StatBox title="Sinal Recebido" value={linkData.received_power_dbm != null ? `${fmtNum(linkData.received_power_dbm)} dBm` : '---'} icon={<Signal size={18} style={{ color: 'var(--success)' }} />} subtitle="Nivel no receptor" />
-                  <StatBox title="Margem de Desvanecimento" value={linkData.fade_margin_db != null ? `${fmtNum(linkData.fade_margin_db)} dB` : '---'} icon={<Radio size={18} style={{ color: linkData.fade_margin_db != null && linkData.fade_margin_db > 0 ? 'var(--success)' : 'var(--danger)' }} />} subtitle={linkData.fade_margin_db != null ? (linkData.fade_margin_db > 0 ? 'Link viavel' : 'Link inviavel') : ''} />
+                  <StatBox title="EIRP" value={linkData.eirp_dbm != null ? `${fmtNum(linkData.eirp_dbm)} dBm` : '---'} icon={<Zap size={18} style={{ color: 'var(--accent)' }} />} subtitle="Potência efetiva irradiada" />
+                  <StatBox title="Perda no Espaço Livre" value={linkData.free_space_loss_db != null ? `${fmtNum(linkData.free_space_loss_db)} dB` : '---'} icon={<Ruler size={18} className="text-cyan-400" />} subtitle="FSL" />
+                  <StatBox title="Atenuação por Chuva" value={linkData.rain_attenuation_db != null ? `${fmtNum(linkData.rain_attenuation_db)} dB` : '---'} icon={<Mountain size={18} style={{ color: 'var(--warning)' }} />} subtitle={`${lbRain} mm/h`} />
+                  <StatBox title="Sinal Recebido" value={linkData.received_power_dbm != null ? `${fmtNum(linkData.received_power_dbm)} dBm` : '---'} icon={<Signal size={18} style={{ color: 'var(--success)' }} />} subtitle="Nível no receptor" />
+                  <StatBox title="Margem de Desvanecimento" value={linkData.fade_margin_db != null ? `${fmtNum(linkData.fade_margin_db)} dB` : '---'} icon={<Radio size={18} style={{ color: linkData.fade_margin_db != null && linkData.fade_margin_db > 0 ? 'var(--success)' : 'var(--danger)' }} />} subtitle={linkData.fade_margin_db != null ? (linkData.fade_margin_db > 0 ? 'Link viável' : 'Link inviável') : ''} />
                   <StatBox title="Disponibilidade" value={linkData.availability_pct != null ? `${fmtNum(linkData.availability_pct, 4)}%` : '---'} icon={<Maximize2 size={18} className="text-purple-400" />} subtitle="Estimativa anual" />
                 </div>
 
@@ -596,14 +594,14 @@ export default function DesignPage() {
                   </h3>
                   <div className="space-y-2">
                     {[
-                      { label: 'Frequencia', value: `${lbFreq} GHz` },
-                      { label: 'Distancia', value: `${lbDist} km` },
-                      { label: 'Potencia TX', value: `${lbPower} dBm` },
+                      { label: 'Frequência', value: `${lbFreq} GHz` },
+                      { label: 'Distância', value: `${lbDist} km` },
+                      { label: 'Potência TX', value: `${lbPower} dBm` },
                       { label: 'Ganho Antena TX', value: `${lbTxGain} dBi` },
                       { label: 'Ganho Antena RX', value: `${lbRxGain} dBi` },
                       { label: 'EIRP', value: linkData.eirp_dbm != null ? `${fmtNum(linkData.eirp_dbm)} dBm` : '---' },
-                      { label: 'Perda no Espaco Livre (FSL)', value: linkData.free_space_loss_db != null ? `${fmtNum(linkData.free_space_loss_db)} dB` : '---' },
-                      { label: 'Atenuacao por Chuva', value: linkData.rain_attenuation_db != null ? `${fmtNum(linkData.rain_attenuation_db)} dB` : '---' },
+                      { label: 'Perda no Espaço Livre (FSL)', value: linkData.free_space_loss_db != null ? `${fmtNum(linkData.free_space_loss_db)} dB` : '---' },
+                      { label: 'Atenuação por Chuva', value: linkData.rain_attenuation_db != null ? `${fmtNum(linkData.rain_attenuation_db)} dB` : '---' },
                       { label: 'Perdas Totais', value: linkData.total_loss_db != null ? `${fmtNum(linkData.total_loss_db)} dB` : '---' },
                       { label: 'Sinal Recebido', value: linkData.received_power_dbm != null ? `${fmtNum(linkData.received_power_dbm)} dBm` : '---' },
                       { label: 'Limiar RX', value: `${lbThreshold} dBm` },
@@ -624,12 +622,12 @@ export default function DesignPage() {
                     linkData.fade_margin_db > 0 ? (
                       <span className="pulso-badge-green flex items-center gap-1">
                         <Signal size={14} />
-                        Enlace Viavel - Margem de {fmtNum(linkData.fade_margin_db)} dB
+                        Enlace Viável - Margem de {fmtNum(linkData.fade_margin_db)} dB
                       </span>
                     ) : (
                       <span className="pulso-badge-red flex items-center gap-1">
                         <Zap size={14} />
-                        Enlace Inviavel - Margem insuficiente
+                        Enlace Inviável - Margem insuficiente
                       </span>
                     )
                   ) : (
@@ -648,14 +646,14 @@ export default function DesignPage() {
           <div className="pulso-card lg:col-span-1">
             <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               <Mountain size={16} style={{ color: 'var(--accent)' }} />
-              Parametros do Perfil
+              Parâmetros do Perfil
             </h2>
             <div className="space-y-4">
               <div>
-                <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Ponto de Inicio</p>
+                <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Ponto de Início</p>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Latitude Inicio</label><input type="number" step="0.0001" value={tpStartLat} onChange={(e) => setTpStartLat(e.target.value)} className="pulso-input w-full" /></div>
-                  <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Longitude Inicio</label><input type="number" step="0.0001" value={tpStartLon} onChange={(e) => setTpStartLon(e.target.value)} className="pulso-input w-full" /></div>
+                  <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Latitude Início</label><input type="number" step="0.0001" value={tpStartLat} onChange={(e) => setTpStartLat(e.target.value)} className="pulso-input w-full" /></div>
+                  <div><label className="mb-1 block text-xs" style={{ color: 'var(--text-secondary)' }}>Longitude Início</label><input type="number" step="0.0001" value={tpStartLon} onChange={(e) => setTpStartLon(e.target.value)} className="pulso-input w-full" /></div>
                 </div>
               </div>
               <div>
@@ -683,7 +681,7 @@ export default function DesignPage() {
           <div className="space-y-4 lg:col-span-2">
             {!terrainData && !terrainLoading && (
               <div className="pulso-card flex items-center justify-center py-16 text-sm" style={{ color: 'var(--text-muted)' }}>
-                Defina os pontos de inicio e fim e clique em &quot;Extrair Perfil&quot; para visualizar o terreno.
+                Defina os pontos de início e fim e clique em &quot;Extrair Perfil&quot; para visualizar o terreno.
               </div>
             )}
 
@@ -692,24 +690,24 @@ export default function DesignPage() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   {[1, 2, 3].map((i) => (<StatBox key={i} title="" value="" loading />))}
                 </div>
-                <SimpleChart data={[]} type="line" title="Perfil de Elevacao" loading height={300} />
+                <SimpleChart data={[]} type="line" title="Perfil de Elevação" loading height={300} />
               </div>
             )}
 
             {terrainData && (
               <>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <StatBox title="Distancia Total" value={terrainData.total_distance_km != null ? `${fmtNum(terrainData.total_distance_km, 2)} km` : terrainData.profile?.length ? `${fmtNum((terrainData.profile[terrainData.profile.length - 1].distance_m || 0) / 1000, 2)} km` : '---'} icon={<Ruler size={18} style={{ color: 'var(--accent)' }} />} subtitle="Entre os pontos" />
-                  <StatBox title="Elevacao Maxima" value={terrainData.max_elevation_m != null ? `${fmtNum(terrainData.max_elevation_m, 0)} m` : terrainData.profile?.length ? `${fmtNum(Math.max(...terrainData.profile.map((p: any) => p.elevation_m)), 0)} m` : '---'} icon={<Mountain size={18} style={{ color: 'var(--success)' }} />} subtitle="Ponto mais alto" />
-                  <StatBox title="Elevacao Minima" value={terrainData.min_elevation_m != null ? `${fmtNum(terrainData.min_elevation_m, 0)} m` : terrainData.profile?.length ? `${fmtNum(Math.min(...terrainData.profile.map((p: any) => p.elevation_m)), 0)} m` : '---'} icon={<MapPin size={18} style={{ color: 'var(--warning)' }} />} subtitle="Ponto mais baixo" />
-                  <StatBox title="Pontos Amostrados" value={terrainData.profile?.length?.toLocaleString('pt-BR') ?? '---'} icon={<Maximize2 size={18} className="text-cyan-400" />} subtitle={`Passo: ${tpStep} m`} />
+                  <StatBox title="Distância Total" value={terrainData.total_distance_m != null ? `${fmtNum(terrainData.total_distance_m / 1000, 2)} km` : '---'} icon={<Ruler size={18} style={{ color: 'var(--accent)' }} />} subtitle="Entre os pontos" />
+                  <StatBox title="Elevação Máxima" value={terrainData.max_elevation_m != null ? `${fmtNum(terrainData.max_elevation_m, 0)} m` : '---'} icon={<Mountain size={18} style={{ color: 'var(--success)' }} />} subtitle="Ponto mais alto" />
+                  <StatBox title="Elevação Mínima" value={terrainData.min_elevation_m != null ? `${fmtNum(terrainData.min_elevation_m, 0)} m` : '---'} icon={<MapPin size={18} style={{ color: 'var(--warning)' }} />} subtitle="Ponto mais baixo" />
+                  <StatBox title="Pontos Amostrados" value={terrainData.points?.length?.toLocaleString('pt-BR') ?? '---'} icon={<Maximize2 size={18} className="text-cyan-400" />} subtitle={`Passo: ${tpStep} m`} />
                 </div>
 
                 {terrainChartData.length > 0 && (
-                  <SimpleChart data={terrainChartData} type="line" xKey="name" yKey="elevacao" title="Perfil de Elevacao (m)" height={350} />
+                  <SimpleChart data={terrainChartData} type="line" xKey="name" yKey="elevação" title="Perfil de Elevação (m)" height={350} />
                 )}
 
-                {terrainData.profile && terrainData.profile.length > 1 && (
+                {terrainData.points && terrainData.points.length > 1 && (
                   <div className="pulso-card">
                     <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                       <Mountain size={16} style={{ color: 'var(--accent)' }} />
@@ -717,7 +715,7 @@ export default function DesignPage() {
                     </h3>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                       {(() => {
-                        const elevations = terrainData.profile.map((p: any) => p.elevation_m);
+                        const elevations = terrainData.points.map((p: any) => p.elevation_m);
                         const maxElev = Math.max(...elevations);
                         const minElev = Math.min(...elevations);
                         const avgElev = elevations.reduce((a: number, b: number) => a + b, 0) / elevations.length;
@@ -730,11 +728,11 @@ export default function DesignPage() {
                               <p className="mt-1 text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{fmtNum(maxElev - minElev, 0)} m</p>
                             </div>
                             <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-subtle)' }}>
-                              <p className="text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Elevacao Media</p>
+                              <p className="text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Elevação Média</p>
                               <p className="mt-1 text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{fmtNum(avgElev, 0)} m</p>
                             </div>
                             <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-subtle)' }}>
-                              <p className="text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Diferenca Inicio/Fim</p>
+                              <p className="text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Diferença Início/Fim</p>
                               <p className="mt-1 text-lg font-bold" style={{ color: endElev >= startElev ? 'var(--success)' : 'var(--danger)' }}>
                                 {endElev >= startElev ? '+' : ''}{fmtNum(endElev - startElev, 0)} m
                               </p>

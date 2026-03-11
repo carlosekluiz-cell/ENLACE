@@ -101,7 +101,7 @@ function AdminContent() {
     { key: 'email', label: 'Email', sortable: true },
     {
       key: 'role',
-      label: 'Funcao',
+      label: 'Função',
       render: (val: string, row: AdminUser) => (
         <select
           value={val}
@@ -136,7 +136,7 @@ function AdminContent() {
             color: val ? 'var(--success)' : 'var(--danger)',
           }}
         >
-          {val ? 'Sim' : 'Nao'}
+          {val ? 'Sim' : 'Não'}
         </button>
       ),
     },
@@ -176,11 +176,11 @@ function AdminContent() {
       ),
     },
     { key: 'rows_processed', label: 'Linhas' },
-    { key: 'started_at', label: 'Inicio', render: (v: string) => v ? new Date(v).toLocaleString('pt-BR') : '-' },
+    { key: 'started_at', label: 'Início', render: (v: string) => v ? new Date(v).toLocaleString('pt-BR') : '-' },
     { key: 'completed_at', label: 'Fim', render: (v: string) => v ? new Date(v).toLocaleString('pt-BR') : '-' },
     {
       key: 'pipeline_name',
-      label: 'Acoes',
+      label: 'Ações',
       render: (_: string, row: PipelineRun) => (
         <button
           onClick={(e) => {
@@ -200,7 +200,7 @@ function AdminContent() {
   ];
 
   const tabs = [
-    { key: 'users' as Tab, label: 'Usuarios', icon: Users },
+    { key: 'users' as Tab, label: 'Usuários', icon: Users },
     { key: 'pipelines' as Tab, label: 'Pipelines', icon: Database },
   ];
 
@@ -248,7 +248,7 @@ function AdminContent() {
               className="pulso-btn-primary flex items-center gap-2 text-sm"
             >
               <Plus size={16} />
-              Novo Usuario
+              Novo Usuário
             </button>
           </div>
 

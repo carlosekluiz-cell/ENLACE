@@ -34,29 +34,29 @@ const BRAZILIAN_STATES = [
   { code: 'AC', label: 'Acre' },
   { code: 'AL', label: 'Alagoas' },
   { code: 'AM', label: 'Amazonas' },
-  { code: 'AP', label: 'Amapa' },
+  { code: 'AP', label: 'Amapá' },
   { code: 'BA', label: 'Bahia' },
-  { code: 'CE', label: 'Ceara' },
+  { code: 'CE', label: 'Ceará' },
   { code: 'DF', label: 'Distrito Federal' },
-  { code: 'ES', label: 'Espirito Santo' },
-  { code: 'GO', label: 'Goias' },
-  { code: 'MA', label: 'Maranhao' },
+  { code: 'ES', label: 'Espírito Santo' },
+  { code: 'GO', label: 'Goiás' },
+  { code: 'MA', label: 'Maranhão' },
   { code: 'MG', label: 'Minas Gerais' },
   { code: 'MS', label: 'Mato Grosso do Sul' },
   { code: 'MT', label: 'Mato Grosso' },
-  { code: 'PA', label: 'Para' },
-  { code: 'PB', label: 'Paraiba' },
+  { code: 'PA', label: 'Pará' },
+  { code: 'PB', label: 'Paraíba' },
   { code: 'PE', label: 'Pernambuco' },
-  { code: 'PI', label: 'Piaui' },
-  { code: 'PR', label: 'Parana' },
+  { code: 'PI', label: 'Piauí' },
+  { code: 'PR', label: 'Paraná' },
   { code: 'RJ', label: 'Rio de Janeiro' },
   { code: 'RN', label: 'Rio Grande do Norte' },
-  { code: 'RO', label: 'Rondonia' },
+  { code: 'RO', label: 'Rondônia' },
   { code: 'RR', label: 'Roraima' },
   { code: 'RS', label: 'Rio Grande do Sul' },
   { code: 'SC', label: 'Santa Catarina' },
   { code: 'SE', label: 'Sergipe' },
-  { code: 'SP', label: 'Sao Paulo' },
+  { code: 'SP', label: 'São Paulo' },
   { code: 'TO', label: 'Tocantins' },
 ];
 
@@ -73,7 +73,7 @@ function growthToColor(pct: number): [number, number, number, number] {
 const columns = [
   {
     key: 'municipality_name',
-    label: 'Municipio',
+    label: 'Município',
     sortable: true,
     render: (value: string, row: SatelliteGrowthRanking) => (
       <div>
@@ -115,7 +115,7 @@ const columns = [
   },
   {
     key: 'latest_built_up_area_km2',
-    label: 'Area Construida',
+    label: 'Área Construída',
     sortable: true,
     render: (_value: number | null, row: SatelliteGrowthRanking) => {
       const area = (row as any).area_km2 ?? _value;
@@ -124,7 +124,7 @@ const columns = [
   },
   {
     key: 'avg_ndvi',
-    label: 'NDVI Medio',
+    label: 'NDVI Médio',
     sortable: true,
     render: (value: number | null) => (
       <span style={{ color: 'var(--success)' }}>
@@ -134,7 +134,7 @@ const columns = [
   },
   {
     key: 'population',
-    label: 'Populacao',
+    label: 'População',
     sortable: true,
     render: (value: number | null) => value != null ? value.toLocaleString('pt-BR') : '-',
   },
@@ -271,11 +271,11 @@ export default function SatellitePage() {
     return allYears.map((year) => ({
       name: String(year),
       area_construida: satMap.get(year) ?? null,
-      populacao: ibgeMap.get(year) ?? null,
+      população: ibgeMap.get(year) ?? null,
     }));
   }, [growthData]);
 
-  // Satellite indices chart data
+  // Satellite índices chart data
   const indicesChartData = useMemo(() => {
     if (!indicesData) return [];
     return indicesData.map((d) => ({
@@ -295,10 +295,10 @@ export default function SatellitePage() {
           <Satellite size={24} style={{ color: 'var(--accent)' }} />
           <div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-              Inteligencia Satelital
+              Inteligência Satelital
             </h1>
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Analise de crescimento urbano baseada em imagens Sentinel-2 com cruzamento de dados IBGE
+              Análise de crescimento urbano baseada em imagens Sentinel-2 com cruzamento de dados IBGE
             </p>
           </div>
         </div>
@@ -315,7 +315,7 @@ export default function SatellitePage() {
         >
           <AlertTriangle size={18} className="shrink-0" style={{ color: 'var(--danger)' }} />
           <p className="text-sm" style={{ color: 'var(--danger)' }}>
-            Erro ao carregar dados satelitais. Verifique sua conexao e tente novamente.
+            Erro ao carregar dados satelitais. Verifique sua conexão e tente novamente.
           </p>
         </div>
       )}
@@ -371,7 +371,7 @@ export default function SatellitePage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-                Crescimento Medio
+                Crescimento Médio
               </p>
               <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
                 {loading
@@ -382,7 +382,7 @@ export default function SatellitePage() {
               </p>
               {ranking && ranking.length > 0 && (
                 <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                  {ranking.length} municipios analisados
+                  {ranking.length} municípios analisados
                 </p>
               )}
             </div>
@@ -393,13 +393,13 @@ export default function SatellitePage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-                Populacao Total
+                População Total
               </p>
               <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
                 {loading ? 'Carregando...' : totalPopulation.toLocaleString('pt-BR')}
               </p>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                Habitantes nos municipios analisados
+                Habitantes nos municípios analisados
               </p>
             </div>
             <Leaf size={18} style={{ color: 'var(--success)' }} />
@@ -420,7 +420,7 @@ export default function SatellitePage() {
             </h2>
             {!loading && ranking && (
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                {ranking.filter((r) => r.latitude != null).length} municipios mapeados
+                {ranking.filter((r) => r.latitude != null).length} municípios mapeados
               </span>
             )}
           </div>
@@ -465,7 +465,7 @@ export default function SatellitePage() {
             searchable
             searchKeys={['municipality_name']}
             onRowClick={handleRowClick}
-            emptyMessage="Nenhum dado satelital encontrado"
+            emptyMessage="Índices satelitais ainda não foram computados para esta região. Os dados Sentinel-2 serão processados em breve."
           />
         </div>
 
@@ -475,7 +475,7 @@ export default function SatellitePage() {
             <div className="pulso-card sticky top-6 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                  Detalhes do Municipio
+                  Detalhes do Município
                 </h3>
                 <button
                   onClick={handleCloseDetail}
@@ -504,11 +504,11 @@ export default function SatellitePage() {
                   style={{ backgroundColor: 'var(--accent-subtle)' }}
                 >
                   <p className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
-                    Comparativo Satelite vs IBGE
+                    Comparativo Satélite vs IBGE
                   </p>
                   <p className="mt-1 text-sm font-semibold" style={{ color: 'var(--accent)' }}>
-                    Satelite: {growthData.correlation_summary.avg_annual_built_up_change_pct != null
-                      ? `${growthData.correlation_summary.avg_annual_built_up_change_pct >= 0 ? '+' : ''}${growthData.correlation_summary.avg_annual_built_up_change_pct.toFixed(2)}% area construida`
+                    Satélite: {growthData.correlation_summary.avg_annual_built_up_change_pct != null
+                      ? `${growthData.correlation_summary.avg_annual_built_up_change_pct >= 0 ? '+' : ''}${growthData.correlation_summary.avg_annual_built_up_change_pct.toFixed(2)}% área construída`
                       : 'Sem dados'}
                   </p>
                   <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -528,33 +528,33 @@ export default function SatellitePage() {
                   data={growthChartData}
                   type="line"
                   xKey="name"
-                  yKeys={['area_construida', 'populacao']}
-                  title="Area Construida vs Populacao"
+                  yKeys={['area_construida', 'população']}
+                  title="Área Construída vs População"
                   height={200}
                   loading={loadingGrowth}
                 />
               )}
 
-              {/* Satellite indices chart */}
+              {/* Satellite índices chart */}
               {indicesChartData.length > 0 && (
                 <SimpleChart
                   data={indicesChartData}
                   type="line"
                   xKey="name"
                   yKeys={['NDVI', 'NDBI', 'MNDWI', 'BSI']}
-                  title="Indices Satelitais ao Longo do Tempo"
+                  title="Índices Satelitais ao Longo do Tempo"
                   height={200}
                   loading={loadingIndices}
                 />
               )}
               {loadingIndices && !indicesChartData.length && (
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando indices...</p>
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando índices...</p>
               )}
 
               {/* Detail stats */}
               <div className="space-y-2 pt-2">
                 <DetailRow
-                  label="Populacao"
+                  label="População"
                   value={
                     selectedRow.population != null
                       ? selectedRow.population.toLocaleString('pt-BR')
@@ -562,7 +562,7 @@ export default function SatellitePage() {
                   }
                 />
                 <DetailRow
-                  label="Area do Municipio"
+                  label="Área do Município"
                   value={
                     (selectedRow as any).area_km2 != null
                       ? `${(selectedRow as any).area_km2.toLocaleString('pt-BR')} km2`
@@ -570,7 +570,7 @@ export default function SatellitePage() {
                   }
                 />
                 <DetailRow
-                  label="Crescimento Medio"
+                  label="Crescimento Médio"
                   value={
                     ((selectedRow as any).avg_metric ?? selectedRow.avg_built_up_change_pct) != null
                       ? `${(((selectedRow as any).avg_metric ?? selectedRow.avg_built_up_change_pct) as number).toFixed(2)}%`

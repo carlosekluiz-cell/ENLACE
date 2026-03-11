@@ -9,6 +9,10 @@ pub struct ServiceConfig {
     pub srtm_tile_dir: String,
     /// Maximum number of SRTM tiles to keep in LRU cache.
     pub tile_cache_size: usize,
+    /// Path to TLS certificate file (PEM). If set, enables TLS.
+    pub tls_cert: Option<String>,
+    /// Path to TLS private key file (PEM).
+    pub tls_key: Option<String>,
 }
 
 impl Default for ServiceConfig {
@@ -19,6 +23,8 @@ impl Default for ServiceConfig {
             srtm_tile_dir: std::env::var("SRTM_TILE_DIR")
                 .unwrap_or_else(|_| "/data/srtm".into()),
             tile_cache_size: 50,
+            tls_cert: std::env::var("TLS_CERT").ok(),
+            tls_key: std::env::var("TLS_KEY").ok(),
         }
     }
 }

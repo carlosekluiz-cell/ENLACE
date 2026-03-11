@@ -182,7 +182,9 @@ async def get_top_opportunities(
                 os.growth_score,
                 a2.area_km2,
                 cd_agg.total_households,
-                cd_agg.total_population
+                cd_agg.total_population,
+                ST_Y(a2.centroid) AS latitude,
+                ST_X(a2.centroid) AS longitude
             FROM opportunity_scores os
             JOIN admin_level_2 a2
                 ON a2.code = os.geographic_id
@@ -223,6 +225,8 @@ async def get_top_opportunities(
             "area_km2": float(row.area_km2) if row.area_km2 else None,
             "households": int(row.total_households) if row.total_households else None,
             "population": int(row.total_population) if row.total_population else None,
+            "latitude": float(row.latitude) if row.latitude else None,
+            "longitude": float(row.longitude) if row.longitude else None,
         }
         for row in rows
     ]

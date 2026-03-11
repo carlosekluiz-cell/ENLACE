@@ -44,11 +44,11 @@ async def search_municipalities(
         FROM admin_level_2 a2
         LEFT JOIN admin_level_1 a1 ON a2.l1_id = a1.id
         WHERE a2.country_code = :country
-          AND a2.name ILIKE :pattern
+          AND unaccent(a2.name) ILIKE unaccent(:pattern)
         ORDER BY
             CASE
-                WHEN LOWER(a2.name) = LOWER(:q) THEN 0
-                WHEN LOWER(a2.name) LIKE LOWER(:starts_with) THEN 1
+                WHEN LOWER(unaccent(a2.name)) = LOWER(unaccent(:q)) THEN 0
+                WHEN LOWER(unaccent(a2.name)) LIKE LOWER(unaccent(:starts_with)) THEN 1
                 ELSE 2
             END,
             a2.name

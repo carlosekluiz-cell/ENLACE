@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { ScatterplotLayer } from 'deck.gl';
 import SidePanel from '@/components/layout/SidePanel';
 import { useApi, useLazyApi } from '@/hooks/useApi';
 import { api } from '@/lib/api';
 import type { HeatmapFeatureCollection, WeatherRisk, MaintenancePriority } from '@/lib/types';
-import { Activity, CloudRain, AlertTriangle, Thermometer, Wrench, ChevronDown, Layers, Wind, Droplets } from 'lucide-react';
+import { Activity, CloudRain, AlertTriangle, Thermometer, Wrench, ChevronDown, Layers, Wind, Droplets, School, Building2, Shield } from 'lucide-react';
+import type { MunicipalityFusion } from '@/lib/types';
 
 const MapView = dynamic(() => import('@/components/map/MapView'), {
   ssr: false,
@@ -67,6 +67,15 @@ export default function SaudePage() {
   const [layerDropdownOpen, setLayerDropdownOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [selectedName, setSelectedName] = useState<string>('');
+  const deckRef = useRef<{ ScatterplotLayer: any } | null>(null);
+  const [deckReady, setDeckReady] = useState(false);
+
+  useEffect(() => {
+    import('@deck.gl/layers').then((mod) => {
+      deckRef.current = { ScatterplotLayer: mod.ScatterplotLayer };
+      setDeckReady(true);
+    });
+  }, []);
 
   const { data: heatmapData, loading } = useApi<HeatmapFeatureCollection>(
     () => api.market.heatmap(DEFAULT_BBOX, 'penetration'),
@@ -86,6 +95,17 @@ export default function SaudePage() {
     execute: fetchMaintenance,
   } = useLazyApi<MaintenancePriority[], number>((id) => api.networkHealth.maintenancePriorities(id));
 
+  const {
+    data: fusionData,
+    loading: fusionLoading,
+  } = useApi<MunicipalityFusion | null>(
+    () => {
+      if (selectedId == null) return Promise.resolve(null);
+      return api.intelligence.fusion(selectedId);
+    },
+    [selectedId]
+  );
+
   // Fetch health data when a municipality is selected
   useEffect(() => {
     if (selectedId != null) {
@@ -101,7 +121,8 @@ export default function SaudePage() {
   }, [maintenanceData, selectedId]);
 
   const layers = useMemo(() => {
-    if (!heatmapData?.features?.length) return [];
+    if (!heatmapData?.features?.length || !deckRef.current) return [];
+    const { ScatterplotLayer } = deckRef.current;
     return [
       new ScatterplotLayer({
         id: 'health-layer',
@@ -118,7 +139,7 @@ export default function SaudePage() {
         updateTriggers: { getFillColor: [layer] },
       }),
     ];
-  }, [heatmapData, layer]);
+  }, [heatmapData, layer, deckReady]);
 
   const handleMapClick = useCallback((info: any) => {
     if (info?.object?.properties?.municipality_id) {
@@ -200,7 +221,7 @@ export default function SaudePage() {
                 <div className="flex items-center justify-between py-1.5" style={{ borderBottom: '1px solid var(--border)' }}>
                   <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Score geral</span>
                   <span className="text-sm font-medium" style={{ color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-                    {weatherData.overall_risk_score.toFixed(0)} / 100
+                    {(weatherData.overall_risk_score ?? 0).toFixed(0)} / 100
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-1.5" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -246,17 +267,17 @@ export default function SaudePage() {
                 <KeyValue
                   icon={<Activity size={14} />}
                   label="Score de prioridade"
-                  value={`${selectedMaintenance.priority_score.toFixed(1)} / 100`}
+                  value={`${(selectedMaintenance.priority_score ?? 0).toFixed(1)} / 100`}
                 />
                 <KeyValue
                   icon={<CloudRain size={14} />}
                   label="Risco climático"
-                  value={`${selectedMaintenance.weather_risk_score.toFixed(0)}`}
+                  value={`${(selectedMaintenance.weather_risk_score ?? 0).toFixed(0)}`}
                 />
                 <KeyValue
                   icon={<Activity size={14} />}
                   label="Tendência de qualidade"
-                  value={`${selectedMaintenance.quality_trend_score.toFixed(0)}`}
+                  value={`${(selectedMaintenance.quality_trend_score ?? 0).toFixed(0)}`}
                 />
                 <KeyValue
                   icon={<AlertTriangle size={14} />}
@@ -277,8 +298,46 @@ export default function SaudePage() {
             </div>
           )}
 
+          {/* Fusion: infrastructure gaps & competition quality */}
+          {fusionLoading && (
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Carregando inteligência...</p>
+          )}
+          {fusionData && (
+            <div>
+              <h4 className="text-sm font-medium mb-3 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                <Shield size={14} /> Indicadores de Infraestrutura
+              </h4>
+              <div className="space-y-2">
+                <KeyValue
+                  icon={<School size={14} />}
+                  label="Escolas sem internet"
+                  value={`${fusionData.infrastructure.schools_offline} / ${fusionData.infrastructure.schools_total}`}
+                />
+                <KeyValue
+                  icon={<Building2 size={14} />}
+                  label="Unidades de saúde offline"
+                  value={`${fusionData.infrastructure.health_offline} / ${fusionData.infrastructure.health_total}`}
+                />
+                {fusionData.competition.avg_quality_score != null && (
+                  <KeyValue
+                    icon={<Activity size={14} />}
+                    label="Qualidade média da rede"
+                    value={`${(fusionData.competition.avg_quality_score ?? 0).toFixed(1)} / 100`}
+                  />
+                )}
+                {fusionData.safety.risk_score != null && (
+                  <KeyValue
+                    icon={<AlertTriangle size={14} />}
+                    label="Risco de segurança"
+                    value={`${(fusionData.safety.risk_score ?? 0).toFixed(0)} / 100`}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Empty state */}
-          {!panelLoading && !weatherData && !selectedMaintenance && (
+          {!panelLoading && !fusionLoading && !weatherData && !selectedMaintenance && !fusionData && (
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
               Sem dados disponíveis para este município.
             </p>

@@ -28,6 +28,7 @@ import {
   Zap,
   ShieldAlert,
   BarChart3,
+  Radio,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -38,72 +39,60 @@ import { clsx } from 'clsx';
 const BRAZILIAN_STATES = [
   { value: 'AC', label: 'Acre' },
   { value: 'AL', label: 'Alagoas' },
-  { value: 'AP', label: 'Amapa' },
+  { value: 'AP', label: 'Amapá' },
   { value: 'AM', label: 'Amazonas' },
   { value: 'BA', label: 'Bahia' },
-  { value: 'CE', label: 'Ceara' },
+  { value: 'CE', label: 'Ceará' },
   { value: 'DF', label: 'Distrito Federal' },
-  { value: 'ES', label: 'Espirito Santo' },
-  { value: 'GO', label: 'Goias' },
-  { value: 'MA', label: 'Maranhao' },
+  { value: 'ES', label: 'Espírito Santo' },
+  { value: 'GO', label: 'Goiás' },
+  { value: 'MA', label: 'Maranhão' },
   { value: 'MT', label: 'Mato Grosso' },
   { value: 'MS', label: 'Mato Grosso do Sul' },
   { value: 'MG', label: 'Minas Gerais' },
-  { value: 'PA', label: 'Para' },
-  { value: 'PB', label: 'Paraiba' },
-  { value: 'PR', label: 'Parana' },
+  { value: 'PA', label: 'Pará' },
+  { value: 'PB', label: 'Paraíba' },
+  { value: 'PR', label: 'Paraná' },
   { value: 'PE', label: 'Pernambuco' },
-  { value: 'PI', label: 'Piaui' },
+  { value: 'PI', label: 'Piauí' },
   { value: 'RJ', label: 'Rio de Janeiro' },
   { value: 'RN', label: 'Rio Grande do Norte' },
   { value: 'RS', label: 'Rio Grande do Sul' },
-  { value: 'RO', label: 'Rondonia' },
+  { value: 'RO', label: 'Rondônia' },
   { value: 'RR', label: 'Roraima' },
   { value: 'SC', label: 'Santa Catarina' },
-  { value: 'SP', label: 'Sao Paulo' },
+  { value: 'SP', label: 'São Paulo' },
   { value: 'SE', label: 'Sergipe' },
   { value: 'TO', label: 'Tocantins' },
 ];
 
-type TabKey = 'valuation' | 'targets' | 'seller' | 'market';
+type TabKey = 'valuation' | 'targets' | 'seller' | 'market' | 'espectro';
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'valuation', label: 'Valuation', icon: <Calculator size={16} /> },
-  { key: 'targets', label: 'Alvos de Aquisicao', icon: <Target size={16} /> },
-  { key: 'seller', label: 'Preparacao p/ Venda', icon: <FileText size={16} /> },
-  { key: 'market', label: 'Visao de Mercado', icon: <TrendingUp size={16} /> },
+  { key: 'targets', label: 'Alvos de Aquisição', icon: <Target size={16} /> },
+  { key: 'seller', label: 'Preparação p/ Venda', icon: <FileText size={16} /> },
+  { key: 'market', label: 'Visão de Mercado', icon: <TrendingUp size={16} /> },
+  { key: 'espectro', label: 'Espectro', icon: <Radio size={16} /> },
 ];
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatBRL(value: number | undefined | null): string {
-  if (value === undefined || value === null) return 'R$ --';
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function formatNumber(value: number | undefined | null): string {
-  if (value === undefined || value === null) return '--';
-  return value.toLocaleString('pt-BR');
-}
-
-function formatPct(value: number | undefined | null, decimals = 1): string {
-  if (value === undefined || value === null) return '--%';
-  return `${value.toFixed(decimals)}%`;
-}
+import { formatBRL, formatNumber, formatPct } from '@/lib/format';
 
 function riskBadgeClass(risk: string): string {
   const r = risk?.toLowerCase();
   if (r === 'low' || r === 'baixo') return 'pulso-badge-green';
-  if (r === 'medium' || r === 'medio') return 'pulso-badge-yellow';
+  if (r === 'medium' || r === 'médio') return 'pulso-badge-yellow';
   return 'pulso-badge-red';
 }
 
 function riskLabel(risk: string): string {
   const r = risk?.toLowerCase();
   if (r === 'low') return 'Baixo';
-  if (r === 'medium') return 'Medio';
+  if (r === 'medium') return 'Médio';
   if (r === 'high') return 'Alto';
   return risk;
 }
@@ -204,7 +193,7 @@ function ValuationTab() {
 
   return (
     <div className="space-y-6">
-      {error && <ErrorBanner message={`Erro no calculo: ${error}`} />}
+      {error && <ErrorBanner message={`Erro no cálculo: ${error}`} />}
 
       <form onSubmit={handleSubmit} className="pulso-card">
         <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -244,7 +233,7 @@ function ValuationTab() {
             <input type="number" step="0.1" className="pulso-input w-full" value={form.growth_rate_12m} onChange={(e) => update('growth_rate_12m', e.target.value)} />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Divida Liquida R$</label>
+            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Dívida Líquida R$</label>
             <input type="number" min={0} className="pulso-input w-full" value={form.net_debt_brl} onChange={(e) => update('net_debt_brl', e.target.value)} />
           </div>
         </div>
@@ -267,7 +256,7 @@ function ValuationTab() {
                 <p className="mt-1 text-xl font-bold" style={{ color: 'var(--danger)' }}>{formatBRL(result.combined_range.low_brl)}</p>
               </div>
               <div className="rounded-lg p-4 text-center" style={{ backgroundColor: 'var(--bg-subtle)', boxShadow: '0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent)' }}>
-                <p className="text-xs font-medium" style={{ color: 'var(--accent)' }}>Valor Medio</p>
+                <p className="text-xs font-medium" style={{ color: 'var(--accent)' }}>Valor Médio</p>
                 <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--accent)' }}>{formatBRL(result.combined_range.mid_brl)}</p>
               </div>
               <div className="rounded-lg p-4 text-center" style={{ backgroundColor: 'var(--bg-subtle)' }}>
@@ -281,20 +270,20 @@ function ValuationTab() {
             <div className="pulso-card">
               <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                 <Users size={16} className="text-purple-400" />
-                Multiplo de Assinante
+                Múltiplo de Assinante
               </h4>
               <div className="space-y-2">
                 <DetailRow label="Valuation Ajustado" value={formatBRL(result.subscriber_multiple?.adjusted_valuation_brl)} />
                 <DetailRow label="Mult. Fibra" value={`${result.subscriber_multiple?.fiber_multiple?.toFixed(2) ?? '--'}x`} />
                 <DetailRow label="Mult. Outros" value={`${result.subscriber_multiple?.other_multiple?.toFixed(2) ?? '--'}x`} />
-                <DetailRow label="Confianca" value={typeof result.subscriber_multiple?.confidence === 'string' ? result.subscriber_multiple.confidence : formatPct(result.subscriber_multiple?.confidence != null ? result.subscriber_multiple.confidence * 100 : null)} />
+                <DetailRow label="Confiança" value={typeof result.subscriber_multiple?.confidence === 'string' ? result.subscriber_multiple.confidence : formatPct(result.subscriber_multiple?.confidence != null ? result.subscriber_multiple.confidence * 100 : null)} />
               </div>
             </div>
 
             <div className="pulso-card">
               <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                 <DollarSign size={16} style={{ color: 'var(--success)' }} />
-                Multiplo de Receita
+                Múltiplo de Receita
               </h4>
               <div className="space-y-2">
                 <DetailRow label="EV/Receita" value={formatBRL(result.revenue_multiple?.ev_revenue_brl)} />
@@ -317,7 +306,7 @@ function ValuationTab() {
             </div>
           </div>
 
-          <SimpleChart data={chartData} type="bar" xKey="name" yKey="valor" title="Comparacao de Metodos de Valuation (R$)" height={280} />
+          <SimpleChart data={chartData} type="bar" xKey="name" yKey="valor" title="Comparação de Métodos de Valuation (R$)" height={280} />
         </div>
       )}
     </div>
@@ -325,7 +314,7 @@ function ValuationTab() {
 }
 
 // ---------------------------------------------------------------------------
-// TAB 2 : Alvos de Aquisicao
+// TAB 2 : Alvos de Aquisição
 // ---------------------------------------------------------------------------
 
 const targetColumns = [
@@ -346,8 +335,8 @@ const targetColumns = [
     label: '% Fibra',
     sortable: true,
     render: (value: number) => (
-      <span style={{ color: value * 100 > 60 ? 'var(--success)' : value * 100 > 30 ? 'var(--warning)' : 'var(--danger)' }}>
-        {formatPct(value * 100)}
+      <span style={{ color: (value ?? 0) * 100 > 60 ? 'var(--success)' : (value ?? 0) * 100 > 30 ? 'var(--warning)' : 'var(--danger)' }}>
+        {formatPct((value ?? 0) * 100)}
       </span>
     ),
   },
@@ -361,7 +350,7 @@ const targetColumns = [
         <div className="h-2 w-16 overflow-hidden rounded-full" style={{ backgroundColor: 'var(--bg-subtle)' }}>
           <div className="h-full rounded-full" style={{ width: `${Math.min(value * 100, 100)}%`, backgroundColor: 'var(--accent)' }} />
         </div>
-        <span className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>{(value * 100).toFixed(0)}</span>
+        <span className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>{((value ?? 0) * 100).toFixed(0)}</span>
       </div>
     ),
   },
@@ -402,13 +391,13 @@ function TargetsTab() {
       <form onSubmit={handleSubmit} className="pulso-card">
         <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           <Target size={20} style={{ color: 'var(--accent)' }} />
-          Busca de Alvos de Aquisicao
+          Busca de Alvos de Aquisição
         </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Estados do Adquirente</label>
             <input type="text" className="pulso-input w-full" placeholder="SP,MG,PR" value={form.acquirer_states} onChange={(e) => update('acquirer_states', e.target.value)} />
-            <p className="mt-0.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>Separados por virgula</p>
+            <p className="mt-0.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>Separados por vírgula</p>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Assinantes do Adquirente</label>
@@ -437,7 +426,7 @@ function TargetsTab() {
             <h3 className="mb-3 text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
               {targets.length} alvo{targets.length !== 1 ? 's' : ''} encontrado{targets.length !== 1 ? 's' : ''}
             </h3>
-            <DataTable columns={targetColumns} data={targets} loading={loading} searchable searchKeys={['provider_name']} onRowClick={(row) => setSelectedTarget(row)} emptyMessage="Nenhum alvo encontrado com os criterios informados" />
+            <DataTable columns={targetColumns} data={targets} loading={loading} searchable searchKeys={['provider_name']} onRowClick={(row) => setSelectedTarget(row)} emptyMessage="Nenhum alvo encontrado com os critérios informados" />
           </div>
 
           {selectedTarget && (
@@ -451,12 +440,12 @@ function TargetsTab() {
                 <p className="mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>{selectedTarget.state_codes?.join(', ')} | ID {selectedTarget.provider_id}</p>
                 <div className="space-y-2">
                   <DetailRow label="Assinantes" value={formatNumber(selectedTarget.subscriber_count)} />
-                  <DetailRow label="% Fibra" value={formatPct(selectedTarget.fiber_pct * 100)} />
+                  <DetailRow label="% Fibra" value={formatPct((selectedTarget.fiber_pct ?? 0) * 100)} />
                   <DetailRow label="Receita Estimada" value={formatBRL(selectedTarget.estimated_revenue_brl)} />
-                  <DetailRow label="Score Estrategico" value={(selectedTarget.strategic_score * 100).toFixed(0)} />
-                  <DetailRow label="Score Financeiro" value={(selectedTarget.financial_score * 100).toFixed(0)} />
-                  <DetailRow label="Score Geral" value={(selectedTarget.overall_score * 100).toFixed(0)} />
-                  <DetailRow label="Risco Integracao" value={riskLabel(selectedTarget.integration_risk)} />
+                  <DetailRow label="Score Estratégico" value={((selectedTarget.strategic_score ?? 0) * 100).toFixed(0)} />
+                  <DetailRow label="Score Financeiro" value={((selectedTarget.financial_score ?? 0) * 100).toFixed(0)} />
+                  <DetailRow label="Score Geral" value={((selectedTarget.overall_score ?? 0) * 100).toFixed(0)} />
+                  <DetailRow label="Risco Integração" value={riskLabel(selectedTarget.integration_risk)} />
                   <DetailRow label="Sinergias Estimadas" value={formatBRL(selectedTarget.synergy_estimate_brl)} />
                 </div>
                 <div className="mt-4">
@@ -477,7 +466,7 @@ function TargetsTab() {
 }
 
 // ---------------------------------------------------------------------------
-// TAB 3 : Preparacao para Venda
+// TAB 3 : Preparação para Venda
 // ---------------------------------------------------------------------------
 
 function SellerTab() {
@@ -503,12 +492,12 @@ function SellerTab() {
 
   return (
     <div className="space-y-6">
-      {error && <ErrorBanner message={`Erro ao gerar relatorio: ${error}`} />}
+      {error && <ErrorBanner message={`Erro ao gerar relatório: ${error}`} />}
 
       <form onSubmit={handleSubmit} className="pulso-card">
         <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           <FileText size={20} style={{ color: 'var(--accent)' }} />
-          Preparacao para Venda
+          Preparação para Venda
         </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2">
@@ -518,7 +507,7 @@ function SellerTab() {
           <div>
             <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Estados</label>
             <input type="text" className="pulso-input w-full" placeholder="SP,MG" value={form.state_codes} onChange={(e) => update('state_codes', e.target.value)} />
-            <p className="mt-0.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>Separados por virgula</p>
+            <p className="mt-0.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>Separados por vírgula</p>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Assinantes *</label>
@@ -537,14 +526,14 @@ function SellerTab() {
             <input type="number" min={0} max={100} className="pulso-input w-full" value={form.ebitda_margin_pct} onChange={(e) => update('ebitda_margin_pct', e.target.value)} />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Divida Liquida R$</label>
+            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Dívida Líquida R$</label>
             <input type="number" min={0} className="pulso-input w-full" value={form.net_debt_brl} onChange={(e) => update('net_debt_brl', e.target.value)} />
           </div>
         </div>
         <div className="mt-5 flex justify-end">
           <button type="submit" disabled={loading} className="pulso-btn-primary flex items-center gap-2">
             <FileText size={16} />
-            {loading ? 'Gerando...' : 'Gerar Relatorio de Preparacao'}
+            {loading ? 'Gerando...' : 'Gerar Relatório de Preparação'}
           </button>
         </div>
       </form>
@@ -555,12 +544,12 @@ function SellerTab() {
             <SectionLabel>Faixa de Valor Estimado</SectionLabel>
             <div className="flex items-center justify-center gap-6">
               <div className="text-center">
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Minimo</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Mínimo</p>
                 <p className="text-xl font-bold" style={{ color: 'var(--danger)' }}>{formatBRL(report.estimated_value_range?.[0])}</p>
               </div>
               <ChevronRight size={24} style={{ color: 'var(--text-muted)' }} />
               <div className="text-center">
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Maximo</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Máximo</p>
                 <p className="text-xl font-bold" style={{ color: 'var(--success)' }}>{formatBRL(report.estimated_value_range?.[1])}</p>
               </div>
             </div>
@@ -607,7 +596,7 @@ function SellerTab() {
           <div className="pulso-card">
             <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               <Zap size={16} className="text-amber-400" />
-              Oportunidades de Valorizacao
+              Oportunidades de Valorização
             </h4>
             {report.value_enhancement_opportunities && report.value_enhancement_opportunities.length > 0 ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -616,7 +605,7 @@ function SellerTab() {
                     <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{opp.title || opp.name || `Oportunidade ${i + 1}`}</p>
                     {opp.description && <p className="mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>{opp.description}</p>}
                     {opp.estimated_impact_brl != null && <p className="mt-2 text-xs font-medium" style={{ color: 'var(--success)' }}>Impacto: {formatBRL(opp.estimated_impact_brl)}</p>}
-                    {opp.effort && <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>Esforco: {opp.effort}</p>}
+                    {opp.effort && <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>Esforço: {opp.effort}</p>}
                   </div>
                 ))}
               </div>
@@ -628,7 +617,7 @@ function SellerTab() {
           <div className="pulso-card">
             <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               <Briefcase size={16} style={{ color: 'var(--accent)' }} />
-              Checklist de Preparacao
+              Checklist de Preparação
             </h4>
             {report.preparation_checklist && report.preparation_checklist.length > 0 ? (
               <div className="space-y-2">
@@ -645,7 +634,7 @@ function SellerTab() {
                         {item.description && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.description}</p>}
                       </div>
                       <span className={clsx('rounded px-2 py-0.5 text-[10px] font-medium', isDone ? 'pulso-badge-green' : 'pulso-badge-yellow')}>
-                        {isDone ? 'Concluido' : 'Pendente'}
+                        {isDone ? 'Concluído' : 'Pendente'}
                       </span>
                     </div>
                   );
@@ -663,7 +652,7 @@ function SellerTab() {
                 Cronograma Estimado
               </h4>
               <p className="text-2xl font-bold" style={{ color: 'var(--accent)' }}>{report.estimated_timeline_months} meses</p>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Tempo estimado para conclusao do processo de venda</p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Tempo estimado para conclusão do processo de venda</p>
             </div>
           )}
         </div>
@@ -673,7 +662,7 @@ function SellerTab() {
 }
 
 // ---------------------------------------------------------------------------
-// TAB 4 : Visao de Mercado
+// TAB 4 : Visão de Mercado
 // ---------------------------------------------------------------------------
 
 function MarketTab() {
@@ -699,7 +688,7 @@ function MarketTab() {
       <div className="pulso-card">
         <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           <Building2 size={20} style={{ color: 'var(--accent)' }} />
-          Visao de Mercado M&A
+          Visão de Mercado M&A
         </h2>
         <div className="max-w-xs">
           <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Selecione o Estado</label>
@@ -732,7 +721,7 @@ function MarketTab() {
         <div className="pulso-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Valuation Medio/Assinante</p>
+              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Valuation Médio/Assinante</p>
               <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{loading ? 'Carregando...' : overview?.avg_valuation_per_sub ? formatBRL(overview.avg_valuation_per_sub) : '--'}</p>
             </div>
             <DollarSign size={18} style={{ color: 'var(--accent)' }} />
@@ -741,7 +730,7 @@ function MarketTab() {
         <div className="pulso-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>% Fibra Medio</p>
+              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>% Fibra Médio</p>
               <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{loading ? 'Carregando...' : overview?.fiber_pct_avg ? formatPct(overview.fiber_pct_avg * 100) : '--'}</p>
             </div>
             <BarChart3 size={18} style={{ color: 'var(--accent)' }} />
@@ -754,7 +743,7 @@ function MarketTab() {
           data={[
             { name: 'ISPs', valor: overview.total_isps ?? 0 },
             { name: 'Assinantes (mil)', valor: overview.total_subscribers ? Math.round(overview.total_subscribers / 1000) : 0 },
-            { name: 'Val. Medio (R$)', valor: overview.avg_valuation_per_sub ?? 0 },
+            { name: 'Val. Médio (R$)', valor: overview.avg_valuation_per_sub ?? 0 },
             { name: '% Fibra', valor: overview.fiber_pct_avg ? Math.round(overview.fiber_pct_avg * 100) : 0 },
           ]}
           type="bar"
@@ -769,10 +758,186 @@ function MarketTab() {
       <div>
         <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
           <Briefcase size={16} style={{ color: 'var(--text-secondary)' }} />
-          Transacoes Recentes - {selectedState}
+          Transações Recentes - {selectedState}
         </h3>
-        <DataTable columns={transactionColumns} data={overview?.recent_transactions ?? []} loading={loading} emptyMessage="Nenhuma transacao recente encontrada para este estado" searchable searchKeys={['acquirer', 'target']} />
+        <DataTable columns={transactionColumns} data={overview?.recent_transactions ?? []} loading={loading} emptyMessage="Nenhuma transação recente encontrada para este estado" searchable searchKeys={['acquirer', 'target']} />
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TAB 5 : Espectro (Spectrum Asset Valuation)
+// ---------------------------------------------------------------------------
+
+interface SpectrumHolding {
+  id: number | null;
+  frequency_mhz: number;
+  bandwidth_mhz: number | null;
+  band_name: string;
+  license_expiry: string | null;
+  population_covered: number | null;
+  net_value_brl: number;
+  gross_value_brl: number;
+  life_factor: number;
+  price_per_mhz_pop: number;
+  source: string;
+}
+
+interface SpectrumValuationResult {
+  provider_id: number;
+  provider_name: string;
+  holdings: SpectrumHolding[];
+  total_spectrum_value_brl: number;
+  total_bandwidth_mhz: number;
+  bands_count: number;
+  error?: string;
+}
+
+function EspectroTab() {
+  const [providerId, setProviderId] = useState('');
+  const {
+    data: result,
+    loading,
+    error,
+    execute,
+  } = useLazyApi<SpectrumValuationResult, number>(
+    useCallback((id: number) => api.spectrum.valuation(id), [])
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const id = Number(providerId);
+    if (id > 0) execute(id);
+  };
+
+  return (
+    <div className="space-y-6">
+      {error && <ErrorBanner message={`Erro na avaliação: ${error}`} />}
+
+      <form onSubmit={handleSubmit} className="pulso-card">
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+          <Radio size={20} style={{ color: 'var(--accent)' }} />
+          Avaliação de Ativos de Espectro
+        </h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>ID do Provedor *</label>
+            <input
+              type="number"
+              required
+              min={1}
+              className="pulso-input w-full"
+              placeholder="Ex: 1234"
+              value={providerId}
+              onChange={(e) => setProviderId(e.target.value)}
+            />
+            <p className="mt-0.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              Identificador numérico do provedor na base Anatel
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end">
+          <button type="submit" disabled={loading} className="pulso-btn-primary flex items-center gap-2">
+            <Radio size={16} />
+            {loading ? 'Avaliando...' : 'Avaliar Espectro'}
+          </button>
+        </div>
+      </form>
+
+      {result && !result.error && (
+        <div className="space-y-6">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="pulso-card">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Largura Total</p>
+                  <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+                    {formatNumber(result.total_bandwidth_mhz)} MHz
+                  </p>
+                </div>
+                <Radio size={18} style={{ color: 'var(--accent)' }} />
+              </div>
+            </div>
+            <div className="pulso-card">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Bandas</p>
+                  <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+                    {formatNumber(result.bands_count)}
+                  </p>
+                </div>
+                <BarChart3 size={18} style={{ color: 'var(--accent)' }} />
+              </div>
+            </div>
+            <div className="pulso-card" style={{ border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)' }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium" style={{ color: 'var(--accent)' }}>Valor Total do Espectro</p>
+                  <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--accent)' }}>
+                    {formatBRL(result.total_spectrum_value_brl)}
+                  </p>
+                </div>
+                <DollarSign size={18} style={{ color: 'var(--accent)' }} />
+              </div>
+            </div>
+          </div>
+
+          {/* Provider info */}
+          <div className="pulso-card">
+            <SectionLabel>Provedor</SectionLabel>
+            <div className="space-y-2">
+              <DetailRow label="ID" value={String(result.provider_id)} />
+              <DetailRow label="Nome" value={result.provider_name} />
+            </div>
+          </div>
+
+          {/* Holdings Table */}
+          <div className="pulso-card">
+            <SectionLabel>Detalhamento por Banda</SectionLabel>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    <th className="px-3 py-2 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Banda</th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Frequência MHz</th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Largura MHz</th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Pop. Coberta</th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Valor (R$)</th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Vencimento Licença</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.holdings.map((h, i) => (
+                    <tr
+                      key={i}
+                      className="transition-colors hover:bg-[var(--bg-subtle)]"
+                      style={{ borderBottom: '1px solid var(--border)' }}
+                    >
+                      <td className="px-3 py-2 font-medium" style={{ color: 'var(--text-primary)' }}>{h.band_name}</td>
+                      <td className="px-3 py-2 text-right" style={{ color: 'var(--text-secondary)' }}>{formatNumber(h.frequency_mhz)}</td>
+                      <td className="px-3 py-2 text-right" style={{ color: 'var(--text-secondary)' }}>{formatNumber(h.bandwidth_mhz)}</td>
+                      <td className="px-3 py-2 text-right" style={{ color: 'var(--text-secondary)' }}>{h.population_covered ? formatNumber(h.population_covered) : '--'}</td>
+                      <td className="px-3 py-2 text-right font-medium" style={{ color: 'var(--accent)' }}>{formatBRL(h.net_value_brl)}</td>
+                      <td className="px-3 py-2 text-right" style={{ color: 'var(--text-secondary)' }}>{h.license_expiry ?? '--'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {result.holdings.length === 0 && (
+              <p className="mt-4 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+                Nenhum ativo de espectro encontrado para este provedor.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {result && result.error && (
+        <ErrorBanner message={result.error} />
+      )}
     </div>
   );
 }
@@ -789,10 +954,10 @@ export default function MnaPage() {
       <div>
         <h1 className="flex items-center gap-3 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
           <Briefcase size={28} style={{ color: 'var(--accent)' }} />
-          Inteligencia M&A
+          Inteligência M&A
         </h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Valuation, busca de alvos e preparacao para fusoes e aquisicoes no setor ISP brasileiro
+          Valuation, busca de alvos e preparação para fusões e aquisições no setor ISP brasileiro
         </p>
       </div>
 
@@ -817,6 +982,7 @@ export default function MnaPage() {
       {activeTab === 'targets' && <TargetsTab />}
       {activeTab === 'seller' && <SellerTab />}
       {activeTab === 'market' && <MarketTab />}
+      {activeTab === 'espectro' && <EspectroTab />}
     </div>
   );
 }

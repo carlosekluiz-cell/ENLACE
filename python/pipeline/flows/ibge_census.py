@@ -128,7 +128,16 @@ class IBGECensusPipeline(BasePipeline):
         mun_rows = []
         for m in raw_data["municipalities"]:
             mun_id = str(m["id"])
-            uf_id = str(m["microrregiao"]["mesorregiao"]["UF"]["id"])
+            # Extract state code: try microrregiao path, then regiao-imediata,
+            # then fall back to first 2 digits of municipality code (IBGE convention)
+            try:
+                uf_id = str(m["microrregiao"]["mesorregiao"]["UF"]["id"])
+            except (TypeError, KeyError):
+                try:
+                    uf_id = str(m["regiao-imediata"]["regiao-intermediaria"]["UF"]["id"])
+                except (TypeError, KeyError):
+                    uf_id = mun_id[:2]
+                    logger.warning(f"Using code prefix for state of municipality {mun_id} ({m.get('nome', '?')})")
             mun_name = m["nome"]
             population = pop_lookup.get(mun_id, 0)
 
@@ -175,7 +184,7 @@ class IBGECensusPipeline(BasePipeline):
                 try:
                     cur.execute("""
                         UPDATE admin_level_1
-                        SET boundary = ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326)
+                        SET geom = ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326))
                         WHERE code = %s AND country_code = 'BR'
                     """, (row["geom_json"], row["code"]))
                 except Exception as e:

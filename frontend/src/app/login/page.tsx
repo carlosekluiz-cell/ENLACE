@@ -13,29 +13,29 @@ import { useAuth } from '@/contexts/AuthContext';
 const BR_STATES = [
   { code: 'AC', name: 'Acre' },
   { code: 'AL', name: 'Alagoas' },
-  { code: 'AP', name: 'Amapa' },
+  { code: 'AP', name: 'Amapá' },
   { code: 'AM', name: 'Amazonas' },
   { code: 'BA', name: 'Bahia' },
-  { code: 'CE', name: 'Ceara' },
+  { code: 'CE', name: 'Ceará' },
   { code: 'DF', name: 'Distrito Federal' },
-  { code: 'ES', name: 'Espirito Santo' },
-  { code: 'GO', name: 'Goias' },
-  { code: 'MA', name: 'Maranhao' },
+  { code: 'ES', name: 'Espírito Santo' },
+  { code: 'GO', name: 'Goiás' },
+  { code: 'MA', name: 'Maranhão' },
   { code: 'MT', name: 'Mato Grosso' },
   { code: 'MS', name: 'Mato Grosso do Sul' },
   { code: 'MG', name: 'Minas Gerais' },
-  { code: 'PA', name: 'Para' },
-  { code: 'PB', name: 'Paraiba' },
-  { code: 'PR', name: 'Parana' },
+  { code: 'PA', name: 'Pará' },
+  { code: 'PB', name: 'Paraíba' },
+  { code: 'PR', name: 'Paraná' },
   { code: 'PE', name: 'Pernambuco' },
-  { code: 'PI', name: 'Piaui' },
+  { code: 'PI', name: 'Piauí' },
   { code: 'RJ', name: 'Rio de Janeiro' },
   { code: 'RN', name: 'Rio Grande do Norte' },
   { code: 'RS', name: 'Rio Grande do Sul' },
-  { code: 'RO', name: 'Rondonia' },
+  { code: 'RO', name: 'Rondônia' },
   { code: 'RR', name: 'Roraima' },
   { code: 'SC', name: 'Santa Catarina' },
-  { code: 'SP', name: 'Sao Paulo' },
+  { code: 'SP', name: 'São Paulo' },
   { code: 'SE', name: 'Sergipe' },
   { code: 'TO', name: 'Tocantins' },
 ] as const;
@@ -43,7 +43,7 @@ const BR_STATES = [
 type Tab = 'login' | 'register';
 
 // ---------------------------------------------------------------------------
-// Componente de pagina
+// Componente de página
 // ---------------------------------------------------------------------------
 export default function LoginPage() {
   const router = useRouter();
@@ -94,7 +94,7 @@ export default function LoginPage() {
       if (err?.status === 401) {
         setError('E-mail ou senha incorretos.');
       } else if (err?.status === 422) {
-        setError('Dados invalidos. Verifique o e-mail e a senha.');
+        setError('Dados inválidos. Verifique o e-mail e a senha.');
       } else {
         setError(
           err?.message || 'Erro ao fazer login. Tente novamente mais tarde.'
@@ -115,7 +115,7 @@ export default function LoginPage() {
       !regPassword.trim() ||
       !regOrganization.trim()
     ) {
-      setError('Preencha todos os campos obrigatorios.');
+      setError('Preencha todos os campos obrigatórios.');
       return;
     }
 
@@ -137,9 +137,9 @@ export default function LoginPage() {
       router.push('/');
     } catch (err: any) {
       if (err?.status === 409) {
-        setError('Este e-mail ja esta cadastrado.');
+        setError('Este e-mail já está cadastrado.');
       } else if (err?.status === 422) {
-        setError('Dados invalidos. Verifique os campos e tente novamente.');
+        setError('Dados inválidos. Verifique os campos e tente novamente.');
       } else {
         setError(
           err?.message || 'Erro ao criar conta. Tente novamente mais tarde.'
@@ -353,7 +353,7 @@ export default function LoginPage() {
                     id="reg-password"
                     type={showRegPassword ? 'text' : 'password'}
                     autoComplete="new-password"
-                    placeholder="Minimo 6 caracteres"
+                    placeholder="Mínimo 6 caracteres"
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
                     minLength={6}
@@ -390,7 +390,7 @@ export default function LoginPage() {
                   className="mb-1.5 block text-sm font-medium"
                   style={{ color: 'var(--text-secondary)' }}
                 >
-                  Organizacao / ISP
+                  Organização / ISP
                 </label>
                 <input
                   id="reg-org"
@@ -444,7 +444,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="mt-6 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-          Plataforma de inteligencia para provedores de internet brasileiros.
+          Plataforma de inteligência para provedores de internet brasileiros.
         </p>
       </div>
     </div>

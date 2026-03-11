@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { ScatterplotLayer } from 'deck.gl';
 import SidePanel from '@/components/layout/SidePanel';
 import MapSearch from '@/components/map/MapSearch';
 import { useApi } from '@/hooks/useApi';
 import { api } from '@/lib/api';
-import type { HeatmapFeatureCollection, MarketSummary } from '@/lib/types';
+import type { HeatmapFeatureCollection, MarketSummary, MunicipalityFusion } from '@/lib/types';
 import {
   Users,
   Radio,
@@ -16,6 +15,9 @@ import {
   Home,
   BarChart3,
   Layers,
+  AlertTriangle,
+  Landmark,
+  TrendingUp,
 } from 'lucide-react';
 
 const MapView = dynamic(() => import('@/components/map/MapView'), {
@@ -61,16 +63,22 @@ function normalize(val: number, min: number, max: number): number {
   return (val - min) / (max - min);
 }
 
-function formatNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toLocaleString('pt-BR');
-}
+import { formatCompact as formatNumber } from '@/lib/format';
 
 export default function MapDashboard() {
   const [metric, setMetric] = useState<MetricKey>('penetration');
   const [layerDropdownOpen, setLayerDropdownOpen] = useState(false);
   const [selectedMunicipalityId, setSelectedMunicipalityId] = useState<number | null>(null);
+  const [flyTo, setFlyTo] = useState<{ latitude: number; longitude: number; zoom?: number } | null>(null);
+  const deckRef = useRef<{ ScatterplotLayer: any } | null>(null);
+  const [deckReady, setDeckReady] = useState(false);
+
+  useEffect(() => {
+    import('@deck.gl/layers').then((mod) => {
+      deckRef.current = { ScatterplotLayer: mod.ScatterplotLayer };
+      setDeckReady(true);
+    });
+  }, []);
 
   const {
     data: heatmapData,
@@ -91,8 +99,20 @@ export default function MapDashboard() {
     [selectedMunicipalityId]
   );
 
+  const {
+    data: fusionData,
+    loading: fusionLoading,
+  } = useApi<MunicipalityFusion | null>(
+    () => {
+      if (selectedMunicipalityId == null) return Promise.resolve(null);
+      return api.intelligence.fusion(selectedMunicipalityId);
+    },
+    [selectedMunicipalityId]
+  );
+
   const layers = useMemo(() => {
-    if (!heatmapData?.features?.length) return [];
+    if (!heatmapData?.features?.length || !deckRef.current) return [];
+    const { ScatterplotLayer } = deckRef.current;
 
     const features = heatmapData.features;
     const values = features.map((f) => f.properties.value).filter((v): v is number => v != null);
@@ -116,7 +136,7 @@ export default function MapDashboard() {
         updateTriggers: { getFillColor: [metric, minVal, maxVal] },
       }),
     ];
-  }, [heatmapData, metric]);
+  }, [heatmapData, metric, deckReady]);
 
   const handleMapClick = useCallback((info: any) => {
     if (info?.object?.properties?.municipality_id) {
@@ -127,7 +147,7 @@ export default function MapDashboard() {
   const currentMetricLabel = METRIC_OPTIONS.find((m) => m.value === metric)?.label ?? metric;
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full overflow-hidden">
       {/* Loading progress bar */}
       {heatmapLoading && (
         <div className="absolute top-0 left-0 right-0 z-20 overflow-hidden" style={{ height: '2px' }}>
@@ -140,10 +160,13 @@ export default function MapDashboard() {
         className="h-full w-full"
         layers={layers}
         onMapClick={handleMapClick}
+        flyTo={flyTo}
       />
 
       {/* Search overlay top-center */}
-      <MapSearch />
+      <MapSearch
+        onSelect={(m) => setFlyTo({ latitude: m.lat, longitude: m.lng, zoom: 11 })}
+      />
 
       {/* Layer selector top-right (below map controls) */}
       <div className="absolute right-4 top-40 z-10">
@@ -194,7 +217,7 @@ export default function MapDashboard() {
         className="absolute bottom-2 left-2 z-10 rounded px-2 py-1 text-xs"
         style={{ color: 'var(--text-muted)', background: 'var(--bg-surface)', opacity: 0.8 }}
       >
-        Pulso Network
+        Fonte: Anatel Banda Larga / IBGE 2024 / Pulso Network
       </div>
 
       {/* Municipality detail SidePanel */}
@@ -218,6 +241,89 @@ export default function MapDashboard() {
               <KeyValue icon={<BarChart3 size={14} />} label="% Fibra" value={municipalityDetail.fiber_share_pct != null ? `${municipalityDetail.fiber_share_pct.toFixed(1)}%` : 'N/A'} />
               <KeyValue icon={<Radio size={14} />} label="Provedores" value={String(municipalityDetail.provider_count)} />
             </div>
+
+            {/* Fusion intelligence badges */}
+            {fusionLoading && (
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Carregando inteligência...</p>
+            )}
+            {fusionData && (
+              <div className="space-y-3 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                {/* Opportunity score */}
+                {fusionData.opportunity && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Oportunidade</span>
+                    <span
+                      className="rounded px-2 py-0.5 text-xs font-bold"
+                      style={{
+                        backgroundColor: fusionData.opportunity.score >= 75
+                          ? 'color-mix(in srgb, var(--success) 15%, transparent)'
+                          : fusionData.opportunity.score >= 50
+                            ? 'color-mix(in srgb, var(--warning) 15%, transparent)'
+                            : 'var(--bg-subtle)',
+                        color: fusionData.opportunity.score >= 75 ? 'var(--success)' : fusionData.opportunity.score >= 50 ? 'var(--warning)' : 'var(--text-muted)',
+                      }}
+                    >
+                      {(fusionData.opportunity.score ?? 0).toFixed(1)} (#{fusionData.opportunity.rank})
+                    </span>
+                  </div>
+                )}
+
+                {/* Infrastructure gap severity */}
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <AlertTriangle size={12} /> Infra
+                  </span>
+                  <span
+                    className="rounded px-2 py-0.5 text-[10px] font-bold"
+                    style={{
+                      backgroundColor: !fusionData.infrastructure.has_fiber
+                        ? 'color-mix(in srgb, var(--danger) 15%, transparent)'
+                        : fusionData.infrastructure.schools_offline > 5
+                          ? 'color-mix(in srgb, var(--warning) 15%, transparent)'
+                          : 'color-mix(in srgb, var(--success) 15%, transparent)',
+                      color: !fusionData.infrastructure.has_fiber
+                        ? 'var(--danger)'
+                        : fusionData.infrastructure.schools_offline > 5
+                          ? 'var(--warning)'
+                          : 'var(--success)',
+                    }}
+                  >
+                    {!fusionData.infrastructure.has_fiber ? 'CRÍTICO' : fusionData.infrastructure.schools_offline > 5 ? 'MODERADO' : 'OK'}
+                  </span>
+                </div>
+
+                {/* Government investment */}
+                {(fusionData.economic.government_contracts_12m > 0 || fusionData.economic.bndes_loans_active > 0) && (
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      <Landmark size={12} /> Gov
+                    </span>
+                    <span className="text-xs font-medium" style={{ color: 'var(--success)' }}>
+                      {fusionData.economic.government_contracts_12m > 0 && `${fusionData.economic.government_contracts_12m} contrato(s)`}
+                      {fusionData.economic.government_contracts_12m > 0 && fusionData.economic.bndes_loans_active > 0 && ' + '}
+                      {fusionData.economic.bndes_loans_active > 0 && `${fusionData.economic.bndes_loans_active} BNDES`}
+                    </span>
+                  </div>
+                )}
+
+                {/* Recommendation */}
+                {fusionData.recommendation && (
+                  <p
+                    className="rounded-lg p-2 text-[10px]"
+                    style={{
+                      backgroundColor: fusionData.recommendation.startsWith('HIGH')
+                        ? 'color-mix(in srgb, var(--success) 10%, transparent)'
+                        : 'var(--bg-subtle)',
+                      color: fusionData.recommendation.startsWith('HIGH')
+                        ? 'var(--success)'
+                        : 'var(--text-muted)',
+                    }}
+                  >
+                    {fusionData.recommendation}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         ) : null}
       </SidePanel>

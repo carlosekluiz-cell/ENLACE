@@ -133,7 +133,7 @@ async def opportunity_score(
 async def top_opportunities(
     country: str = Query("BR", description="Country code"),
     state: Optional[str] = Query(None, description="State abbreviation (e.g. SP, MG)"),
-    limit: int = Query(50, ge=1, le=500, description="Maximum results to return"),
+    limit: int = Query(50, ge=1, le=6000, description="Maximum results to return"),
     min_score: float = Query(
         60.0, ge=0.0, le=100.0, description="Minimum composite score threshold"
     ),
@@ -290,6 +290,61 @@ async def fiber_route(
 # ═══════════════════════════════════════════════════════════════════════
 # GET /{municipality_id}/competitors — Competitive analysis
 # ═══════════════════════════════════════════════════════════════════════
+
+
+@router.get("/base-stations")
+async def list_base_stations(
+    country: str = Query("BR", description="Country code"),
+    technology: Optional[str] = Query(None, description="Filter by technology (3G, 4G, 5G)"),
+    limit: int = Query(1000, ge=1, le=5000, description="Maximum results"),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
+):
+    """
+    List base station locations with lat/lon and technology.
+
+    Returns lightweight records suitable for map scatter-plot layers.
+    """
+    from sqlalchemy import text as sa_text
+
+    where_parts = ["bs.country_code = :country"]
+    params: dict[str, Any] = {"country": country, "limit": limit}
+
+    if technology:
+        where_parts.append("bs.technology = :tech")
+        params["tech"] = technology
+
+    where_sql = " AND ".join(where_parts)
+
+    sql = sa_text(f"""
+        SELECT
+            bs.id,
+            bs.latitude,
+            bs.longitude,
+            bs.technology,
+            bs.frequency_mhz,
+            p.name AS provider_name
+        FROM base_stations bs
+        LEFT JOIN providers p ON p.id = bs.provider_id
+        WHERE {where_sql}
+        ORDER BY bs.id
+        LIMIT :limit
+    """)
+
+    result = await db.execute(sql, params)
+    rows = result.fetchall()
+
+    return [
+        {
+            "id": row.id,
+            "latitude": row.latitude,
+            "longitude": row.longitude,
+            "technology": row.technology,
+            "frequency_mhz": row.frequency_mhz,
+            "provider_name": row.provider_name,
+        }
+        for row in rows
+    ]
 
 
 @router.get("/{municipality_id}/competitors", response_model=CompetitorResponse)
