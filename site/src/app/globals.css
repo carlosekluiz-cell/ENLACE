@@ -1,0 +1,211 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,800;0,9..144,900;1,9..144,400;1,9..144,700;1,9..144,800&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════════
+   Pulso Network — Indigo + Stone, Editorial Light/Dark
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* Light backgrounds */
+  --bg-primary: #fafaf9;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f5f5f4;
+
+  /* Dark backgrounds */
+  --bg-dark: #0c0a09;
+  --bg-dark-surface: #1c1917;
+  --bg-dark-subtle: #292524;
+
+  /* Light text */
+  --text-primary: #0c0a09;
+  --text-secondary: #57534e;
+  --text-muted: #a8a29e;
+
+  /* Dark text */
+  --text-on-dark: #fafaf9;
+  --text-on-dark-secondary: #d6d3d1;
+  --text-on-dark-muted: #78716c;
+
+  /* Accent — indigo */
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --accent-deep: #4f46e5;
+  --accent-subtle: #eef2ff;
+  --accent-glow: rgba(99,102,241,0.15);
+
+  /* Highlight — light indigo for data/numbers */
+  --highlight: #6366f1;
+  --highlight-light: #818cf8;
+  --highlight-subtle: #eef2ff;
+
+  /* Borders */
+  --border: #e7e5e4;
+  --border-strong: #d6d3d1;
+  --border-dark: rgba(255,255,255,0.06);
+  --border-dark-strong: rgba(255,255,255,0.12);
+
+  /* Status */
+  --danger: #dc2626;
+  --warning: #d97706;
+  --success: #059669;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Typography
+   ═══════════════════════════════════════════════════════════════ */
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-serif {
+  font-family: 'Fraunces', Georgia, serif;
+}
+.font-mono {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Grain Overlay — the premium texture
+   ═══════════════════════════════════════════════════════════════ */
+.grain::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.10;
+  pointer-events: none;
+  z-index: 1;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 182px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Browser Mockup
+   ═══════════════════════════════════════════════════════════════ */
+.browser-frame {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow:
+    0 25px 50px -12px rgba(0,0,0,0.25),
+    0 0 0 1px rgba(0,0,0,0.05);
+}
+.browser-chrome {
+  height: 36px;
+  background: #f5f5f4;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 6px;
+  border-bottom: 1px solid #e7e5e4;
+}
+.browser-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #d6d3d1;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Buttons
+   ═══════════════════════════════════════════════════════════════ */
+@layer components {
+  .pulso-btn-primary {
+    @apply inline-flex items-center justify-center px-6 text-sm font-semibold transition-all;
+    height: 42px;
+    border-radius: 0;
+    background: var(--accent);
+    color: #fff;
+    letter-spacing: -0.01em;
+  }
+  .pulso-btn-primary:hover {
+    background: var(--accent-deep);
+  }
+
+  .pulso-btn-secondary {
+    @apply inline-flex items-center justify-center px-6 text-sm font-semibold transition-all;
+    height: 42px;
+    border-radius: 0;
+    border: 2px solid var(--border);
+    background: transparent;
+    color: var(--text-primary);
+  }
+  .pulso-btn-secondary:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .pulso-btn-dark {
+    @apply inline-flex items-center justify-center px-6 text-sm font-semibold transition-all;
+    height: 42px;
+    border-radius: 0;
+    background: var(--text-on-dark);
+    color: var(--bg-dark);
+  }
+  .pulso-btn-dark:hover {
+    background: var(--accent-hover);
+    color: #fff;
+  }
+
+  .pulso-btn-ghost {
+    @apply inline-flex items-center justify-center px-6 text-sm font-semibold transition-all;
+    height: 42px;
+    border-radius: 0;
+    border: 1px solid var(--border-dark-strong);
+    background: transparent;
+    color: var(--text-on-dark-secondary);
+  }
+  .pulso-btn-ghost:hover {
+    border-color: var(--accent);
+    color: var(--accent-hover);
+  }
+
+  .pulso-btn-outline {
+    @apply inline-flex items-center justify-center px-6 text-sm font-semibold transition-all;
+    height: 42px;
+    border-radius: 0;
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    color: var(--text-secondary);
+  }
+  .pulso-btn-outline:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .pulso-input {
+    @apply px-3 py-2 text-sm w-full;
+    border: 1px solid var(--border);
+    border-radius: 0;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+  }
+  .pulso-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+  .pulso-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .pulso-input-dark {
+    @apply px-3 py-2.5 text-sm w-full;
+    border: 1px solid var(--border-dark-strong);
+    border-radius: 0;
+    background: var(--bg-dark);
+    color: var(--text-on-dark);
+  }
+  .pulso-input-dark:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+  .pulso-input-dark::placeholder {
+    color: var(--text-on-dark-muted);
+  }
+}
