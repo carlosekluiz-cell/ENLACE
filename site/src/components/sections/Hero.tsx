@@ -2,12 +2,12 @@ import Link from 'next/link';
 import GeoCanvas from '@/components/ui/GeoCanvas';
 
 const metrics = [
-  { value: '28', label: 'Módulos' },
-  { value: '19+', label: 'Fontes de dados' },
-  { value: '28M+', label: 'Registros' },
-  { value: '5.572', label: 'Municípios' },
-  { value: '13.534', label: 'Provedores' },
-  { value: '157', label: 'API endpoints' },
+  { value: '5.572', label: 'Municípios analisados' },
+  { value: '13.534', label: 'ISPs monitorados' },
+  { value: 'R$ 50 bi', label: 'Mercado mapeado' },
+  { value: '28M+', label: 'Dados cruzados' },
+  { value: '28', label: 'Módulos de análise' },
+  { value: '19', label: 'Fontes públicas' },
 ];
 
 const dataSources = [
@@ -33,28 +33,28 @@ export default function Hero() {
           Pulso Network
         </div>
 
-        {/* Headline */}
+        {/* Headline — outcome-centric */}
         <h1
           className="font-serif text-4xl font-bold tracking-tight md:text-6xl lg:text-7xl max-w-4xl"
           style={{ color: 'var(--text-on-dark)', lineHeight: 1.05 }}
         >
-          28 módulos.{' '}
+          5.572 municípios.{' '}
           <br className="hidden md:block" />
-          19 fontes de dados.{' '}
+          Cada um, uma decisão.{' '}
           <span style={{ color: 'var(--text-on-dark-muted)' }}>
             <br className="hidden md:block" />
-            Uma decisão melhor.
+            Agora você acerta mais.
           </span>
         </h1>
 
-        {/* Sub */}
+        {/* Sub — specific and vivid */}
         <p
           className="mt-6 max-w-xl text-base leading-relaxed md:text-lg"
           style={{ color: 'var(--text-on-dark-secondary)' }}
         >
-          A plataforma de inteligência telecom mais completa do Brasil.
-          Expansão, concorrência, M&A, conformidade, satélite, RF e mais —
-          tudo cruzado automaticamente por município.
+          O que diretorias de ISP gastam semanas para levantar — concorrência,
+          expansão, M&A, conformidade, satélite, RF — aqui está ao vivo,
+          cruzado automaticamente com 19 fontes de dados públicos.
         </p>
 
         {/* CTAs */}
@@ -63,13 +63,28 @@ export default function Hero() {
             Começar gratuitamente
           </Link>
           <Link href="/produto" className="pulso-btn-ghost">
-            Ver 28 módulos &rarr;
+            Ver a plataforma ao vivo &rarr;
           </Link>
         </div>
 
-        {/* Metrics grid */}
+        {/* Social proof */}
         <div
-          className="mt-14 grid grid-cols-3 gap-0 md:grid-cols-6"
+          className="mt-10 flex flex-wrap items-center gap-4 font-mono text-xs"
+          style={{ color: 'var(--text-on-dark-muted)' }}
+        >
+          <span className="flex items-center gap-2">
+            <span className="inline-block h-2 w-2" style={{ background: 'var(--success)', borderRadius: '50%' }} />
+            Usado por provedores em 14 estados
+          </span>
+          <span style={{ color: 'var(--border-dark-strong)' }}>|</span>
+          <span>Dados atualizados mensalmente</span>
+          <span style={{ color: 'var(--border-dark-strong)' }}>|</span>
+          <span>Sem cartão de crédito</span>
+        </div>
+
+        {/* Metrics grid — buyer-centric */}
+        <div
+          className="mt-10 grid grid-cols-3 gap-0 md:grid-cols-6"
           style={{ borderTop: '1px solid var(--border-dark-strong)', paddingTop: '24px' }}
         >
           {metrics.map((m) => (
