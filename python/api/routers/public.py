@@ -1,19 +1,22 @@
 """
-ENLACE Public Router — Raio-X do Provedor
+ENLACE Public Router — Raio-X do Provedor & Public Map
 
-Free, unauthenticated endpoint that lets anyone search for an ISP by name
-and receive a limited intelligence report including subscriber counts,
-municipality breakdown, market share, HHI, growth rate, fiber percentage,
-and Pulso Score.
+Free, unauthenticated endpoints:
+- /raio-x — search for an ISP by name and get a limited intelligence report
+- /mapa  — blinded map of all real municipality data (no provider names or
+            exact numbers) for the marketing site
 """
 
 from __future__ import annotations
 
 import logging
+import math
+import time
 from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Query, Depends
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,12 +26,151 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 
+# ---------------------------------------------------------------------------
+# In-memory cache for /mapa (same data for all visitors, refreshed hourly)
+# ---------------------------------------------------------------------------
+_mapa_cache: dict[str, Any] = {"data": None, "ts": 0.0}
+_MAPA_TTL = 3600  # 1 hour
+
 
 def _to_float(value: Any, decimals: int = 1) -> float | None:
     """Convert Decimal/numeric to rounded float, returning None for None."""
     if value is None:
         return None
     return round(float(value), decimals)
+
+
+@router.get("/mapa")
+async def mapa_brasil(
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Public blinded map of all municipality-level broadband data in Brazil.
+
+    Returns lat/lng, rounded subscriber counts (nearest 100), provider count,
+    HHI, and penetration for every municipality — without provider names or
+    exact numbers.  Cached in-memory for 1 hour.
+    """
+    now = time.time()
+    if _mapa_cache["data"] is not None and (now - _mapa_cache["ts"]) < _MAPA_TTL:
+        return JSONResponse(_mapa_cache["data"])
+
+    # ------------------------------------------------------------------
+    # Single efficient query: municipality aggregates for the latest period
+    # ------------------------------------------------------------------
+    sql = text("""
+        WITH latest AS (
+            SELECT MAX(year_month) AS ym FROM broadband_subscribers
+        ),
+        market AS (
+            SELECT
+                bs.l2_id,
+                SUM(bs.subscribers)                     AS total_subs,
+                COUNT(DISTINCT bs.provider_id)          AS providers
+            FROM broadband_subscribers bs, latest
+            WHERE bs.year_month = latest.ym
+            GROUP BY bs.l2_id
+        ),
+        hhi_calc AS (
+            SELECT
+                pv.l2_id,
+                SUM(POWER(pv.share, 2))::int AS hhi
+            FROM (
+                SELECT
+                    bs.l2_id,
+                    100.0 * SUM(bs.subscribers) / NULLIF(m.total_subs, 0) AS share
+                FROM broadband_subscribers bs
+                JOIN latest ON bs.year_month = latest.ym
+                JOIN market m ON m.l2_id = bs.l2_id
+                GROUP BY bs.l2_id, bs.provider_id, m.total_subs
+            ) pv
+            GROUP BY pv.l2_id
+        ),
+        periods AS (
+            SELECT array_agg(DISTINCT year_month ORDER BY year_month) AS yms
+            FROM broadband_subscribers
+        )
+        SELECT
+            ST_Y(a2.centroid)                                          AS lat,
+            ST_X(a2.centroid)                                          AS lng,
+            a1.abbrev                                                  AS state,
+            a2.population                                              AS pop,
+            COALESCE(m.total_subs, 0)                                  AS subs,
+            COALESCE(m.providers, 0)                                   AS providers,
+            COALESCE(h.hhi, 0)                                         AS hhi,
+            CASE
+                WHEN a2.population > 0 AND m.total_subs IS NOT NULL
+                THEN ROUND(m.total_subs * 100.0 / (a2.population * 0.33), 1)
+                ELSE 0
+            END                                                        AS penetration,
+            p.yms                                                      AS periods
+        FROM admin_level_2 a2
+        JOIN admin_level_1 a1 ON a2.l1_id = a1.id
+        CROSS JOIN periods p
+        LEFT JOIN market m ON m.l2_id = a2.id
+        LEFT JOIN hhi_calc h ON h.l2_id = a2.id
+        WHERE a2.centroid IS NOT NULL
+        ORDER BY a2.id
+    """)
+
+    result = await db.execute(sql)
+    rows = result.fetchall()
+
+    if not rows:
+        return {"municipalities": [], "meta": {}}
+
+    # Extract periods from the first row (same for all)
+    periods_raw = rows[0].periods or []
+    # Keep only a sample of periods (every 3rd month) to avoid huge arrays
+    periods_list = [str(p) for p in periods_raw]
+
+    municipalities = []
+    total_subs = 0
+    munis_with_data = 0
+
+    for row in rows:
+        subs_raw = int(row.subs or 0)
+        # Blind: round to nearest 100
+        subs_rounded = round(subs_raw / 100) * 100
+
+        total_subs += subs_raw
+        if subs_raw > 0:
+            munis_with_data += 1
+
+        municipalities.append({
+            "lat": round(float(row.lat), 4),
+            "lng": round(float(row.lng), 4),
+            "uf": row.state.strip() if row.state else "",
+            "pop": int(row.pop or 0),
+            "subs": subs_rounded,
+            "providers": int(row.providers),
+            "hhi": int(row.hhi),
+            "penetration": round(float(row.penetration), 1),
+        })
+
+    # Blind total: round to nearest 10_000
+    total_subs_rounded = round(total_subs / 10_000) * 10_000
+
+    avg_penetration = 0.0
+    pen_values = [m["penetration"] for m in municipalities if m["penetration"] > 0]
+    if pen_values:
+        avg_penetration = round(sum(pen_values) / len(pen_values), 1)
+
+    payload = {
+        "municipalities": municipalities,
+        "meta": {
+            "total_municipalities": len(municipalities),
+            "municipalities_with_data": munis_with_data,
+            "total_subscribers": total_subs_rounded,
+            "avg_penetration": avg_penetration,
+            "periods_available": periods_list,
+        },
+    }
+
+    _mapa_cache["data"] = payload
+    _mapa_cache["ts"] = now
+
+    return JSONResponse(payload)
 
 
 @router.get("/raio-x")
@@ -47,13 +189,19 @@ async def raio_x_provedor(
     If no match, returns an error message.
     """
     # ---------------------------------------------------------------
-    # Step 1: Find matching providers
+    # Step 1: Find matching providers (only ACTIVE ones with subscribers)
     # ---------------------------------------------------------------
     search_sql = text("""
-        SELECT id, name
-        FROM providers
-        WHERE name ILIKE :pattern
-        ORDER BY name
+        SELECT p.id, p.name, COALESCE(sub_totals.total_subscribers, 0) AS total_subscribers
+        FROM providers p
+        INNER JOIN (
+            SELECT provider_id, SUM(subscribers) AS total_subscribers
+            FROM broadband_subscribers
+            WHERE subscribers > 0
+            GROUP BY provider_id
+        ) sub_totals ON sub_totals.provider_id = p.id
+        WHERE p.name ILIKE :pattern
+        ORDER BY sub_totals.total_subscribers DESC
         LIMIT 10
     """)
     result = await db.execute(search_sql, {"pattern": f"%{q}%"})
@@ -69,7 +217,14 @@ async def raio_x_provedor(
             matches = exact
         else:
             return {
-                "matches": [{"id": m.id, "name": m.name.strip()} for m in matches],
+                "matches": [
+                    {
+                        "id": m.id,
+                        "name": m.name.strip(),
+                        "total_subscribers": int(m.total_subscribers),
+                    }
+                    for m in matches
+                ],
                 "message": "Múltiplos provedores encontrados. Selecione um.",
             }
 

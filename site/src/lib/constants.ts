@@ -5,6 +5,7 @@ export const API_URL = 'https://api.pulso.network';
 
 export const NAV_LINKS = [
   { label: 'Raio-X', href: '/raio-x' },
+  { label: 'Mapa', href: '/mapa-brasil' },
   { label: 'Produto', href: '/produto' },
   { label: 'Dados', href: '/dados' },
   { label: 'Preços', href: '/precos' },
