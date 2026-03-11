@@ -18,3 +18,19 @@ try:
     from python.pipeline.flows.sentinel_growth import SentinelGrowthPipeline
 except ImportError:
     SentinelGrowthPipeline = None  # type: ignore[assignment,misc]
+
+# --- Sprint 14: New data sources ---
+from python.pipeline.flows.cnpj_enrichment import CNPJEnrichmentPipeline
+from python.pipeline.flows.anatel_rqual import AnatelRQUALPipeline
+from python.pipeline.flows.pncp_contracts import PNCPContractsPipeline
+from python.pipeline.flows.transparencia_fust import TransparenciaFUSTPipeline
+from python.pipeline.flows.bndes_loans import BNDESLoansPipeline
+from python.pipeline.flows.anatel_backhaul import AnatelBackhaulPipeline
+from python.pipeline.flows.inep_schools import INEPSchoolsPipeline
+from python.pipeline.flows.datasus_health import DATASUSHealthPipeline
+from python.pipeline.flows.ibge_munic import IBGEMUNICPipeline
+from python.pipeline.flows.caged_employment import CAGEDEmploymentPipeline
+from python.pipeline.flows.atlas_violencia import AtlasViolenciaPipeline
+from python.pipeline.flows.dou_anatel import DOUAnatelPipeline
+from python.pipeline.flows.querido_diario import QueridoDiarioPipeline
+from python.pipeline.flows.ibge_cnefe import IBGECNEFEPipeline
