@@ -1,0 +1,20 @@
+[Unit]
+Description=Enlace Pipeline Scheduler
+After=postgresql.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dev
+WorkingDirectory=/home/dev/enlace
+ExecStart=/usr/bin/python3 -m python.pipeline.scheduler
+Restart=on-failure
+RestartSec=60
+Environment=PYTHONPATH=/home/dev/enlace
+Environment=POSTGRES_HOST=localhost
+Environment=POSTGRES_PORT=5432
+Environment=POSTGRES_DB=enlace
+Environment=POSTGRES_USER=enlace
+
+[Install]
+WantedBy=multi-user.target
