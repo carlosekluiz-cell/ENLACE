@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════════════════
-   Types
+   Types — matches actual API response from /api/v1/public/raio-x
    ═══════════════════════════════════════════════════════════════ */
 
 interface Municipality {
@@ -33,11 +33,18 @@ interface ProviderResult {
   municipalities: Municipality[];
 }
 
-interface ApiResponse {
-  query: string;
-  match_count: number;
-  results: ProviderResult[];
+// API returns different shapes for single/multiple/error
+interface MatchItem {
+  id: number;
+  name: string;
 }
+
+type State =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string }
+  | { kind: 'matches'; items: MatchItem[] }
+  | { kind: 'result'; provider: ProviderResult };
 
 /* ═══════════════════════════════════════════════════════════════
    Helpers
@@ -88,44 +95,67 @@ function hhiLabel(hhi: number): string {
 
 export default function RaioXPage() {
   const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<ApiResponse | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState<ProviderResult | null>(null);
+  const [state, setState] = useState<State>({ kind: 'idle' });
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  const scrollToResults = () => {
+    setTimeout(() => {
+      resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  };
+
+  // Normalize API response into our State type
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const parseResponse = (json: any): State => {
+    // Error response: { error: "...", query: "..." }
+    if (json.error) {
+      return { kind: 'error', message: json.error };
+    }
+    // Multiple matches: { matches: [...], message: "..." }
+    if (json.matches) {
+      return { kind: 'matches', items: json.matches };
+    }
+    // Single match: { provider: {...}, municipalities: [...], insights: {...} }
+    if (json.provider) {
+      const p = json.provider;
+      const munis = (json.municipalities || []).map((m: any) => ({
+        municipality: m.name,
+        uf: m.state,
+        subscribers: m.subscribers,
+        share_pct: m.market_share_pct,
+        hhi: m.hhi,
+        total_market: m.total_market_subs,
+      }));
+      return {
+        kind: 'result',
+        provider: {
+          provider_id: p.id,
+          name: p.name,
+          pulso_score: p.pulso_score ?? null,
+          pulso_tier: p.pulso_tier ?? null,
+          total_subscribers: p.total_subscribers,
+          growth_pct: p.growth_pct ?? null,
+          fiber_pct: p.fiber_pct ?? null,
+          municipality_count: json.insights?.total_municipalities ?? munis.length,
+          municipalities: munis,
+        },
+      };
+    }
+    return { kind: 'error', message: 'Resposta inesperada do servidor.' };
+  };
 
   const doSearch = useCallback(async (searchTerm: string) => {
     if (!searchTerm.trim()) return;
-    setLoading(true);
-    setError(null);
-    setData(null);
-    setSelectedProvider(null);
+    setState({ kind: 'loading' });
 
     try {
       const res = await fetch(`${API_URL}?q=${encodeURIComponent(searchTerm.trim())}`);
       if (!res.ok) throw new Error('Erro ao buscar dados');
-      const json: ApiResponse = await res.json();
-
-      if (json.match_count === 0) {
-        setError('Provedor nao encontrado. Tente outro nome.');
-        return;
-      }
-
-      setData(json);
-
-      // Auto-select if single result
-      if (json.match_count === 1) {
-        setSelectedProvider(json.results[0]);
-      }
-
-      // Scroll to results
-      setTimeout(() => {
-        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
+      const json = await res.json();
+      setState(parseResponse(json));
+      scrollToResults();
     } catch {
-      setError('Erro de conexao. Verifique sua internet e tente novamente.');
-    } finally {
-      setLoading(false);
+      setState({ kind: 'error', message: 'Erro de conexao. Verifique sua internet e tente novamente.' });
     }
   }, []);
 
@@ -134,21 +164,19 @@ export default function RaioXPage() {
     doSearch(query);
   };
 
-  const handleSelectProvider = (provider: ProviderResult) => {
-    setSelectedProvider(provider);
-    setTimeout(() => {
-      resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
+  // When user picks from disambiguation, re-search with exact name
+  const handleSelectMatch = (item: MatchItem) => {
+    setQuery(item.name);
+    doSearch(item.name);
   };
 
   const handleClear = () => {
     setQuery('');
-    setData(null);
-    setSelectedProvider(null);
-    setError(null);
+    setState({ kind: 'idle' });
   };
 
-  // Derived insights
+  // Derived
+  const selectedProvider = state.kind === 'result' ? state.provider : null;
   const insights = selectedProvider ? computeInsights(selectedProvider) : null;
 
   return (
@@ -214,11 +242,11 @@ export default function RaioXPage() {
               </div>
               <button
                 type="submit"
-                disabled={loading || !query.trim()}
+                disabled={state.kind === 'loading' || !query.trim()}
                 className="pulso-btn-primary flex items-center gap-2 px-8 disabled:opacity-50"
                 style={{ height: '48px' }}
               >
-                {loading ? (
+                {state.kind === 'loading' ? (
                   <Loader2 size={16} className="animate-spin" />
                 ) : (
                   <Zap size={16} />
@@ -251,7 +279,7 @@ export default function RaioXPage() {
       {/* ───── Results ───── */}
       <div ref={resultsRef}>
         {/* Error state */}
-        {error && (
+        {state.kind === 'error' && (
           <Section background="primary">
             <div
               className="mx-auto max-w-xl text-center p-8"
@@ -259,7 +287,7 @@ export default function RaioXPage() {
             >
               <AlertTriangle size={32} className="mx-auto mb-4" style={{ color: 'var(--warning)' }} />
               <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {error}
+                {state.message}
               </p>
               <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                 Verifique a grafia ou tente um nome parcial.
@@ -269,7 +297,7 @@ export default function RaioXPage() {
         )}
 
         {/* Loading skeleton */}
-        {loading && (
+        {state.kind === 'loading' && (
           <Section background="primary">
             <div className="mx-auto max-w-3xl space-y-6">
               {[1, 2, 3].map((i) => (
@@ -288,12 +316,12 @@ export default function RaioXPage() {
         )}
 
         {/* Multiple matches — disambiguation list */}
-        {data && data.match_count > 1 && !selectedProvider && (
+        {state.kind === 'matches' && (
           <Section background="primary">
             <div className="mx-auto max-w-3xl">
               <div className="mb-6">
                 <p className="font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--accent)' }}>
-                  {data.match_count} provedores encontrados
+                  {state.items.length} provedores encontrados
                 </p>
                 <h2
                   className="font-serif text-2xl font-bold tracking-tight"
@@ -304,40 +332,17 @@ export default function RaioXPage() {
               </div>
 
               <div className="space-y-0" style={{ border: '1px solid var(--border)' }}>
-                {data.results.map((provider) => (
+                {state.items.map((item) => (
                   <button
-                    key={provider.provider_id}
-                    onClick={() => handleSelectProvider(provider)}
+                    key={item.id}
+                    onClick={() => handleSelectMatch(item)}
                     className="w-full text-left p-5 flex items-center justify-between gap-4 transition-colors hover:bg-stone-50"
                     style={{ borderBottom: '1px solid var(--border)' }}
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3">
-                        <span className="text-base font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-                          {provider.name}
-                        </span>
-                        {provider.pulso_tier && (
-                          <span
-                            className="font-mono text-xs font-bold px-2 py-0.5"
-                            style={{
-                              color: '#fff',
-                              background: tierColor(provider.pulso_tier),
-                            }}
-                          >
-                            {provider.pulso_tier}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1 flex items-center gap-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                        <span className="flex items-center gap-1">
-                          <Users size={12} />
-                          {formatNumber(provider.total_subscribers)} assinantes
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <MapPin size={12} />
-                          {provider.municipality_count} municipios
-                        </span>
-                      </div>
+                      <span className="text-base font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+                        {item.name}
+                      </span>
                     </div>
                     <ArrowRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                   </button>
@@ -350,20 +355,6 @@ export default function RaioXPage() {
         {/* Full provider report */}
         {selectedProvider && (
           <>
-            {/* Back button if multiple matches */}
-            {data && data.match_count > 1 && (
-              <Section background="subtle" className="!py-4">
-                <button
-                  onClick={() => setSelectedProvider(null)}
-                  className="text-sm flex items-center gap-2 transition-colors"
-                  style={{ color: 'var(--accent)' }}
-                >
-                  <ArrowRight size={14} className="rotate-180" />
-                  Voltar para {data.match_count} resultados
-                </button>
-              </Section>
-            )}
-
             {/* Provider header card */}
             <Section background="primary">
               <div className="mx-auto max-w-4xl">
@@ -713,7 +704,7 @@ export default function RaioXPage() {
         )}
 
         {/* Default state — no search yet */}
-        {!data && !loading && !error && (
+        {state.kind === 'idle' && (
           <Section background="subtle">
             <div className="mx-auto max-w-2xl text-center">
               <div className="mb-8">
