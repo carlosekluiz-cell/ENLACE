@@ -3,8 +3,9 @@ import Section from '@/components/ui/Section';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Confiança dos Dados — Pulso Network',
+  title: 'Confiança dos Dados',
   description: 'Sistema de classificação de proveniência e confiabilidade: A1, A2, A3, B1 para cada fonte de dados.',
+  alternates: { canonical: 'https://pulso.network/recursos/dados-confianca' },
 };
 
 const classificationLevels = [

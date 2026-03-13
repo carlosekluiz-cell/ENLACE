@@ -4,7 +4,8 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Sobre — Pulso Network',
-  description: 'De Telebras a 13.534 ISPs: a história das telecomunicações brasileiras e o Pulso.',
+  description: 'De Telebras a 13.534 ISPs: a história das telecomunicações brasileiras e como o Pulso Network transforma dados públicos em inteligência acionável.',
+  alternates: { canonical: 'https://pulso.network/sobre' },
 };
 
 const timeline = [
@@ -17,11 +18,11 @@ const timeline = [
 ];
 
 const platformStats = [
-  { value: '28M+', label: 'Registros de produção' },
-  { value: '38', label: 'Pipelines automatizados' },
-  { value: '62', label: 'Tabelas de dados' },
-  { value: '28', label: 'Módulos de inteligência' },
-  { value: '13.534', label: 'ISPs rastreados' },
+  { value: '28M+', label: 'Data points cruzados' },
+  { value: '44', label: 'Pipelines automatizados' },
+  { value: '68', label: 'Tabelas de dados' },
+  { value: '25', label: 'Módulos de inteligência' },
+  { value: '128K+', label: 'Provedores rastreados' },
   { value: '5.572', label: 'Municípios cobertos' },
 ];
 
@@ -43,7 +44,8 @@ export default function SobrePage() {
           </h1>
           <p className="mt-5 text-base leading-relaxed max-w-2xl" style={{ color: 'var(--text-on-dark-secondary)' }}>
             O Brasil construiu o maior ecossistema de provedores regionais de internet do mundo.
-            13.534 empresas conectam 52% dos domicílios. O Pulso existe para dar inteligência de dados a esse ecossistema.
+            128 mil provedores licenciados, 54 milhões de assinantes, 5.572 municípios.
+            O Pulso existe para dar inteligência de dados a esse ecossistema.
           </p>
         </div>
       </Section>
@@ -96,7 +98,7 @@ export default function SobrePage() {
           </h2>
           <div className="mt-6 space-y-4">
             <p className="text-base leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              Os dados existem — Anatel, IBGE, INMET, NASA. O problema é que estão dispersos em portais
+              Os dados existem — Anatel, IBGE, PGFN, Receita Federal, Portal da Transparência, BNDES e 38+ outras fontes. O problema é que estão dispersos em portais
               diferentes, formatos incompatíveis e lógicas distintas. Nenhum ISP com menos de 100.000
               assinantes tem equipe para integrar tudo isso.
             </p>
@@ -152,7 +154,7 @@ export default function SobrePage() {
             <Link href="/recursos" className="pulso-btn-dark">
               Ver recursos
             </Link>
-            <Link href="/cadastro" className="pulso-btn-ghost">
+            <Link href="/precos" className="pulso-btn-ghost">
               Acessar plataforma
             </Link>
           </div>

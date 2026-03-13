@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {
   Map, BarChart3, Radio, Shield, CloudRain, TreePine, ArrowRight,
   Satellite, Building2, Brain, Layers, Wifi, Globe, Award, GitCompareArrows,
+  Network, Zap, FileCheck, Scale, CreditCard, Share2, FileText, MapPin,
 } from 'lucide-react';
 
 const modules = [
@@ -52,7 +53,7 @@ const modules = [
   {
     icon: Building2,
     title: 'M&A',
-    description: 'Valuation de ISPs por município, simulação de aquisições e projeções financeiras.',
+    description: 'Valuation de ISPs, due diligence com dívidas PGFN, grafo societário e simulação de aquisições.',
     metric: '13.534 ISPs avaliados',
   },
   {
@@ -97,13 +98,67 @@ const modules = [
     description: 'Correlações multi-dimensionais, detecção de anomalias e scoring de prioridade de investimento.',
     metric: '10 endpoints analíticos',
   },
+  {
+    icon: Network,
+    title: 'Backhaul',
+    description: 'Modelagem de capacidade, previsão de congestionamento e análise de utilização por município.',
+    metric: 'Previsão mensal',
+  },
+  {
+    icon: Zap,
+    title: 'Velocidade',
+    description: 'Rankings de download, upload e latência por município baseados em dados Ookla agregados.',
+    metric: 'Speedtest tiles',
+  },
+  {
+    icon: FileCheck,
+    title: 'Obrigações 5G',
+    description: 'Rastreamento de obrigações de cobertura 5G: prazos, populações atendidas e gap analysis por estado.',
+    metric: 'CLARO, VIVO, TIM',
+  },
+  {
+    icon: Scale,
+    title: 'Espectro',
+    description: 'Valuation de licenças de espectro, holdings por operadora e análise de faixas de frequência.',
+    metric: 'Integrado ao M&A',
+  },
+  {
+    icon: CreditCard,
+    title: 'Crédito ISP',
+    description: 'Credit scoring para provedores: probabilidade de default, rating AAA-CCC e 6 fatores de risco.',
+    metric: 'Modelo PD',
+  },
+  {
+    icon: Share2,
+    title: 'Compartilhamento',
+    description: 'Identificação de oportunidades de colocation em torres: scoring por densidade, gap e cobertura.',
+    metric: 'Torre a torre',
+  },
+  {
+    icon: FileText,
+    title: 'Raio-X do Provedor',
+    description: 'Relatório gratuito com posição competitiva, selos Anatel, dívidas fiscais, estrutura societária e diário oficial.',
+    metric: 'Grátis + Premium',
+  },
+  {
+    icon: MapPin,
+    title: 'Hex Grid',
+    description: 'Visualização hexagonal H3 com métricas de assinantes, penetração e market share por célula.',
+    metric: 'Resolução 7-9',
+  },
+  {
+    icon: Shield,
+    title: 'Due Diligence',
+    description: 'Dívidas fiscais federais (PGFN), sanções CEIS/CNEP, reclamações de consumidores e grafo de propriedade cruzada.',
+    metric: '1M+ registros',
+  },
 ];
 
 const steps = [
   {
     number: '01',
     title: 'Integramos dados públicos',
-    description: 'Anatel, IBGE, NASA/SRTM, INMET, DataSUS, INEP e mais. 19+ fontes normalizadas e cruzadas por código IBGE.',
+    description: 'Anatel, IBGE, PGFN, Receita Federal, Portal da Transparência, BNDES, PeeringDB e mais. 38+ fontes normalizadas e cruzadas por código IBGE.',
   },
   {
     number: '02',
@@ -139,9 +194,9 @@ export default function HomePage() {
             <span style={{ color: 'var(--text-muted)' }}>merece ferramentas à altura.</span>
           </h2>
           <p className="mt-5 text-base leading-relaxed mx-auto max-w-2xl" style={{ color: 'var(--text-secondary)' }}>
-            13.534 provedores respondem por 52% da banda larga fixa brasileira — mais
-            que Vivo, Claro e Oi juntas. Mercado de R$ 50 bi/ano crescendo 8-12% ao ano.
-            A maioria ainda decide com planilhas e intuição.
+            28 milhões de data points. 38 fontes públicas. 128 mil provedores.
+            A maior base de inteligência do setor ISP do mundo — concorrência, due diligence
+            fiscal, grafo societário, reclamações — tudo cruzado automaticamente.
           </p>
         </div>
 
@@ -205,6 +260,165 @@ export default function HomePage() {
         </div>
       </Section>
 
+      {/* Cross-Reference Intelligence — Surface section */}
+      <Section background="surface">
+        <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
+          Cruzamento de dados
+        </div>
+        <h2
+          className="font-serif text-3xl font-bold tracking-tight md:text-4xl max-w-3xl"
+          style={{ color: 'var(--text-primary)', lineHeight: 1.1 }}
+        >
+          38 fontes cruzadas.{' '}
+          <span style={{ color: 'var(--text-muted)' }}>Inteligência que não existe em nenhum outro lugar.</span>
+        </h2>
+        <p className="mt-4 text-base leading-relaxed max-w-2xl" style={{ color: 'var(--text-secondary)' }}>
+          Cada número abaixo é o resultado de cruzar duas ou mais bases de dados públicas.
+          Nenhuma dessas conexões existe de forma pronta — o Pulso as constrói automaticamente.
+        </p>
+
+        <div className="mt-12 grid grid-cols-1 gap-0 md:grid-cols-3" style={{ border: '1px solid var(--border)' }}>
+          {[
+            {
+              sources: 'PGFN × Base de Provedores',
+              value: '10.740',
+              unit: 'provedores com exposição fiscal',
+              detail: 'R$ 582 bi em dívida ativa federal cruzada com 128K provedores licenciados pela Anatel.',
+            },
+            {
+              sources: 'Receita Federal × Provedores',
+              value: '777',
+              unit: 'sócios controlam múltiplos ISPs',
+              detail: '783K vínculos societários analisados. Maior grupo: 16 provedores sob um mesmo controlador.',
+            },
+            {
+              sources: 'consumidor.gov.br × Telecom',
+              value: '463K',
+              unit: 'reclamações de consumidores',
+              detail: 'Categorias, tempo de resposta (média 7,9 dias) e satisfação por operadora desde nov/2023.',
+            },
+            {
+              sources: 'INEP × Anatel STEL',
+              value: '16.375',
+              unit: 'escolas offline em áreas com ISPs',
+              detail: '1 milhão de alunos em escolas sem internet — em municípios onde já existem provedores ativos.',
+            },
+            {
+              sources: 'Anatel RQUAL × Municípios',
+              value: '88.619',
+              unit: 'selos de qualidade mapeados',
+              detail: 'Ouro (17,6%), Prata (32,3%), Bronze (20,1%) — qualidade por provedor e município.',
+            },
+            {
+              sources: 'HHI × Assinantes × Demografia',
+              value: '318',
+              unit: 'municípios com monopólio efetivo',
+              detail: 'Índice Herfindahl-Hirschman calculado para 5.570 municípios. 52,6% moderadamente concentrados.',
+            },
+            {
+              sources: 'Diários Oficiais × Telecomunicações',
+              value: '60.581',
+              unit: 'menções em gazetas municipais',
+              detail: '65 anos de registros (1961–2026). Infraestrutura, licitações e regulamentação local.',
+            },
+            {
+              sources: 'BNDES × Setor Telecom',
+              value: 'R$ 12,9 bi',
+              unit: 'em financiamento mapeado',
+              detail: '52 operações de crédito com taxas, prazos e valores. Histórico desde 2002.',
+            },
+            {
+              sources: 'PGFN × CEIS/CNEP × Receita',
+              value: '6 fontes',
+              unit: 'de due diligence cruzadas',
+              detail: 'Dívida fiscal, sanções federais, reclamações, sócios, espectro e compliance — em um dossier.',
+            },
+          ].map((item) => (
+            <div
+              key={item.sources}
+              className="p-6"
+              style={{
+                background: 'var(--bg-primary)',
+                borderRight: '1px solid var(--border)',
+                borderBottom: '1px solid var(--border)',
+              }}
+            >
+              <div className="font-mono text-[10px] uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>
+                {item.sources}
+              </div>
+              <div className="font-mono text-2xl font-bold tabular-nums" style={{ color: 'var(--accent)' }}>
+                {item.value}
+              </div>
+              <div className="mt-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                {item.unit}
+              </div>
+              <p className="mt-2 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                {item.detail}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center gap-4">
+          <Link href="/dados" className="pulso-btn inline-flex items-center gap-2">
+            Ver todas as fontes <ArrowRight size={14} />
+          </Link>
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Todos os dados são públicos e verificáveis na origem.
+          </span>
+        </div>
+      </Section>
+
+      {/* Market data by state — internal linking for SEO */}
+      <Section background="primary">
+        <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
+          Dados de mercado
+        </div>
+        <h2
+          className="font-serif text-3xl font-bold tracking-tight md:text-4xl max-w-3xl"
+          style={{ color: 'var(--text-primary)', lineHeight: 1.1 }}
+        >
+          Inteligência por estado.{' '}
+          <span style={{ color: 'var(--text-muted)' }}>5.570 municípios cobertos.</span>
+        </h2>
+        <p className="mt-4 text-base leading-relaxed max-w-2xl" style={{ color: 'var(--text-secondary)' }}>
+          Market share, HHI, penetração de fibra e perfil competitivo para cada município brasileiro.
+        </p>
+
+        <div className="mt-10 grid grid-cols-3 gap-0 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-9" style={{ border: '1px solid var(--border)' }}>
+          {[
+            { uf: 'ac', label: 'AC' }, { uf: 'al', label: 'AL' }, { uf: 'am', label: 'AM' },
+            { uf: 'ap', label: 'AP' }, { uf: 'ba', label: 'BA' }, { uf: 'ce', label: 'CE' },
+            { uf: 'df', label: 'DF' }, { uf: 'es', label: 'ES' }, { uf: 'go', label: 'GO' },
+            { uf: 'ma', label: 'MA' }, { uf: 'mg', label: 'MG' }, { uf: 'ms', label: 'MS' },
+            { uf: 'mt', label: 'MT' }, { uf: 'pa', label: 'PA' }, { uf: 'pb', label: 'PB' },
+            { uf: 'pe', label: 'PE' }, { uf: 'pi', label: 'PI' }, { uf: 'pr', label: 'PR' },
+            { uf: 'rj', label: 'RJ' }, { uf: 'rn', label: 'RN' }, { uf: 'ro', label: 'RO' },
+            { uf: 'rr', label: 'RR' }, { uf: 'rs', label: 'RS' }, { uf: 'sc', label: 'SC' },
+            { uf: 'se', label: 'SE' }, { uf: 'sp', label: 'SP' }, { uf: 'to', label: 'TO' },
+          ].map((s) => (
+            <Link
+              key={s.uf}
+              href={`/mercado/${s.uf}`}
+              className="flex items-center justify-center py-4 text-sm font-semibold transition-colors"
+              style={{
+                borderRight: '1px solid var(--border)',
+                borderBottom: '1px solid var(--border)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              {s.label}
+            </Link>
+          ))}
+        </div>
+
+        <div className="mt-6">
+          <Link href="/mercado" className="pulso-btn inline-flex items-center gap-2">
+            Ver panorama nacional <ArrowRight size={14} />
+          </Link>
+        </div>
+      </Section>
+
       {/* Modules — Dark section for contrast */}
       <Section background="dark" grain>
         <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent-hover)' }}>
@@ -214,7 +428,7 @@ export default function HomePage() {
           className="font-serif text-3xl font-bold tracking-tight md:text-4xl max-w-2xl"
           style={{ color: 'var(--text-on-dark)', lineHeight: 1.1 }}
         >
-          15+ módulos integrados.{' '}
+          25 módulos integrados.{' '}
           <span style={{ color: 'var(--text-on-dark-muted)' }}>Uma base integrada.</span>
         </h2>
 
@@ -378,19 +592,13 @@ export default function HomePage() {
             </span>
           </h2>
           <p className="mt-5 text-base leading-relaxed" style={{ color: 'var(--text-on-dark-secondary)' }}>
-            Comece gratuitamente. Mapa interativo e dados básicos de penetração sem cartão de crédito.
+            Estamos quase prontos. Entre na lista de espera para ser avisado no lançamento.
           </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/cadastro" className="pulso-btn-dark">
-              Criar conta gratuita
-            </Link>
-            <Link href="/precos" className="pulso-btn-ghost">
-              Ver planos
+          <div className="mt-8">
+            <Link href="/precos" className="pulso-btn-dark">
+              Entrar na lista de espera
             </Link>
           </div>
-          <p className="mt-5 font-mono text-xs" style={{ color: 'var(--text-on-dark-muted)' }}>
-            Plano gratuito permanente. Sem cartão de crédito.
-          </p>
         </div>
       </Section>
     </>

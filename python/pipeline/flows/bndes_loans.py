@@ -458,6 +458,7 @@ class BNDESLoansPipeline(BasePipeline):
         loaded = 0
         for _, row in data.iterrows():
             try:
+                cur.execute("SAVEPOINT row_sp")
                 cur.execute("""
                     INSERT INTO bndes_loans
                     (borrower_cnpj, borrower_name, provider_id, sector,
@@ -487,9 +488,10 @@ class BNDESLoansPipeline(BasePipeline):
                     row["source"],
                 ))
                 loaded += 1
+                cur.execute("RELEASE SAVEPOINT row_sp")
             except Exception as e:
                 logger.debug(f"Skipping BNDES loan row: {e}")
-                conn.rollback()
+                cur.execute("ROLLBACK TO SAVEPOINT row_sp")
 
         conn.commit()
         self.rows_inserted = loaded

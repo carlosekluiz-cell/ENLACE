@@ -206,6 +206,7 @@ class DOUAnatelPipeline(BasePipeline):
 
         for _, row in data.iterrows():
             try:
+                cur.execute("SAVEPOINT row_sp")
                 pub_date = row.get("published_date")
                 if isinstance(pub_date, str):
                     pub_date = pub_date[:10]
@@ -236,9 +237,10 @@ class DOUAnatelPipeline(BasePipeline):
                     str(row.get("source", "gazette_api")),
                 ))
                 loaded += 1
+                cur.execute("RELEASE SAVEPOINT row_sp")
             except Exception as e:
                 logger.warning(f"Failed to load regulatory act: {e}")
-                conn.rollback()
+                cur.execute("ROLLBACK TO SAVEPOINT row_sp")
 
         conn.commit()
         self.rows_inserted = loaded

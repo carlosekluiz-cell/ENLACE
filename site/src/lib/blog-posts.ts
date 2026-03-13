@@ -19,6 +19,100 @@ export interface BlogPost {
 
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: 'crescimento-banda-larga-interior-2026',
+    title: 'Crescimento de banda larga no interior: 10 cidades que mais que dobraram de tamanho em 12 meses',
+    excerpt:
+      'Cachoeira (BA) cresceu 351% em assinantes. Jaboticatubas (MG), 257%. Mapeamos os 10 municípios com maior explosão de banda larga em 2026 — e o que eles têm em comum.',
+    date: '2026-03-13',
+    author: 'Equipe Pulso',
+    content: `SLUG: crescimento-banda-larga-interior-2026
+EXCERPT: Cachoeira (BA) cresceu 351% em assinantes. Jaboticatubas (MG), 257%. Mapeamos os 10 municípios com maior explosão de banda larga em 2026 — e o que eles têm em comum.
+CATEGORY: Mercado
+TARGET_KEYWORD: crescimento banda larga interior 2026
+
+O crescimento de banda larga no interior do Brasil em 2026 não está acontecendo onde a maioria dos analistas espera. Enquanto capitais e regiões metropolitanas disputam market share em mercados saturados, municípios com menos de 80 mil habitantes estão registrando taxas de crescimento de assinantes que ultrapassam 100%, 200% — e em um caso, 351% em 12 meses. São números que desafiam qualquer projeção conservadora e que revelam uma segunda onda de expansão da internet fixa brasileira, desta vez liderada por provedores regionais em cidades que até ontem mal apareciam nas estatísticas.
+
+Os dados são da Anatel, referentes a janeiro de 2026: 54,4 milhões de assinantes de banda larga fixa, distribuídos entre 8.554 provedores ativos em 5.570 municípios. Por trás dessa média nacional, há histórias que merecem atenção.
+
+## Os 10 municípios que explodiram
+
+A tabela abaixo mostra os municípios com maior crescimento percentual de assinantes nos últimos 12 meses, considerando apenas cidades com pelo menos 1.000 assinantes no período anterior (para evitar distorções estatísticas de bases muito pequenas).
+
+| Município | UF | Assinantes jan/25 | Assinantes jan/26 | Crescimento |
+|-----------|----|-----------------:|-----------------:|------------:|
+| Cachoeira | BA | 1.295 | 5.841 | +351,0% |
+| Jaboticatubas | MG | 3.205 | 11.451 | +257,3% |
+| Madre de Deus | BA | 1.418 | 4.546 | +220,6% |
+| Pantano Grande | RS | 1.062 | 2.936 | +176,5% |
+| Patu | RN | 1.209 | 3.117 | +157,8% |
+| Martins | RN | 1.235 | 3.021 | +144,6% |
+| Tomé-Açu | PA | 10.422 | 24.629 | +136,3% |
+| São Luís do Quitunde | AL | 1.116 | 2.623 | +135,0% |
+| Anita Garibaldi | SC | 1.085 | 2.453 | +126,1% |
+| Itaitinga | CE | 5.708 | 12.863 | +125,4% |
+
+O dado mais impressionante: essas 10 cidades estão em 8 estados diferentes — Bahia, Minas Gerais, Rio Grande do Sul, Rio Grande do Norte, Pará, Alagoas, Santa Catarina e Ceará. Não se trata de um fenômeno regional. É uma tendência nacional.
+
+## O que essas cidades têm em comum
+
+Olhando os números com cuidado, três padrões emergem.
+
+**Primeiro: são cidades pequenas com demanda reprimida.** A maioria tem população entre 10 mil e 60 mil habitantes. São municípios onde, até 18 meses atrás, a oferta de banda larga fixa era escassa ou limitada a um único provedor com capacidade restrita. Quando um ISP regional entra com FTTH e preço competitivo, a adesão é explosiva — não por marketing, mas por falta de alternativa decente até então.
+
+**Segundo: a fibra está chegando onde o rádio dominava.** Cidades como Tomé-Açu (PA), que saltou de 10.422 para 24.629 assinantes, representam o momento em que a fibra óptica finalmente viabiliza capacidade suficiente para atender demanda que já existia. O rádio atendia uma fração. A fibra desbloqueou o restante. Nível nacional, os dados confirmam: municípios que lideram em adoção de fibra — como Itapoá (SC) com 99,5% de acessos via FTTH, ou Ribeirão das Neves (MG) com 89.397 assinantes de fibra em 89.981 totais — são também os que apresentam maior crescimento absoluto.
+
+**Terceiro: o crescimento vem em ondas geográficas.** Os dois municípios do Rio Grande do Norte (Patu e Martins) são vizinhos, separados por 25 km. Cachoeira e Madre de Deus ficam ambos no Recôncavo Baiano. Isso sugere que o crescimento segue a rota de expansão de redes regionais — um ISP chega em uma cidade, prova o modelo, e replica nas adjacentes.
+
+## O contexto: 54,4 milhões e contando
+
+O mercado brasileiro de banda larga fixa atingiu 54,4 milhões de assinantes em janeiro de 2026. Para colocar em perspectiva: são 8.554 provedores ativos disputando esse mercado. A média é de 6.363 assinantes por provedor — mas a mediana é muito menor, refletindo um mercado onde milhares de ISPs pequenos convivem com poucas dezenas de operações de grande porte.
+
+O ponto relevante: o crescimento líquido do mercado não está mais nas capitais. Está no interior. As grandes operadoras já cobriram as áreas rentáveis das regiões metropolitanas. Os ISPs regionais estão fazendo o trabalho pesado de levar conectividade para as próximas 2.000-3.000 cidades.
+
+## Fibra como catalisador: os municípios com 99%+ de adoção
+
+Os dados mostram que existe uma elite de municípios onde a transição para fibra é praticamente completa. Itapoá (SC) e Sarzedo (MG) lideram com 99,5% dos acessos em FTTH. Valparaíso de Goiás (GO), com 69.142 acessos de fibra em 69.595 totais, prova que o modelo escala mesmo em cidades maiores do entorno de capitais.
+
+O padrão é claro: quando fibra óptica ultrapassa 95% de participação em um município, o crescimento de base se acelera. Os assinantes que resistiam ao wireless de baixa velocidade migram. Novos domicílios que não tinham internet passam a contratar. E o churn cai, porque fibra gera satisfação — dado corroborado pela distribuição de selos de qualidade da Anatel: dos 83.619 selos atribuídos, 14.209 são ouro e 26.817 são prata. Provedores com rede predominantemente de fibra concentram 72% dos selos ouro.
+
+## Qualidade como diferencial competitivo
+
+Falando em selos, a fotografia atual é reveladora. Das 83.619 avaliações de qualidade da Anatel para provedores de banda larga, a distribuição é:
+
+- **Ouro:** 14.209 (17%)
+- **Prata:** 26.817 (32%)
+- **Bronze:** 16.033 (19%)
+- **Sem selo:** 26.560 (32%)
+
+Quase um terço dos provedores avaliados não tem selo de qualidade. Isso representa tanto um problema de mercado quanto uma oportunidade: ISPs que investem em qualidade (e fibra) podem se diferenciar em municípios onde a concorrência entrega serviço abaixo do padrão. Em cidades como as do ranking de crescimento, a entrada de um provedor com selo ouro ou prata é o que explica parte da migração massiva de assinantes.
+
+## O que está por trás dos 351% de Cachoeira
+
+Cachoeira, no Recôncavo Baiano, é um caso emblemático. Município histórico com 35 mil habitantes, a 110 km de Salvador. Em janeiro de 2025, tinha 1.295 assinantes de banda larga — penetração de aproximadamente 12%. Em 12 meses, saltou para 5.841 assinantes, penetração estimada de 53%.
+
+A explicação mais provável: um ISP regional implantou rede FTTH em 2025, oferecendo velocidades e preços que o mercado local nunca tinha visto. Quando a oferta desbloqueou a demanda latente, o crescimento foi vertical. Esse é o modelo que se repete em dezenas de municípios brasileiros a cada trimestre — e que os dados da Anatel capturam com 30 a 60 dias de atraso.
+
+Para ISPs que buscam replicar esse modelo, o desafio é identificar quais municípios estão "prontos" para esse desbloqueio — cidades com demanda reprimida, infraestrutura de postes viável e concorrência fraca.
+
+## Recomendação prática
+
+Se você opera um ISP regional e está planejando expansão em 2026, os dados sugerem três ações concretas:
+
+**1. Mapeie municípios adjacentes com penetração abaixo de 30%.** Os dados mostram que o crescimento segue rotas geográficas. Se você já opera em um município com boa base, as cidades vizinhas com baixa penetração são candidatas naturais — especialmente se a infraestrutura de postes permite extensão da sua rede existente.
+
+**2. Priorize fibra.** Municípios que atingiram 99%+ de participação de FTTH são os que mais crescem em base absoluta. O investimento inicial é maior, mas o payback é acelerado pela combinação de maior adesão, menor churn e elegibilidade para selo de qualidade Anatel.
+
+**3. Use dados, não intuição.** As 10 cidades deste ranking provavelmente não estavam no radar da maioria dos ISPs há 18 meses. Plataformas como a Pulso Network permitem filtrar os 5.570 municípios brasileiros por crescimento de mercado, penetração, HHI, perfil tecnológico e infraestrutura — cruzando 38+ fontes de dados públicos para revelar oportunidades que planilhas internas não capturam.
+
+O interior do Brasil está conectando-se a uma velocidade sem precedentes. A questão não é se essas oportunidades existem — os dados da Anatel provam que sim. A questão é quem vai chegar primeiro.
+
+---
+
+*Dados: Anatel — base de assinantes de banda larga fixa, referência janeiro/2026. Análise: Pulso Network, com base em 54,4 milhões de registros de assinantes e 8.554 provedores ativos.*`,
+    category: 'Mercado',
+    readingTime: '7 min',
+  },
+  {
     slug: 'top-50-municípios-oportunidade-isps-2026',
     title: 'Os 50 municípios com maior oportunidade para ISPs em 2026',
     excerpt:
@@ -280,6 +374,54 @@ A recomendação para ISPs em 2026: a fibra é inevitável como tecnologia princ
         type: 'callout',
         title: 'Por onde começar',
         content: 'Identifique municípios com score de oportunidade acima de 60 e penetração abaixo de 40% na sua região. O módulo Rural do Pulso cruza essas variáveis com elegibilidade para FUST e linhas do BNDES, calculando o payback estimado do projeto. Em média, projetos híbridos (fibra + rádio) em municípios de 10-30 mil habitantes atingem payback em 18-24 meses, assumindo ARPU de R$ 80 e taxa de adesão de 25% nos primeiros 12 meses.',
+      },
+    ],
+  },
+  {
+    slug: 'due-diligence-ma-dados-abertos',
+    title: 'Due diligence de M&A com dados abertos: dívidas, sócios e sanções',
+    excerpt:
+      'O Brasil tem os dados abertos mais completos do mundo para due diligence de ISPs. PGFN, Receita Federal, CEIS/CNEP e consumidor.gov.br — agora integrados no Pulso.',
+    date: '2026-03-12',
+    author: 'Equipe Pulso',
+    content: '',
+    category: 'M&A',
+    readingTime: '8 min',
+    sections: [
+      {
+        type: 'text',
+        content: 'Antes de comprar um ISP, você precisa saber o que está comprando. No Brasil, isso ficou dramaticamente mais fácil — se você souber onde olhar. A PGFN publica todas as dívidas fiscais federais. A Receita Federal divulga o quadro societário de todos os 56 milhões de CNPJs. O Portal da Transparência lista empresas sancionadas pelo governo. E o consumidor.gov.br registra todas as reclamações de consumidores contra operadoras de telecom.\n\nO Pulso integrou todas essas fontes e cruzou com a base de 13.534 ISPs da Anatel. O resultado é um dossiê de due diligence que antes custaria R$ 50-100 mil em consultoria — disponível em segundos.',
+      },
+      {
+        type: 'stat',
+        value: '261K+',
+        label: 'registros de dívida fiscal federal (PGFN) mapeados para provedores de telecom',
+        source: 'PGFN — Dívida Ativa da União (FGTS + Previdenciário + Não-Previdenciário)',
+      },
+      {
+        type: 'text',
+        content: 'O cruzamento mais revelador é a relação dívida/assinante. Um ISP com 1.000 assinantes e R$ 22 milhões em dívida fiscal federal tem uma relação de R$ 22.000 por assinante — isso torna qualquer aquisição inviável a menos que o comprador negocie uma reestruturação da dívida antes do closing. O Pulso calcula essa métrica automaticamente e classifica os ISPs por nível de risco tributário.',
+      },
+      {
+        type: 'table',
+        headers: ['Fonte', 'Registros', 'Cobertura', 'Atualização'],
+        rows: [
+          ['PGFN Dívida Ativa', '261.724', '10.740 empresas com dívida', 'Trimestral'],
+          ['Receita Federal Sócios', '783.003', '29.733 ISPs + empresas relacionadas', 'Mensal'],
+          ['Portal da Transparência', '13.534 verificados', 'CEIS + CNEP (sanções)', 'Semanal'],
+          ['consumidor.gov.br', 'Em carga', 'Reclamações telecom 2024-2026', 'Mensal'],
+          ['BrasilAPI CNPJ', '13.534', 'Detalhes cadastrais + QSA', 'Semanal'],
+        ],
+        caption: 'Fontes de due diligence integradas no Pulso',
+      },
+      {
+        type: 'text',
+        content: 'Outro achado crítico: a propriedade cruzada. Com os dados da Receita Federal, o Pulso mapeia automaticamente grupos econômicos — sócios que controlam múltiplos ISPs. O exemplo mais notável é um grupo com 16 ISPs sob controle indireto, distribuídos em 4 estados. Quando um consolidador avalia a compra de um desses ISPs, precisa saber que está comprando parte de uma rede maior — e que a dívida fiscal do grupo pode recair sobre cada empresa individualmente.\n\nO grafo de propriedade já mapeou 783 mil vínculos societários entre 29.733 ISPs e 388 mil empresas relacionadas. Isso permite identificar: (1) sócios que controlam ISPs concorrentes no mesmo município, (2) grupos familiares com exposição fiscal cruzada, e (3) empresas de fachada usadas para segregar ativos e passivos.',
+      },
+      {
+        type: 'callout',
+        title: 'Como usar no seu M&A',
+        content: 'O módulo M&A do Pulso agora inclui due diligence automatizada. Para qualquer ISP, você vê: dívidas fiscais PGFN (consolidadas e parceladas), sanções governamentais, reclamações de consumidores, quadro societário completo e empresas controladas pelos mesmos sócios. O Raio-X do Provedor (gratuito em raio-x.pulso.network) mostra um resumo — o relatório completo está disponível para assinantes.',
       },
     ],
   },

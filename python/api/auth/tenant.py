@@ -49,8 +49,20 @@ class Tenant:
 # ---------------------------------------------------------------------------
 PLAN_RATE_LIMITS = {
     "free": 30,
-    "pro": 120,
+    "starter": 60,
+    "provedor": 120,
+    "pro": 120,  # legacy alias
+    "profissional": 300,
     "enterprise": 600,
+}
+
+# Full plan config with credit allocations
+PLAN_CONFIG = {
+    "free": {"monthly_credits": 0, "rpm": 30},
+    "starter": {"monthly_credits": 3, "rpm": 60},
+    "provedor": {"monthly_credits": 10, "rpm": 120},
+    "profissional": {"monthly_credits": 50, "rpm": 300},
+    "enterprise": {"monthly_credits": -1, "rpm": 600},  # -1 = unlimited
 }
 
 

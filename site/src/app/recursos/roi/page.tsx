@@ -3,8 +3,9 @@ import Section from '@/components/ui/Section';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Calculadora de ROI — Pulso Network',
+  title: 'Calculadora de ROI',
   description: 'Retorno sobre investimento para provedores de internet: 3 casos de uso com ROI de 3,3x a 111x.',
+  alternates: { canonical: 'https://pulso.network/recursos/roi' },
 };
 
 export default function ROIPage() {
@@ -25,7 +26,7 @@ export default function ROIPage() {
           </h1>
           <p className="mt-5 text-base leading-relaxed max-w-2xl" style={{ color: 'var(--text-on-dark-secondary)' }}>
             Cada caso compara o custo da assinatura com o valor gerado ou perda evitada.
-            Dados reais: 13.534 provedores, 5.572 municípios, 4,1M registros de assinantes.
+            Dados reais: 13.534 provedores, 5.572 municípios, 28M+ registros de 30+ fontes públicas.
           </p>
         </div>
       </Section>
@@ -73,8 +74,8 @@ export default function ROIPage() {
             </h3>
             <ul className="space-y-3">
               {[
-                { step: 'Ranking de municípios', detail: '5.572 municípios por composite score' },
-                { step: 'Validação de mercado', detail: 'HHI, shares, tendência — confirmar oportunidade' },
+                { step: 'Ranking de municípios', detail: '5.572 municípios por composite score + Pulso Score' },
+                { step: 'Validação de mercado', detail: 'HHI, shares, tendência, risco climático — confirmar oportunidade' },
                 { step: 'Rota de fibra', detail: 'Dijkstra sobre 6,4M segmentos + BOM' },
                 { step: 'Análise financeira', detail: 'NPV, IRR, payback com 3 cenários' },
               ].map((item) => (
@@ -199,6 +200,7 @@ export default function ROIPage() {
                 { feature: 'Norma no. 4 multi-estado', result: 'Otimização ICMS blended' },
                 { feature: 'Quality check vs. thresholds', result: 'Identificação prévia de gaps' },
                 { feature: 'Calendário de deadlines', result: 'Alertas com urgência categorizada' },
+                { feature: 'Obrigações 5G + Espectro', result: 'Monitoramento de obrigações regulatórias 5G' },
               ].map((item) => (
                 <li key={item.feature} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                   <span className="mt-0.5 text-xs" style={{ color: 'var(--success)' }}>&#10003;</span>
@@ -277,7 +279,7 @@ export default function ROIPage() {
                 { feature: 'Target discovery', result: '50+ targets rankeados — 30 segundos' },
                 { feature: '3 métodos de valuation', result: 'Subscriber, revenue, DCF — 5s/target' },
                 { feature: 'Enriquecimento CNPJ', result: 'Capital social, socios, CNAE — automático' },
-                { feature: 'Contratos + BNDES', result: 'Histórico governamental integrado' },
+                { feature: 'Contratos + BNDES + Gazetas', result: 'Histórico governamental + menções em 60.500+ diários oficiais' },
               ].map((item) => (
                 <li key={item.feature} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                   <span className="mt-0.5 text-xs" style={{ color: 'var(--success)' }}>&#10003;</span>
@@ -329,6 +331,7 @@ export default function ROIPage() {
                 { aspect: 'Métodos de avaliação', manual: '1 método', pulso: '3 métodos' },
                 { aspect: 'Enriquecimento CNPJ', manual: 'Manual, 5 dias', pulso: 'Automático' },
                 { aspect: 'Risco de perder melhor target', manual: 'Alto', pulso: 'Mínimo' },
+                { aspect: 'Inteligência regulatória', manual: 'Manual', pulso: '149 atos + 60K gazetas' },
               ].map((row) => (
                 <tr key={row.aspect} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{row.aspect}</td>
@@ -405,8 +408,8 @@ export default function ROIPage() {
             <span style={{ color: 'var(--text-on-dark-muted)' }}>Comece gratuitamente.</span>
           </h2>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/cadastro" className="pulso-btn-dark">
-              Criar conta gratuita
+            <Link href="/precos" className="pulso-btn-dark">
+              Entrar na lista de espera
             </Link>
             <Link href="/recursos" className="pulso-btn-ghost">
               Voltar a recursos

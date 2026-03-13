@@ -1,0 +1,36 @@
+# Enlace Pipeline Cron Schedule
+# Install with: crontab /home/dev/enlace/python/pipeline/crontab.txt
+# All times in UTC (server timezone)
+
+# Daily at 02:00 — Anatel telecom data (providers, broadband, base stations, quality)
+0 2 * * * cd /home/dev/enlace && /usr/bin/python3 -c "from python.pipeline.scheduler import run_daily_telecom; run_daily_telecom()" >> /home/dev/enlace/logs/daily-telecom.log 2>&1
+
+# Daily at 02:30 — Intelligence (PNCP contracts, DOU regulatory, Querido Diário gazettes)
+30 2 * * * cd /home/dev/enlace && /usr/bin/python3 -c "from python.pipeline.scheduler import run_daily_intelligence; run_daily_intelligence()" >> /home/dev/enlace/logs/daily-intelligence.log 2>&1
+
+# Daily at 03:00 — INMET weather observations
+0 3 * * * cd /home/dev/enlace && /usr/bin/python3 -c "from python.pipeline.scheduler import run_daily_weather; run_daily_weather()" >> /home/dev/enlace/logs/daily-weather.log 2>&1
+
+# Weekly Sundays at 04:00 — Economic data (IBGE PIB, projections, POF, ANP fuel, ANEEL power, SNIS sanitation, BNDES loans)
+0 4 * * 0 cd /home/dev/enlace && /usr/bin/python3 -c "from python.pipeline.scheduler import run_weekly_economic; run_weekly_economic()" >> /home/dev/enlace/logs/weekly-economic.log 2>&1
+
+# Weekly Sundays at 04:30 — Enrichment (CNPJ, RQUAL quality seals, FUST spending)
+30 4 * * 0 cd /home/dev/enlace && /usr/bin/python3 -c "from python.pipeline.scheduler import run_weekly_enrichment; run_weekly_enrichment()" >> /home/dev/enlace/logs/weekly-enrichment.log 2>&1
+
+# Weekly Wednesdays at 05:00 — Due diligence (sanctions screening via Portal da Transparência)
+0 5 * * 3 cd /home/dev/enlace && /usr/bin/python3 -c "from python.pipeline.scheduler import run_weekly_due_diligence; run_weekly_due_diligence()" >> /home/dev/enlace/logs/weekly-due-diligence.log 2>&1
+
+# Monthly 1st at 05:00 — Geographic + infrastructure + social (Census, SRTM, MapBiomas, OSM, Backhaul, DATASUS, INEP, MUNIC, CNEFE, CAGED, Atlas Violencia)
+0 5 1 * * cd /home/dev/enlace && /usr/bin/python3 -c "from python.pipeline.scheduler import run_monthly_geographic; run_monthly_geographic()" >> /home/dev/enlace/logs/monthly-geographic.log 2>&1
+
+# Monthly 1st at 06:00 — Sentinel-2 urban growth
+0 6 1 * * cd /home/dev/enlace && /usr/bin/python3 -c "from python.pipeline.scheduler import run_monthly_sentinel; run_monthly_sentinel()" >> /home/dev/enlace/logs/monthly-sentinel.log 2>&1
+
+# Monthly 15th at 05:00 — Due diligence (consumer complaints, RF ownership graph, OpenCelliD towers)
+0 5 15 * * cd /home/dev/enlace && /usr/bin/python3 -c "from python.pipeline.scheduler import run_monthly_due_diligence; run_monthly_due_diligence()" >> /home/dev/enlace/logs/monthly-due-diligence.log 2>&1
+
+# Quarterly 1st Jan/Apr/Jul/Oct at 07:00 — PGFN federal tax debts (large downloads ~8GB)
+0 7 1 1,4,7,10 * cd /home/dev/enlace && /usr/bin/python3 -c "from python.pipeline.scheduler import run_quarterly_pgfn; run_quarterly_pgfn()" >> /home/dev/enlace/logs/quarterly-pgfn.log 2>&1
+
+# Daily Mon-Sat at 08:00 — Marketing content agent (LinkedIn, blog, weekly report)
+0 8 * * 1-6 cd /home/dev/enlace && /usr/bin/python3 scripts/marketing_agent.py auto >> /home/dev/enlace/logs/marketing-agent.log 2>&1

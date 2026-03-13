@@ -2,8 +2,9 @@ import type { Metadata } from 'next';
 import Section from '@/components/ui/Section';
 
 export const metadata: Metadata = {
-  title: 'Termos de Uso — Pulso Network',
+  title: 'Termos de Uso',
   description: 'Termos de uso da plataforma Pulso Network.',
+  alternates: { canonical: 'https://pulso.network/termos' },
 };
 
 export default function TermosPage() {

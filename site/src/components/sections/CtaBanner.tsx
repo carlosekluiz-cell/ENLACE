@@ -11,8 +11,8 @@ export default function CtaBanner() {
           Comece gratuitamente. Sem cartão de crédito, sem compromisso.
         </p>
         <div className="mt-6">
-          <Link href="/cadastro" className="pulso-btn-primary">
-            Criar conta gratuita
+          <Link href="/precos" className="pulso-btn-primary">
+            Entrar na lista de espera
           </Link>
         </div>
       </div>

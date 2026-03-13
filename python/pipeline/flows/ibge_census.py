@@ -182,14 +182,16 @@ class IBGECensusPipeline(BasePipeline):
         for _, row in states_df.iterrows():
             if row["geom_json"]:
                 try:
+                    cur.execute("SAVEPOINT row_sp")
                     cur.execute("""
                         UPDATE admin_level_1
                         SET geom = ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326))
                         WHERE code = %s AND country_code = 'BR'
                     """, (row["geom_json"], row["code"]))
+                    cur.execute("RELEASE SAVEPOINT row_sp")
                 except Exception as e:
                     logger.warning(f"Could not set boundary for state {row['code']}: {e}")
-                    conn.rollback()
+                    cur.execute("ROLLBACK TO SAVEPOINT row_sp")
         conn.commit()
 
         # Build state code -> l1_id map

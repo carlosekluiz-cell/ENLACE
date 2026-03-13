@@ -19,9 +19,26 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
   const { slug } = await params;
   const post = BLOG_POSTS.find((p) => p.slug === slug);
   if (!post) return { title: 'Post não encontrado — Pulso Network' };
+  const url = `https://pulso.network/blog/${post.slug}`;
   return {
     title: `${post.title} — Pulso Network`,
     description: post.excerpt,
+    alternates: { canonical: url },
+    openGraph: {
+      title: post.title,
+      description: post.excerpt,
+      url,
+      siteName: 'Pulso Network',
+      type: 'article',
+      publishedTime: post.date,
+      authors: [post.author],
+      locale: 'pt_BR',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.title,
+      description: post.excerpt,
+    },
   };
 }
 
@@ -30,8 +47,27 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const post = BLOG_POSTS.find((p) => p.slug === slug);
   if (!post) notFound();
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.title,
+    description: post.excerpt,
+    datePublished: post.date,
+    author: { '@type': 'Organization', name: post.author || 'Pulso Network' },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Pulso Network',
+      url: 'https://pulso.network',
+    },
+    mainEntityOfPage: `https://pulso.network/blog/${post.slug}`,
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Header — Dark */}
       <Section background="dark" grain hero>
         <div className="max-w-3xl">
@@ -106,8 +142,8 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             <span style={{ color: 'var(--text-on-dark-muted)' }}>Acesso gratuito.</span>
           </h2>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/cadastro" className="pulso-btn-dark">
-              Criar conta gratuita
+            <Link href="/precos" className="pulso-btn-dark">
+              Entrar na lista de espera
             </Link>
             <Link href="/blog" className="pulso-btn-ghost">
               Mais artigos &rarr;

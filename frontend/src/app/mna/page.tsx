@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import SimpleChart from '@/components/charts/SimpleChart';
 import DataTable from '@/components/dashboard/DataTable';
 import { useLazyApi, useApi } from '@/hooks/useApi';
-import { api } from '@/lib/api';
+import { api, fetchApi } from '@/lib/api';
 import type {
   ValuationResponse,
   AcquisitionTarget,
@@ -29,6 +29,7 @@ import {
   ShieldAlert,
   BarChart3,
   Radio,
+  Search,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -66,7 +67,7 @@ const BRAZILIAN_STATES = [
   { value: 'TO', label: 'Tocantins' },
 ];
 
-type TabKey = 'valuation' | 'targets' | 'seller' | 'market' | 'espectro';
+type TabKey = 'valuation' | 'targets' | 'seller' | 'market' | 'espectro' | 'dossier';
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'valuation', label: 'Valuation', icon: <Calculator size={16} /> },
@@ -74,6 +75,7 @@ const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'seller', label: 'Preparação p/ Venda', icon: <FileText size={16} /> },
   { key: 'market', label: 'Visão de Mercado', icon: <TrendingUp size={16} /> },
   { key: 'espectro', label: 'Espectro', icon: <Radio size={16} /> },
+  { key: 'dossier', label: 'Due Diligence', icon: <ShieldAlert size={16} /> },
 ];
 
 // ---------------------------------------------------------------------------
@@ -943,6 +945,631 @@ function EspectroTab() {
 }
 
 // ---------------------------------------------------------------------------
+// TAB 6 : Due Diligence Dossier
+// ---------------------------------------------------------------------------
+
+interface DossierProvider {
+  id: number;
+  name: string;
+  national_id: string | null;
+}
+
+interface DossierRegistration {
+  legal_name: string | null;
+  trade_name: string | null;
+  legal_nature: string | null;
+  capital_social: number | null;
+  founding_date: string | null;
+  status: string | null;
+  partner_count: number | null;
+  address_city: string | null;
+  address_state: string | null;
+  cnae_primary: string | null;
+}
+
+interface DossierTaxDebts {
+  total_brl: number;
+  count: number;
+  by_type: Record<string, { count: number; total_brl: number }>;
+  with_legal_action: number;
+}
+
+interface DossierPartner {
+  name: string;
+  document: string | null;
+  type: string | null;
+  role: string | null;
+}
+
+interface DossierRelatedCompany {
+  cnpj_root: string | null;
+  name: string | null;
+  type: string | null;
+}
+
+interface DossierOwnership {
+  partners: DossierPartner[];
+  related_companies: DossierRelatedCompany[];
+  related_isps: number;
+}
+
+interface DossierSanctionEntry {
+  list_type: string | null;
+  sanction_type: string | null;
+  sanctioning_authority: string | null;
+  process_number: string | null;
+  start_date: string | null;
+  end_date: string | null;
+}
+
+interface DossierSanctions {
+  active: DossierSanctionEntry[];
+  expired: DossierSanctionEntry[];
+  has_active: boolean;
+}
+
+interface DossierComplaints {
+  total: number;
+  avg_satisfaction: number | null;
+  by_category: Record<string, number>;
+  monthly_trend: { month: string; count: number; avg_satisfaction: number | null }[];
+}
+
+interface DossierRiskSummary {
+  level: string;
+  flags: string[];
+}
+
+interface DossierResult {
+  provider: DossierProvider;
+  subscribers: { total: number; municipalities: number; states: string[] };
+  registration: DossierRegistration;
+  tax_debts: DossierTaxDebts;
+  ownership: DossierOwnership;
+  sanctions: DossierSanctions;
+  complaints: DossierComplaints;
+  risk_summary: DossierRiskSummary;
+  error?: string;
+}
+
+interface ProviderMatch {
+  provider_id: number;
+  name: string;
+}
+
+function debtRiskColor(total: number): string {
+  if (total > 1_000_000) return 'var(--danger)';
+  if (total > 100_000) return 'var(--warning)';
+  return 'var(--success)';
+}
+
+function debtRiskBadge(total: number): { cls: string; label: string } {
+  if (total > 1_000_000) return { cls: 'pulso-badge-red', label: 'Alto' };
+  if (total > 100_000) return { cls: 'pulso-badge-yellow', label: 'Moderado' };
+  return { cls: 'pulso-badge-green', label: 'Baixo' };
+}
+
+function DossierTab() {
+  const [searchName, setSearchName] = useState('');
+  const [matches, setMatches] = useState<ProviderMatch[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  const [selectedProvider, setSelectedProvider] = useState<{ id: number; name: string } | null>(null);
+
+  const {
+    data: dossier,
+    loading: dossierLoading,
+    error: dossierError,
+    execute: fetchDossier,
+  } = useLazyApi<DossierResult, number>(
+    useCallback(
+      (providerId: number) =>
+        fetchApi<DossierResult>(`/api/v1/mna/due-diligence-dossier?provider_id=${providerId}`),
+      []
+    )
+  );
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchName.trim()) return;
+
+    setSearching(true);
+    setSearchError(null);
+    setMatches(null);
+    setSelectedProvider(null);
+
+    try {
+      const result = await fetchApi<any>('/api/v1/mna/due-diligence', {
+        method: 'POST',
+        body: JSON.stringify({ target_provider_name: searchName.trim() }),
+      });
+
+      // If the endpoint returns matches (ambiguous), show selection
+      if (result.error && result.matches) {
+        setMatches(result.matches);
+      } else if (result.error) {
+        setSearchError(result.error);
+      } else if (result.target_provider_id) {
+        // Resolved successfully — fetch dossier
+        const pid = result.target_provider_id;
+        const pname = result.target_provider_name || searchName;
+        setSelectedProvider({ id: pid, name: pname });
+        fetchDossier(pid);
+      } else {
+        // Fallback: result may contain a provider directly
+        setSearchError('Nenhum provedor encontrado com este nome.');
+      }
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : 'Erro na busca');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleSelectMatch = (match: ProviderMatch) => {
+    setMatches(null);
+    setSelectedProvider({ id: match.provider_id, name: match.name });
+    fetchDossier(match.provider_id);
+  };
+
+  const reg = dossier?.registration;
+  const debts = dossier?.tax_debts;
+  const ownership = dossier?.ownership;
+  const sanctions = dossier?.sanctions;
+  const complaints = dossier?.complaints;
+  const risk = dossier?.risk_summary;
+
+  return (
+    <div className="space-y-6">
+      {(searchError || dossierError) && (
+        <ErrorBanner message={searchError || dossierError || 'Erro desconhecido'} />
+      )}
+
+      {/* Search form */}
+      <form onSubmit={handleSearch} className="pulso-card">
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+          <ShieldAlert size={20} style={{ color: 'var(--accent)' }} />
+          Due Diligence — Dossiê do Provedor
+        </h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="sm:col-span-3">
+            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+              Nome do Provedor *
+            </label>
+            <input
+              type="text"
+              required
+              className="pulso-input w-full"
+              placeholder="Ex: Brisanet, Algar, Desktop..."
+              value={searchName}
+              onChange={(e) => setSearchName(e.target.value)}
+            />
+            <p className="mt-0.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              Busca por nome — selecione se houver mais de um resultado
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end">
+          <button type="submit" disabled={searching || dossierLoading} className="pulso-btn-primary flex items-center gap-2">
+            <Search size={16} />
+            {searching ? 'Buscando...' : 'Buscar Dossiê'}
+          </button>
+        </div>
+      </form>
+
+      {/* Disambiguation: multiple matches */}
+      {matches && matches.length > 0 && (
+        <div className="pulso-card">
+          <h3 className="mb-3 text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
+            Múltiplos provedores encontrados — selecione um:
+          </h3>
+          <div className="space-y-2">
+            {matches.map((m) => (
+              <button
+                key={m.provider_id}
+                onClick={() => handleSelectMatch(m)}
+                className="flex w-full items-center justify-between rounded-lg px-4 py-3 text-left transition-colors hover:bg-[var(--bg-subtle)]"
+                style={{ border: '1px solid var(--border)' }}
+              >
+                <div>
+                  <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{m.name}</span>
+                  <span className="ml-2 text-xs" style={{ color: 'var(--text-muted)' }}>ID {m.provider_id}</span>
+                </div>
+                <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Loading state */}
+      {dossierLoading && (
+        <div className="pulso-card text-center">
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Carregando dossiê...</p>
+        </div>
+      )}
+
+      {/* Dossier results */}
+      {dossier && !dossier.error && (
+        <div className="space-y-6">
+          {/* Header card: provider + subscribers + risk summary */}
+          <div className="pulso-card" style={{ border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)' }}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
+                  {dossier.provider.name}
+                </h3>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  ID {dossier.provider.id}
+                  {dossier.provider.national_id && ` | CNPJ ${dossier.provider.national_id}`}
+                </p>
+                <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  {formatNumber(dossier.subscribers.total)} assinantes em {formatNumber(dossier.subscribers.municipalities)} municípios
+                  {dossier.subscribers.states.length > 0 && ` (${dossier.subscribers.states.join(', ')})`}
+                </p>
+              </div>
+              {risk && (
+                <span
+                  className={clsx(
+                    'rounded-full px-4 py-1.5 text-sm font-semibold',
+                    riskBadgeClass(risk.level)
+                  )}
+                >
+                  Risco {riskLabel(risk.level)}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Section 1: Company Info (Registration) */}
+          <div className="pulso-card">
+            <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              <Building2 size={16} style={{ color: 'var(--accent)' }} />
+              Dados Cadastrais
+            </h4>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <DetailRow label="Razão Social" value={reg?.legal_name || '--'} />
+              <DetailRow label="Nome Fantasia" value={reg?.trade_name || '--'} />
+              <DetailRow label="CNAE Principal" value={reg?.cnae_primary || '--'} />
+              <DetailRow label="Natureza Jurídica" value={reg?.legal_nature || '--'} />
+              <DetailRow label="Data de Fundação" value={reg?.founding_date || '--'} />
+              <DetailRow label="Capital Social" value={reg?.capital_social != null ? formatBRL(reg.capital_social) : '--'} />
+              <DetailRow label="Status" value={reg?.status || '--'} />
+              <DetailRow label="Localização" value={reg?.address_city && reg?.address_state ? `${reg.address_city}/${reg.address_state}` : '--'} />
+            </div>
+          </div>
+
+          {/* Section 2: Tax Debts */}
+          <div className="pulso-card">
+            <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              <DollarSign size={16} style={{ color: 'var(--danger)' }} />
+              Débitos Tributários
+            </h4>
+            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="rounded-lg p-4 text-center" style={{ backgroundColor: 'var(--bg-subtle)' }}>
+                <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Dívida Total</p>
+                <p className="mt-1 text-2xl font-bold" style={{ color: debtRiskColor(debts?.total_brl ?? 0) }}>
+                  {formatBRL(debts?.total_brl ?? 0)}
+                </p>
+              </div>
+              <div className="rounded-lg p-4 text-center" style={{ backgroundColor: 'var(--bg-subtle)' }}>
+                <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Qtd. Débitos</p>
+                <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+                  {formatNumber(debts?.count ?? 0)}
+                </p>
+              </div>
+              <div className="rounded-lg p-4 text-center" style={{ backgroundColor: 'var(--bg-subtle)' }}>
+                <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Ações Judiciais</p>
+                <p className="mt-1 text-2xl font-bold" style={{ color: (debts?.with_legal_action ?? 0) > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                  {formatNumber(debts?.with_legal_action ?? 0)}
+                </p>
+              </div>
+            </div>
+
+            {debts && Object.keys(debts.by_type).length > 0 && (
+              <div>
+                <SectionLabel>Detalhamento por Tipo</SectionLabel>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th className="px-3 py-2 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Tipo</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Quantidade</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Valor (R$)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(debts.by_type).map(([type, info]) => (
+                        <tr key={type} className="transition-colors hover:bg-[var(--bg-subtle)]" style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td className="px-3 py-2 font-medium" style={{ color: 'var(--text-primary)' }}>{type}</td>
+                          <td className="px-3 py-2 text-right" style={{ color: 'var(--text-secondary)' }}>{formatNumber(info.count)}</td>
+                          <td className="px-3 py-2 text-right font-medium" style={{ color: 'var(--danger)' }}>{formatBRL(info.total_brl)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {debts && Object.keys(debts.by_type).length === 0 && (
+              <p className="text-center text-sm" style={{ color: 'var(--text-muted)' }}>Nenhum débito tributário encontrado.</p>
+            )}
+
+            <div className="mt-3 flex justify-end">
+              <span className={clsx('rounded px-2 py-0.5 text-xs font-medium', debtRiskBadge(debts?.total_brl ?? 0).cls)}>
+                Risco Tributário: {debtRiskBadge(debts?.total_brl ?? 0).label}
+              </span>
+            </div>
+          </div>
+
+          {/* Section 3: Ownership Structure */}
+          <div className="pulso-card">
+            <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              <Users size={16} className="text-purple-400" />
+              Estrutura Societária
+            </h4>
+
+            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="rounded-lg p-4 text-center" style={{ backgroundColor: 'var(--bg-subtle)' }}>
+                <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Sócios</p>
+                <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+                  {formatNumber(ownership?.partners.length ?? 0)}
+                </p>
+              </div>
+              <div className="rounded-lg p-4 text-center" style={{ backgroundColor: 'var(--bg-subtle)' }}>
+                <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>ISPs Relacionados</p>
+                <p className="mt-1 text-2xl font-bold" style={{ color: (ownership?.related_isps ?? 0) > 0 ? 'var(--warning)' : 'var(--text-primary)' }}>
+                  {formatNumber(ownership?.related_isps ?? 0)}
+                </p>
+                {(ownership?.related_isps ?? 0) > 0 && (
+                  <p className="mt-0.5 text-[10px]" style={{ color: 'var(--warning)' }}>Atenção: grupo econômico</p>
+                )}
+              </div>
+            </div>
+
+            {ownership && ownership.partners.length > 0 && (
+              <div className="mb-4">
+                <SectionLabel>Quadro Societário</SectionLabel>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th className="px-3 py-2 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Nome</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Cargo</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Tipo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ownership.partners.map((p, i) => (
+                        <tr key={i} className="transition-colors hover:bg-[var(--bg-subtle)]" style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td className="px-3 py-2 font-medium" style={{ color: 'var(--text-primary)' }}>{p.name}</td>
+                          <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>{p.role || '--'}</td>
+                          <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>
+                            <span className={clsx('rounded px-2 py-0.5 text-[10px] font-medium', p.type === 'PJ' ? 'pulso-badge-yellow' : 'pulso-badge-green')}>
+                              {p.type || '--'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {ownership && ownership.related_companies.length > 0 && (
+              <div>
+                <SectionLabel>Empresas Relacionadas</SectionLabel>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th className="px-3 py-2 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Empresa</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>CNPJ Raiz</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Tipo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ownership.related_companies.map((rc, i) => (
+                        <tr key={i} className="transition-colors hover:bg-[var(--bg-subtle)]" style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td className="px-3 py-2 font-medium" style={{ color: 'var(--text-primary)' }}>{rc.name || '--'}</td>
+                          <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>{rc.cnpj_root || '--'}</td>
+                          <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>{rc.type || '--'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {ownership && ownership.partners.length === 0 && ownership.related_companies.length === 0 && (
+              <p className="text-center text-sm" style={{ color: 'var(--text-muted)' }}>Nenhum dado societário encontrado.</p>
+            )}
+          </div>
+
+          {/* Section 4: Sanctions */}
+          <div className="pulso-card">
+            <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              <AlertTriangle size={16} style={{ color: sanctions?.has_active ? 'var(--danger)' : 'var(--success)' }} />
+              Sanções
+            </h4>
+
+            {sanctions?.has_active && (
+              <div
+                className="mb-4 flex items-center gap-3 rounded-lg border px-4 py-3"
+                style={{
+                  borderColor: 'color-mix(in srgb, var(--danger) 30%, transparent)',
+                  backgroundColor: 'color-mix(in srgb, var(--danger) 10%, transparent)',
+                }}
+              >
+                <AlertTriangle size={18} className="shrink-0" style={{ color: 'var(--danger)' }} />
+                <p className="text-sm font-medium" style={{ color: 'var(--danger)' }}>
+                  {sanctions.active.length} sanção(ões) ativa(s) — risco elevado
+                </p>
+              </div>
+            )}
+
+            {sanctions && sanctions.active.length > 0 && (
+              <div className="mb-4">
+                <SectionLabel>Sanções Ativas</SectionLabel>
+                <div className="space-y-2">
+                  {sanctions.active.map((s, i) => (
+                    <div key={i} className="rounded-lg border px-4 py-3" style={{ borderColor: 'color-mix(in srgb, var(--danger) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--danger) 5%, transparent)' }}>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{s.sanction_type || s.list_type || 'Sanção'}</p>
+                          {s.sanctioning_authority && <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Órgão: {s.sanctioning_authority}</p>}
+                          {s.process_number && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Processo: {s.process_number}</p>}
+                        </div>
+                        <span className="rounded px-2 py-0.5 text-[10px] font-medium pulso-badge-red">Ativa</span>
+                      </div>
+                      <div className="mt-1 flex gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        {s.start_date && <span>Início: {s.start_date}</span>}
+                        {s.end_date && <span>Fim: {s.end_date}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {sanctions && sanctions.expired.length > 0 && (
+              <div>
+                <SectionLabel>Sanções Expiradas</SectionLabel>
+                <div className="space-y-2">
+                  {sanctions.expired.map((s, i) => (
+                    <div key={i} className="rounded-lg px-4 py-3" style={{ backgroundColor: 'var(--bg-subtle)' }}>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{s.sanction_type || s.list_type || 'Sanção'}</p>
+                          {s.sanctioning_authority && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Órgão: {s.sanctioning_authority}</p>}
+                        </div>
+                        <span className="rounded px-2 py-0.5 text-[10px] font-medium pulso-badge-green">Expirada</span>
+                      </div>
+                      <div className="mt-1 flex gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        {s.start_date && <span>Início: {s.start_date}</span>}
+                        {s.end_date && <span>Fim: {s.end_date}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {sanctions && !sanctions.has_active && sanctions.expired.length === 0 && (
+              <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--success)' }}>
+                <CheckCircle2 size={16} />
+                Nenhuma sanção encontrada — situação limpa.
+              </div>
+            )}
+          </div>
+
+          {/* Section 5: Consumer Complaints */}
+          <div className="pulso-card">
+            <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              <Briefcase size={16} className="text-amber-400" />
+              Reclamações de Consumidores
+            </h4>
+
+            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="rounded-lg p-4 text-center" style={{ backgroundColor: 'var(--bg-subtle)' }}>
+                <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Total de Reclamações</p>
+                <p className="mt-1 text-2xl font-bold" style={{ color: (complaints?.total ?? 0) > 100 ? 'var(--danger)' : 'var(--text-primary)' }}>
+                  {formatNumber(complaints?.total ?? 0)}
+                </p>
+              </div>
+              <div className="rounded-lg p-4 text-center" style={{ backgroundColor: 'var(--bg-subtle)' }}>
+                <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Satisfação Média</p>
+                <p className="mt-1 text-2xl font-bold" style={{ color: complaints?.avg_satisfaction != null ? (complaints.avg_satisfaction >= 3 ? 'var(--success)' : complaints.avg_satisfaction >= 2 ? 'var(--warning)' : 'var(--danger)') : 'var(--text-primary)' }}>
+                  {complaints?.avg_satisfaction != null ? `${complaints.avg_satisfaction.toFixed(1)}/5` : '--'}
+                </p>
+              </div>
+            </div>
+
+            {complaints && Object.keys(complaints.by_category).length > 0 && (
+              <div>
+                <SectionLabel>Por Categoria</SectionLabel>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th className="px-3 py-2 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Categoria</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Quantidade</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(complaints.by_category)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([cat, count]) => (
+                          <tr key={cat} className="transition-colors hover:bg-[var(--bg-subtle)]" style={{ borderBottom: '1px solid var(--border)' }}>
+                            <td className="px-3 py-2 font-medium" style={{ color: 'var(--text-primary)' }}>{cat}</td>
+                            <td className="px-3 py-2 text-right" style={{ color: 'var(--text-secondary)' }}>{formatNumber(count)}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {complaints && complaints.total === 0 && (
+              <p className="text-center text-sm" style={{ color: 'var(--text-muted)' }}>Nenhuma reclamação encontrada.</p>
+            )}
+          </div>
+
+          {/* Section 6: Risk Summary */}
+          {risk && (
+            <div className="pulso-card" style={{ border: `1px solid color-mix(in srgb, ${risk.level === 'high' ? 'var(--danger)' : risk.level === 'medium' ? 'var(--warning)' : 'var(--success)'} 30%, transparent)` }}>
+              <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                <ShieldAlert size={16} style={{ color: risk.level === 'high' ? 'var(--danger)' : risk.level === 'medium' ? 'var(--warning)' : 'var(--success)' }} />
+                Resumo de Risco
+              </h4>
+
+              <div className="mb-4 flex items-center gap-3">
+                <span
+                  className={clsx(
+                    'rounded-full px-4 py-1.5 text-sm font-semibold',
+                    riskBadgeClass(risk.level)
+                  )}
+                >
+                  Nível: {riskLabel(risk.level)}
+                </span>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {risk.flags.length} alerta{risk.flags.length !== 1 ? 's' : ''} identificado{risk.flags.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {risk.flags.length > 0 ? (
+                <ul className="space-y-2">
+                  {risk.flags.map((flag, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      <AlertTriangle size={14} className="mt-0.5 shrink-0" style={{ color: 'var(--danger)' }} />
+                      {flag}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--success)' }}>
+                  <CheckCircle2 size={16} />
+                  Nenhum alerta de risco identificado — provedor em boa situação.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {dossier && dossier.error && (
+        <ErrorBanner message={dossier.error} />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // MAIN PAGE
 // ---------------------------------------------------------------------------
 
@@ -983,6 +1610,7 @@ export default function MnaPage() {
       {activeTab === 'seller' && <SellerTab />}
       {activeTab === 'market' && <MarketTab />}
       {activeTab === 'espectro' && <EspectroTab />}
+      {activeTab === 'dossier' && <DossierTab />}
     </div>
   );
 }

@@ -2,8 +2,9 @@ import type { Metadata } from 'next';
 import Section from '@/components/ui/Section';
 
 export const metadata: Metadata = {
-  title: 'Política de Privacidade — Pulso Network',
+  title: 'Política de Privacidade',
   description: 'Política de privacidade e conformidade LGPD da plataforma Pulso Network.',
+  alternates: { canonical: 'https://pulso.network/privacidade' },
 };
 
 export default function PrivacidadePage() {

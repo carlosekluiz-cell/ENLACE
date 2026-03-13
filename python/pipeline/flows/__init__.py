@@ -34,3 +34,10 @@ from python.pipeline.flows.atlas_violencia import AtlasViolenciaPipeline
 from python.pipeline.flows.dou_anatel import DOUAnatelPipeline
 from python.pipeline.flows.querido_diario import QueridoDiarioPipeline
 from python.pipeline.flows.ibge_cnefe import IBGECNEFEPipeline
+
+# --- M&A Due Diligence sources ---
+from python.pipeline.flows.pgfn_divida_ativa import PGFNDividaAtivaPipeline
+from python.pipeline.flows.sanctions_check import SanctionsCheckPipeline
+from python.pipeline.flows.consumer_complaints import ConsumerComplaintsPipeline
+from python.pipeline.flows.rf_ownership import RFOwnershipPipeline
+from python.pipeline.flows.opencellid import OpenCelliDPipeline

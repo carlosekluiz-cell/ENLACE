@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Section from '@/components/ui/Section';
-import { ArrowRight, Loader2, Map, Users, BarChart3, Activity } from 'lucide-react';
+import { ArrowRight, Loader2, Map, Users, BarChart3, Activity, Play, Pause, Clock } from 'lucide-react';
 
 /* =================================================================
    Types
@@ -33,6 +33,35 @@ interface MapaResponse {
   meta: MapaMeta;
 }
 
+// Historical types
+interface HistMuniPoint {
+  s: number;   // subscribers (blinded)
+  p: number;   // providers
+  h: number;   // hhi
+  n: number;   // penetration
+}
+
+interface HistMunicipality {
+  lat: number;
+  lng: number;
+  uf: string;
+  pop: number;
+  history: HistMuniPoint[];
+}
+
+interface HistPeriodStats {
+  period: string;
+  total_subs: number;
+  avg_penetration: number;
+  municipalities_with_data: number;
+}
+
+interface HistResponse {
+  periods: string[];
+  period_stats: HistPeriodStats[];
+  municipalities: HistMunicipality[];
+}
+
 type ViewMode = 'penetration' | 'hhi' | 'providers';
 
 /* =================================================================
@@ -40,6 +69,7 @@ type ViewMode = 'penetration' | 'hhi' | 'providers';
    ================================================================= */
 
 const API_URL = 'https://api.pulso.network/api/v1/public/mapa';
+const API_HIST_URL = 'https://api.pulso.network/api/v1/public/mapa/historico';
 
 // Brazil bounding box (from real data: lat -33.69..4.71, lng -74.07..-32.41)
 const BRAZIL_BOUNDS = {
@@ -162,6 +192,14 @@ function formatBigNumber(n: number): string {
   return n.toLocaleString('pt-BR');
 }
 
+const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+function formatPeriod(period: string): string {
+  // "2023-01" → "Jan 2023"
+  const [year, month] = period.split('-');
+  return `${MONTH_NAMES[parseInt(month, 10) - 1]} ${year}`;
+}
+
 /* =================================================================
    Canvas renderer
    ================================================================= */
@@ -173,6 +211,7 @@ function drawMap(
   municipalities: Municipality[],
   mode: ViewMode,
   hoveredIdx: number | null,
+  prevMunicipalities?: Municipality[] | null,
 ) {
   ctx.clearRect(0, 0, w, h);
 
@@ -215,6 +254,21 @@ function drawMap(
     const radius = Math.max(0.8, Math.min(12, (logSubs - 1.5) * 1.8));
 
     const isHovered = hoveredIdx === i;
+
+    // Delta glow when comparing to previous period
+    if (prevMunicipalities && i < prevMunicipalities.length) {
+      const prevSubs = prevMunicipalities[i].subs;
+      const delta = m.subs - prevSubs;
+      if (Math.abs(delta) > 50 && radius > 1.5) {
+        const deltaGlow = delta > 0
+          ? 'rgba(34,197,94,0.25)'
+          : 'rgba(239,68,68,0.25)';
+        ctx.beginPath();
+        ctx.arc(x, y, radius + 8, 0, Math.PI * 2);
+        ctx.fillStyle = deltaGlow;
+        ctx.fill();
+      }
+    }
 
     // Glow for larger municipalities
     if (radius > 2.5 || isHovered) {
@@ -376,25 +430,41 @@ function Legend({ mode }: { mode: ViewMode }) {
 
 export default function MapaBrasilPage() {
   const [data, setData] = useState<MapaResponse | null>(null);
+  const [histData, setHistData] = useState<HistResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>('penetration');
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [periodIdx, setPeriodIdx] = useState<number>(-1); // -1 = latest (default/no history loaded)
+  const [isPlaying, setIsPlaying] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animFrameRef = useRef<number>(0);
+  const playIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Fetch data
+  // Fetch base data + historical data in parallel
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(API_URL);
-        if (!res.ok) throw new Error('Erro ao carregar dados');
-        const json: MapaResponse = await res.json();
+        const [baseRes, histRes] = await Promise.all([
+          fetch(API_URL),
+          fetch(API_HIST_URL),
+        ]);
+        if (!baseRes.ok) throw new Error('Erro ao carregar dados');
+        const baseJson: MapaResponse = await baseRes.json();
+
         if (!cancelled) {
-          setData(json);
+          setData(baseJson);
           setLoading(false);
+        }
+
+        if (histRes.ok) {
+          const histJson: HistResponse = await histRes.json();
+          if (!cancelled && histJson.periods?.length > 0) {
+            setHistData(histJson);
+            setPeriodIdx(histJson.periods.length - 1); // start at latest
+          }
         }
       } catch {
         if (!cancelled) {
@@ -406,10 +476,48 @@ export default function MapaBrasilPage() {
     return () => { cancelled = true; };
   }, []);
 
+  // Build municipalities for current period from historical data
+  const currentMunis: Municipality[] | null = (() => {
+    if (!histData || periodIdx < 0) return null;
+    return histData.municipalities.map(m => {
+      const h = m.history[periodIdx] || { s: 0, p: 0, h: 0, n: 0 };
+      return {
+        lat: m.lat,
+        lng: m.lng,
+        uf: m.uf,
+        pop: m.pop,
+        subs: h.s,
+        providers: h.p,
+        hhi: h.h,
+        penetration: h.n,
+      };
+    });
+  })();
+
+  const prevMunis: Municipality[] | null = (() => {
+    if (!histData || periodIdx <= 0) return null;
+    return histData.municipalities.map(m => {
+      const h = m.history[periodIdx - 1] || { s: 0, p: 0, h: 0, n: 0 };
+      return {
+        lat: m.lat,
+        lng: m.lng,
+        uf: m.uf,
+        pop: m.pop,
+        subs: h.s,
+        providers: h.p,
+        hhi: h.h,
+        penetration: h.n,
+      };
+    });
+  })();
+
+  // Use historical data when available, otherwise fall back to base data
+  const displayMunis = currentMunis || data?.municipalities || [];
+
   // Canvas drawing
   const render = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !data) return;
+    if (!canvas || displayMunis.length === 0) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -420,8 +528,27 @@ export default function MapaBrasilPage() {
     canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
 
-    drawMap(ctx, rect.width, rect.height, data.municipalities, mode, hoveredIdx);
-  }, [data, mode, hoveredIdx]);
+    drawMap(ctx, rect.width, rect.height, displayMunis, mode, hoveredIdx, prevMunis);
+  }, [displayMunis, mode, hoveredIdx, prevMunis]);
+
+  // Auto-play
+  useEffect(() => {
+    if (isPlaying && histData) {
+      playIntervalRef.current = setInterval(() => {
+        setPeriodIdx(prev => {
+          const next = prev + 1;
+          if (next >= histData.periods.length) {
+            setIsPlaying(false);
+            return histData.periods.length - 1;
+          }
+          return next;
+        });
+      }, 400);
+    }
+    return () => {
+      if (playIntervalRef.current) clearInterval(playIntervalRef.current);
+    };
+  }, [isPlaying, histData]);
 
   useEffect(() => {
     render();
@@ -441,7 +568,7 @@ export default function MapaBrasilPage() {
   // Mouse hover — find closest municipality
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (!data || !canvasRef.current) return;
+      if (displayMunis.length === 0 || !canvasRef.current) return;
 
       const rect = canvasRef.current.getBoundingClientRect();
       const mx = e.clientX - rect.left;
@@ -453,8 +580,8 @@ export default function MapaBrasilPage() {
       let closest = -1;
       let minDist = 20; // 20px snap radius
 
-      for (let i = 0; i < data.municipalities.length; i++) {
-        const m = data.municipalities[i];
+      for (let i = 0; i < displayMunis.length; i++) {
+        const m = displayMunis[i];
         const { x, y } = project(m.lat, m.lng, w, h, padding);
         const dist = Math.hypot(mx - x, my - y);
         if (dist < minDist) {
@@ -465,22 +592,38 @@ export default function MapaBrasilPage() {
 
       setHoveredIdx(closest >= 0 ? closest : null);
     },
-    [data],
+    [displayMunis],
   );
 
   const handleMouseLeave = useCallback(() => {
     setHoveredIdx(null);
   }, []);
 
-  // Derived stats
+  // Period label
+  const currentPeriod = histData && periodIdx >= 0 ? histData.periods[periodIdx] : null;
+  const periodLabel = currentPeriod
+    ? formatPeriod(currentPeriod)
+    : 'Ultimo periodo';
+
+  // Derived stats — dynamic from historical data if available
   const meta = data?.meta;
-  const totalSubsLabel = meta
-    ? formatBigNumber(meta.total_subscribers) + '+'
-    : '--';
-  const avgPenLabel = meta ? meta.avg_penetration.toFixed(1) + '%' : '--';
-  const periodsLabel = meta ? meta.periods_available.length.toString() : '--';
+  const histStats = histData && periodIdx >= 0 ? histData.period_stats[periodIdx] : null;
+  const firstStats = histData ? histData.period_stats[0] : null;
+
+  const totalSubsCurrent = histStats?.total_subs ?? meta?.total_subscribers ?? 0;
+  const totalSubsLabel = formatBigNumber(totalSubsCurrent) + '+';
+  const avgPenCurrent = histStats?.avg_penetration ?? meta?.avg_penetration ?? 0;
+  const avgPenLabel = avgPenCurrent.toFixed(1) + '%';
+  const munisWithDataCurrent = histStats?.municipalities_with_data ?? meta?.municipalities_with_data ?? 0;
+  const periodsLabel = histData ? histData.periods.length.toString() : (meta ? meta.periods_available.length.toString() : '--');
   const munisLabel = meta ? meta.total_municipalities.toLocaleString('pt-BR') : '--';
-  const munisWithDataLabel = meta ? meta.municipalities_with_data.toLocaleString('pt-BR') : '--';
+  const munisWithDataLabel = munisWithDataCurrent.toLocaleString('pt-BR');
+
+  // Delta labels (comparing to first period)
+  const showDelta = histData && firstStats && histStats && periodIdx > 0;
+  const subsDelta = showDelta ? totalSubsCurrent - firstStats!.total_subs : 0;
+  const penDelta = showDelta ? avgPenCurrent - firstStats!.avg_penetration : 0;
+  const munisDelta = showDelta ? munisWithDataCurrent - firstStats!.municipalities_with_data : 0;
 
   const VIEW_MODES: { key: ViewMode; label: string }[] = [
     { key: 'penetration', label: 'Penetracao' },
@@ -535,7 +678,7 @@ export default function MapaBrasilPage() {
               Fontes: Anatel STEL, IBGE
             </span>
             <span style={{ color: 'var(--border-dark-strong)' }}>|</span>
-            <span>{meta ? meta.periods_available.length : 37} periodos disponiveis</span>
+            <span>{histData ? histData.periods.length : (meta ? meta.periods_available.length : 37)} periodos disponiveis</span>
             <span style={{ color: 'var(--border-dark-strong)' }}>|</span>
             <span>Atualizado mensalmente</span>
           </div>
@@ -570,6 +713,57 @@ export default function MapaBrasilPage() {
             <Legend mode={mode} />
           </div>
         </div>
+
+        {/* Time Machine slider */}
+        {histData && histData.periods.length > 1 && (
+          <div className="mx-auto max-w-6xl px-4 py-3" style={{ borderBottom: '1px solid var(--border-dark)' }}>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  if (isPlaying) {
+                    setIsPlaying(false);
+                  } else {
+                    if (periodIdx >= histData.periods.length - 1) setPeriodIdx(0);
+                    setIsPlaying(true);
+                  }
+                }}
+                className="flex items-center justify-center shrink-0 transition-colors"
+                style={{
+                  width: 32,
+                  height: 32,
+                  border: '1px solid var(--border-dark-strong)',
+                  background: isPlaying ? 'var(--accent)' : 'transparent',
+                  color: isPlaying ? '#fff' : 'var(--text-on-dark-muted)',
+                }}
+              >
+                {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+              </button>
+              <Clock size={12} style={{ color: 'var(--text-on-dark-muted)', flexShrink: 0 }} />
+              <input
+                type="range"
+                min={0}
+                max={histData.periods.length - 1}
+                value={periodIdx}
+                onChange={(e) => {
+                  setIsPlaying(false);
+                  setPeriodIdx(parseInt(e.target.value, 10));
+                }}
+                className="flex-1 h-1.5 appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, var(--accent) ${(periodIdx / (histData.periods.length - 1)) * 100}%, rgba(255,255,255,0.15) ${(periodIdx / (histData.periods.length - 1)) * 100}%)`,
+                  borderRadius: 4,
+                  accentColor: 'var(--accent)',
+                }}
+              />
+              <span
+                className="font-mono text-sm font-bold tabular-nums shrink-0"
+                style={{ color: 'var(--accent-hover)', minWidth: 80, textAlign: 'right' }}
+              >
+                {periodLabel}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Canvas */}
         <div
@@ -639,26 +833,31 @@ export default function MapaBrasilPage() {
                 icon: Map,
                 value: munisLabel,
                 label: 'Municipios mapeados',
+                delta: null as string | null,
               },
               {
                 icon: Map,
                 value: munisWithDataLabel,
                 label: 'Com dados de assinantes',
+                delta: showDelta && munisDelta !== 0 ? `${munisDelta > 0 ? '+' : ''}${munisDelta.toLocaleString('pt-BR')}` : null,
               },
               {
                 icon: Users,
                 value: totalSubsLabel,
                 label: 'Registros de assinantes',
+                delta: showDelta && subsDelta !== 0 ? `${subsDelta > 0 ? '+' : ''}${formatBigNumber(subsDelta)}` : null,
               },
               {
                 icon: Activity,
                 value: avgPenLabel,
                 label: 'Penetracao media',
+                delta: showDelta && penDelta !== 0 ? `${penDelta > 0 ? '+' : ''}${penDelta.toFixed(1)}pp` : null,
               },
               {
                 icon: BarChart3,
                 value: periodsLabel,
                 label: 'Periodos disponiveis',
+                delta: null,
               },
             ].map((stat) => {
               const Icon = stat.icon;
@@ -678,6 +877,14 @@ export default function MapaBrasilPage() {
                   >
                     {stat.value}
                   </div>
+                  {stat.delta && (
+                    <div
+                      className="mt-1 font-mono text-xs font-semibold"
+                      style={{ color: stat.delta.startsWith('+') ? '#22c55e' : '#ef4444' }}
+                    >
+                      {stat.delta} vs Jan 2023
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -767,8 +974,8 @@ export default function MapaBrasilPage() {
             M&A, conformidade, projeto RF, satelite e mais 22 modulos.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/cadastro" className="pulso-btn-dark inline-flex items-center gap-2">
-              Criar conta gratuita <ArrowRight size={14} />
+            <Link href="/precos" className="pulso-btn-dark inline-flex items-center gap-2">
+              Entrar na lista de espera <ArrowRight size={14} />
             </Link>
             <Link href="/precos" className="pulso-btn-ghost">
               Ver planos

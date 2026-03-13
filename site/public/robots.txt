@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /login
+Disallow: /cadastro
 
 Sitemap: https://pulso.network/sitemap.xml

@@ -377,6 +377,7 @@ class INEPSchoolsPipeline(BasePipeline):
 
         for idx, row in data.iterrows():
             try:
+                cur.execute("SAVEPOINT row_sp")
                 lat = float(row["latitude"]) if pd.notna(row.get("latitude")) else None
                 lng = float(row["longitude"]) if pd.notna(row.get("longitude")) else None
                 geom_sql = f"ST_SetSRID(ST_MakePoint({lng}, {lat}), 4326)" if lat and lng else "NULL"
@@ -415,6 +416,7 @@ class INEPSchoolsPipeline(BasePipeline):
                     bool(row.get("rural", False)),
                     int(row.get("year", 2023)),
                 ))
+                cur.execute("RELEASE SAVEPOINT row_sp")
                 loaded += 1
 
                 # Commit in batches to avoid holding too many locks
@@ -424,7 +426,7 @@ class INEPSchoolsPipeline(BasePipeline):
 
             except Exception as e:
                 logger.warning(f"Failed to load school {row.get('inep_code')}: {e}")
-                conn.rollback()
+                cur.execute("ROLLBACK TO SAVEPOINT row_sp")
 
         conn.commit()
         self.rows_inserted = loaded

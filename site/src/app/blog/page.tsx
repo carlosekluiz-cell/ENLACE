@@ -5,7 +5,8 @@ import { BLOG_POSTS } from '@/lib/blog-posts';
 
 export const metadata: Metadata = {
   title: 'Blog — Pulso Network',
-  description: 'Artigos sobre telecomunicações, expansão de ISPs e inteligência de mercado baseados em dados reais.',
+  description: 'Artigos sobre telecomunicações, expansão de ISPs e inteligência de mercado baseados em dados reais de 38+ fontes públicas.',
+  alternates: { canonical: 'https://pulso.network/blog' },
 };
 
 export default function BlogPage() {
@@ -25,7 +26,7 @@ export default function BlogPage() {
             <span style={{ color: 'var(--text-on-dark-muted)' }}>Não em opinião.</span>
           </h1>
           <p className="mt-5 text-base leading-relaxed max-w-2xl" style={{ color: 'var(--text-on-dark-secondary)' }}>
-            Artigos produzidos pela equipe Pulso com base em 17M+ registros reais de
+            Artigos produzidos pela equipe Pulso com base em 28M+ registros reais de
             telecomunicações, demografia e infraestrutura do Brasil.
           </p>
         </div>
@@ -103,8 +104,8 @@ export default function BlogPage() {
             <span style={{ color: 'var(--text-on-dark-muted)' }}>Acesso gratuito ao mapa e dados básicos.</span>
           </h2>
           <div className="mt-6">
-            <Link href="/cadastro" className="pulso-btn-dark">
-              Criar conta gratuita
+            <Link href="/precos" className="pulso-btn-dark">
+              Entrar na lista de espera
             </Link>
           </div>
         </div>

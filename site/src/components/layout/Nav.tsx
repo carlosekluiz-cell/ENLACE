@@ -65,7 +65,7 @@ export default function Nav() {
           >
             Entrar
           </Link>
-          <Link href="/cadastro" className={scrolled ? 'pulso-btn-primary' : 'pulso-btn-dark'}>
+          <Link href="/precos" className={scrolled ? 'pulso-btn-primary' : 'pulso-btn-dark'}>
             Começar
           </Link>
         </div>
@@ -104,7 +104,7 @@ export default function Nav() {
             ))}
             <div className="pt-3" style={{ borderTop: '1px solid var(--border)' }}>
               <Link
-                href="/cadastro"
+                href="/precos"
                 className="pulso-btn-primary w-full text-center"
                 onClick={() => setMobileOpen(false)}
               >

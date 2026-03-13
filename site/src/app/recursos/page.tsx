@@ -3,8 +3,9 @@ import Section from '@/components/ui/Section';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Recursos — Pulso Network',
+  title: 'Recursos',
   description: 'Documentação técnica, whitepaper, calculadora de ROI e matriz de funcionalidades para decisores.',
+  alternates: { canonical: 'https://pulso.network/recursos' },
 };
 
 const heroStats = [
@@ -49,12 +50,12 @@ const resources = [
     tag: 'Compradores & Avaliadores',
     description: 'Cada funcionalidade de cada módulo detalhada por tier. Gratuito, Provedor, Profissional e Empresa.',
     highlights: [
-      '28 módulos: Mercado, Expansão, Concorrência, Espacial, Starlink, FWA, Peering, IX.br e mais',
-      '70+ funcionalidades mapeadas por tier',
+      '24 módulos: Mercado, Expansão, Concorrência, Espacial, Starlink, FWA, Peering, IX.br e mais',
+      '100+ funcionalidades mapeadas por tier',
       'Funcionalidades transversais: API, SSE, relatórios, GeoJSON',
       'Notas sobre SLA, rate limits e onboarding',
     ],
-    stat: { value: '70+', label: 'Funcionalidades detalhadas' },
+    stat: { value: '100+', label: 'Funcionalidades detalhadas' },
   },
   {
     title: 'Confiança dos Dados',
@@ -246,8 +247,8 @@ export default function RecursosPage() {
             <span style={{ color: 'var(--text-on-dark-muted)' }}>Avalie com transparência.</span>
           </h2>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/cadastro" className="pulso-btn-dark">
-              Criar conta gratuita
+            <Link href="/precos" className="pulso-btn-dark">
+              Entrar na lista de espera
             </Link>
             <Link href="/precos" className="pulso-btn-ghost">
               Ver planos

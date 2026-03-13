@@ -25,6 +25,7 @@ import {
   CloudRain,
   Radio,
   GitCompareArrows,
+  Clock,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -105,6 +106,7 @@ export const navSections: NavSection[] = [
       { label: 'Consulta SQL', href: '/consulta', icon: Search, badge: 'NEW' },
       { label: 'Alertas', href: '/alertas', icon: Bell, badge: 'NEW' },
       { label: 'Análise Cruzada', href: '/analise', icon: GitCompareArrows, badge: 'NEW' },
+      { label: 'Histórico', href: '/historico', icon: Clock, badge: 'NEW' },
     ],
   },
 ];

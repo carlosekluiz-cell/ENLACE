@@ -272,6 +272,7 @@ class QueridoDiarioPipeline(BasePipeline):
 
         for _, row in data.iterrows():
             try:
+                cur.execute("SAVEPOINT row_sp")
                 keywords = row.get("keywords", [])
                 if isinstance(keywords, str):
                     keywords = [keywords]
@@ -300,9 +301,10 @@ class QueridoDiarioPipeline(BasePipeline):
                     "querido_diario",
                 ))
                 loaded += 1
+                cur.execute("RELEASE SAVEPOINT row_sp")
             except Exception as e:
                 logger.warning(f"Failed to load gazette mention: {e}")
-                conn.rollback()
+                cur.execute("ROLLBACK TO SAVEPOINT row_sp")
 
         conn.commit()
         self.rows_inserted = loaded

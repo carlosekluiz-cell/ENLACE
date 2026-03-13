@@ -517,6 +517,7 @@ class DATASUSHealthPipeline(BasePipeline):
 
         for idx, row in data.iterrows():
             try:
+                cur.execute("SAVEPOINT row_sp")
                 lat = float(row["latitude"]) if pd.notna(row.get("latitude")) else None
                 lng = float(row["longitude"]) if pd.notna(row.get("longitude")) else None
                 geom_sql = (
@@ -563,6 +564,7 @@ class DATASUSHealthPipeline(BasePipeline):
                     bool(row.get("sus_contract", False)),
                     int(row.get("year", 2024)),
                 ))
+                cur.execute("RELEASE SAVEPOINT row_sp")
                 loaded += 1
 
                 # Commit in batches to avoid huge transactions
@@ -578,7 +580,7 @@ class DATASUSHealthPipeline(BasePipeline):
                     )
                 elif errors == 11:
                     logger.warning("Suppressing further individual load errors...")
-                conn.rollback()
+                cur.execute("ROLLBACK TO SAVEPOINT row_sp")
 
         conn.commit()
         self.rows_inserted = loaded

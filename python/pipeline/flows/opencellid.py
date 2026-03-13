@@ -49,14 +49,29 @@ class OpenCelliDPipeline(BasePipeline):
         super().__init__("opencellid")
 
     def check_for_updates(self) -> bool:
-        """Run if the table is empty or has fewer than 1000 rows."""
+        """Run if the table is empty, has fewer than 1000 rows, or
+        a previous run left rows without municipality assignment
+        (indicating the matching/spatial-join step failed)."""
         conn = self._get_connection()
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM opencellid_towers")
-        count = cur.fetchone()[0]
+        total = cur.fetchone()[0]
+        if total < 1000:
+            cur.close()
+            conn.close()
+            return True
+        # Detect partial failure: rows exist but municipality assignment incomplete
+        cur.execute("SELECT COUNT(*) FROM opencellid_towers WHERE l2_id IS NOT NULL")
+        assigned = cur.fetchone()[0]
         cur.close()
         conn.close()
-        return count < 1000
+        if assigned < total * 0.5:
+            logger.warning(
+                "Detected partial load: %d rows but only %d with l2_id assigned. "
+                "Will re-run pipeline.", total, assigned
+            )
+            return True
+        return False
 
     def download(self) -> pd.DataFrame:
         """Download OpenCelliD Brazil CSV (gzipped)."""
@@ -74,10 +89,15 @@ class OpenCelliDPipeline(BasePipeline):
             logger.info("Downloading OpenCelliD Brazil (MCC=724) data...")
             http.download_file(url, cache_path, resume=False)
 
-        # Decompress and read CSV
+        # Decompress and read CSV (OpenCelliD has no header row)
+        OPENCELLID_COLUMNS = [
+            "radio", "mcc", "net", "area", "cell", "unit",
+            "lon", "lat", "range", "samples", "changeable",
+            "created", "updated", "averageSignal",
+        ]
         logger.info(f"Decompressing {cache_path}...")
         with gzip.open(cache_path, "rt", encoding="utf-8", errors="replace") as f:
-            df = pd.read_csv(f, dtype=str, on_bad_lines="skip")
+            df = pd.read_csv(f, dtype=str, on_bad_lines="skip", header=None, names=OPENCELLID_COLUMNS)
 
         logger.info(f"Downloaded {len(df)} OpenCelliD records for Brazil")
         return df
@@ -196,8 +216,8 @@ class OpenCelliDPipeline(BasePipeline):
         # 0.005 degrees ~ 500m at equatorial latitudes
         logger.info("Matching OpenCelliD towers to base_stations (within ~500m)...")
         cur.execute("""
-            UPDATE opencellid_towers oc
-            SET matched_base_station_id = bs.id
+            UPDATE opencellid_towers
+            SET matched_base_station_id = matches.bs_id
             FROM (
                 SELECT DISTINCT ON (oc_inner.id)
                     oc_inner.id AS oc_id,
@@ -207,7 +227,7 @@ class OpenCelliDPipeline(BasePipeline):
                     ON ST_DWithin(bs_inner.geom, oc_inner.geom_point, 0.005)
                 ORDER BY oc_inner.id, ST_Distance(bs_inner.geom, oc_inner.geom_point)
             ) AS matches
-            WHERE oc.id = matches.oc_id
+            WHERE opencellid_towers.id = matches.oc_id
         """)
         matched_count = cur.rowcount
         conn.commit()

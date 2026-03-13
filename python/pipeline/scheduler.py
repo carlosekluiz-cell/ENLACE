@@ -55,6 +55,12 @@ from python.pipeline.flows import (
     DOUAnatelPipeline,
     QueridoDiarioPipeline,
     IBGECNEFEPipeline,
+    # M&A Due Diligence sources
+    PGFNDividaAtivaPipeline,
+    SanctionsCheckPipeline,
+    ConsumerComplaintsPipeline,
+    RFOwnershipPipeline,
+    OpenCelliDPipeline,
 )
 
 
@@ -470,6 +476,26 @@ def run_monthly_sentinel():
     _run_pipeline(SentinelGrowthPipeline)
 
 
+def run_weekly_due_diligence():
+    """Weekly: Sanctions screening (CEIS/CNEP) via Portal da Transparência API."""
+    logger.info("=== Weekly due diligence pipelines ===")
+    for cls in [SanctionsCheckPipeline]:
+        _run_pipeline(cls)
+
+
+def run_monthly_due_diligence():
+    """Monthly: Consumer complaints, RF ownership graph, OpenCelliD towers."""
+    logger.info("=== Monthly due diligence pipelines ===")
+    for cls in [ConsumerComplaintsPipeline, RFOwnershipPipeline, OpenCelliDPipeline]:
+        _run_pipeline(cls)
+
+
+def run_quarterly_pgfn():
+    """Quarterly: PGFN federal tax debts (large 8GB+ downloads)."""
+    logger.info("=== Quarterly PGFN pipeline ===")
+    _run_pipeline(PGFNDividaAtivaPipeline)
+
+
 def run_all():
     """Run all pipeline groups."""
     run_daily_telecom()
@@ -477,8 +503,11 @@ def run_all():
     run_daily_intelligence()
     run_weekly_economic()
     run_weekly_enrichment()
+    run_weekly_due_diligence()
     run_monthly_geographic()
+    run_monthly_due_diligence()
     run_monthly_sentinel()
+    run_quarterly_pgfn()
 
 
 def main():
@@ -521,6 +550,18 @@ def main():
     scheduler.add_job(run_monthly_sentinel, CronTrigger(day=1, hour=6, minute=0),
                       id="monthly_sentinel", name="Monthly Sentinel-2 urban growth")
 
+    # Weekly on Wednesdays at 05:00 UTC — due diligence (sanctions screening)
+    scheduler.add_job(run_weekly_due_diligence, CronTrigger(day_of_week="wed", hour=5, minute=0),
+                      id="weekly_due_diligence", name="Weekly due diligence (sanctions)")
+
+    # Monthly on 15th at 05:00 UTC — due diligence (complaints, ownership, OpenCelliD)
+    scheduler.add_job(run_monthly_due_diligence, CronTrigger(day=15, hour=5, minute=0),
+                      id="monthly_due_diligence", name="Monthly due diligence (complaints, ownership, towers)")
+
+    # Quarterly on 1st of Jan/Apr/Jul/Oct at 07:00 UTC — PGFN tax debts
+    scheduler.add_job(run_quarterly_pgfn, CronTrigger(month="1,4,7,10", day=1, hour=7, minute=0),
+                      id="quarterly_pgfn", name="Quarterly PGFN federal tax debts")
+
     logger.info("Scheduler started. Press Ctrl+C to stop.")
     logger.info("Schedule:")
     logger.info("  Daily 02:00 UTC — Anatel telecom data")
@@ -528,8 +569,11 @@ def main():
     logger.info("  Daily 03:00 UTC — INMET weather")
     logger.info("  Weekly Sun 04:00 UTC — Economic (IBGE, ANP, ANEEL, SNIS, BNDES)")
     logger.info("  Weekly Sun 04:30 UTC — Enrichment (CNPJ, RQUAL, FUST)")
+    logger.info("  Weekly Wed 05:00 UTC — Due diligence (sanctions screening)")
     logger.info("  Monthly 1st 05:00 UTC — Geographic + infrastructure + social")
     logger.info("  Monthly 1st 06:00 UTC — Sentinel-2 urban growth")
+    logger.info("  Monthly 15th 05:00 UTC — Due diligence (complaints, ownership, OpenCelliD)")
+    logger.info("  Quarterly 1st 07:00 UTC — PGFN federal tax debts")
 
     try:
         scheduler.start()

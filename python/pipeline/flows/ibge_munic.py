@@ -281,6 +281,7 @@ class IBGEMUNICPipeline(BasePipeline):
 
         for _, row in data.iterrows():
             try:
+                cur.execute("SAVEPOINT row_sp")
                 cur.execute("""
                     INSERT INTO municipal_planning
                         (l2_id, municipality_code, has_plano_diretor, plano_diretor_year,
@@ -307,9 +308,10 @@ class IBGEMUNICPipeline(BasePipeline):
                     "ibge_munic",
                 ))
                 loaded += 1
+                cur.execute("RELEASE SAVEPOINT row_sp")
             except Exception as e:
                 logger.warning(f"Failed to load planning row: {e}")
-                conn.rollback()
+                cur.execute("ROLLBACK TO SAVEPOINT row_sp")
 
         conn.commit()
         self.rows_inserted = loaded

@@ -175,6 +175,7 @@ class AnatelBackhaulPipeline(BasePipeline):
 
         for _, row in data.iterrows():
             try:
+                cur.execute("SAVEPOINT row_sp")
                 cur.execute("""
                     INSERT INTO backhaul_presence
                         (l2_id, municipality_code, has_fiber_backhaul, has_radio_backhaul,
@@ -198,9 +199,10 @@ class AnatelBackhaulPipeline(BasePipeline):
                     int(row["year"]),
                 ))
                 loaded += 1
+                cur.execute("RELEASE SAVEPOINT row_sp")
             except Exception as e:
                 logger.warning(f"Failed to load backhaul row: {e}")
-                conn.rollback()
+                cur.execute("ROLLBACK TO SAVEPOINT row_sp")
 
         conn.commit()
         self.rows_inserted = loaded

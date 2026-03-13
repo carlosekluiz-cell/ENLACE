@@ -535,6 +535,21 @@ export const api = {
       if (params.months_ahead) qs.set('months_ahead', String(params.months_ahead));
       return fetchApi<any>(`/api/v1/timeseries/forecast?${qs}`);
     },
+    national: () => fetchApi<any>('/api/v1/timeseries/national'),
+    provider: (providerId: number) =>
+      fetchApi<any>(`/api/v1/timeseries/provider/${providerId}`),
+    fiberRace: () => fetchApi<any>('/api/v1/timeseries/fiber-race'),
+    employment: (params: { municipality_id: number }) =>
+      fetchApi<any>(`/api/v1/timeseries/employment?municipality_id=${params.municipality_id}`),
+    gazette: (params: { municipality_id?: number; q?: string; mention_type?: string; limit?: number; offset?: number }) => {
+      const qs = new URLSearchParams();
+      if (params.municipality_id) qs.set('municipality_id', String(params.municipality_id));
+      if (params.q) qs.set('q', params.q);
+      if (params.mention_type) qs.set('mention_type', params.mention_type);
+      if (params.limit) qs.set('limit', String(params.limit));
+      if (params.offset) qs.set('offset', String(params.offset));
+      return fetchApi<any>(`/api/v1/timeseries/gazette?${qs}`);
+    },
   },
 
   // ── Speedtest ──────────────────────────────────────────────────────

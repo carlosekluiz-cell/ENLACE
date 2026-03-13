@@ -281,6 +281,7 @@ class CAGEDEmploymentPipeline(BasePipeline):
 
         for _, row in data.iterrows():
             try:
+                cur.execute("SAVEPOINT row_sp")
                 cur.execute("""
                     INSERT INTO employment_indicators
                         (l2_id, municipality_code, year, month,
@@ -308,9 +309,10 @@ class CAGEDEmploymentPipeline(BasePipeline):
                     str(row.get("source", "ibge_cempre")),
                 ))
                 loaded += 1
+                cur.execute("RELEASE SAVEPOINT row_sp")
             except Exception as e:
                 logger.warning(f"Failed to load employment row: {e}")
-                conn.rollback()
+                cur.execute("ROLLBACK TO SAVEPOINT row_sp")
 
         conn.commit()
         self.rows_inserted = loaded

@@ -4,11 +4,13 @@ import Link from 'next/link';
 import {
   Map, BarChart3, Radio, Shield, CloudRain, TreePine,
   Satellite, Building2, Brain, Layers, Wifi, Globe, Award, GitCompareArrows,
+  Cable, Gauge, ShieldCheck, Radiation, CreditCard, TowerControl, FileSearch, Hexagon, History,
 } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'Produto — Pulso Network',
-  description: '15+ módulos de inteligência telecom para provedores de internet brasileiros.',
+  description: '25 módulos de inteligência telecom para provedores de internet brasileiros. Expansão, M&A, RF, conformidade, análise espacial e mais.',
+  alternates: { canonical: 'https://pulso.network/produto' },
 };
 
 const modules = [
@@ -64,15 +66,15 @@ const modules = [
   {
     icon: Building2,
     title: 'M&A',
-    description: 'Valuation de provedores por município com base em assinantes, receita estimada e múltiplos de mercado. Simulação de cenários de aquisição e projeções financeiras.',
+    description: 'Valuation de provedores com due diligence automatizada: dívidas PGFN, grafo societário (Receita Federal), sanções e reclamações. Simulação de aquisições e projeções.',
     metric: '13.534 ISPs avaliados',
-    highlights: ['Valuation por múltiplos de mercado', 'Simulação de aquisições', 'Projeções financeiras 5 anos'],
+    highlights: ['Due diligence: dívidas, sócios, sanções', 'Grafo de propriedade cruzada (783K vínculos)', 'Valuation + projeções financeiras 5 anos'],
   },
   {
     icon: Brain,
     title: 'Inteligência',
     description: 'Análise preditiva de mercado combinando todas as fontes de dados. Alertas automáticos de oportunidade, risco e tendências de mercado.',
-    metric: 'Machine learning sobre 19+ fontes',
+    metric: 'Machine learning sobre 38+ fontes',
     highlights: ['Alertas de oportunidade', 'Predição de churn por município', 'Tendências de mercado automatizadas'],
   },
   {
@@ -117,6 +119,69 @@ const modules = [
     metric: '10 endpoints analíticos',
     highlights: ['HHI e gaps de cobertura', 'Detecção de anomalias (pyod)', 'Score de prioridade de investimento'],
   },
+  {
+    icon: Cable,
+    title: 'Backhaul',
+    description: 'Modelagem de capacidade de backhaul e previsão de congestionamento para planejamento de rede com projeções de demanda e simulação de cenários.',
+    metric: 'Modelagem de capacidade',
+    highlights: ['Modelagem de capacidade de link', 'Previsão de congestionamento', 'Simulação de cenários de upgrade'],
+  },
+  {
+    icon: Gauge,
+    title: 'Velocidade',
+    description: 'Rankings de velocidade Ookla por município com dados de download, upload e latência. Benchmarking de performance contra concorrentes por região.',
+    metric: 'Rankings por município',
+    highlights: ['Download, upload e latência', 'Rankings Ookla por município', 'Benchmarking vs concorrentes'],
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Obrigações 5G',
+    description: 'Rastreamento de obrigações de cobertura 5G com prazos regulatórios, acompanhamento de metas e status de conformidade por operadora.',
+    metric: 'Rastreamento de prazos',
+    highlights: ['Rastreamento de cobertura 5G', 'Prazos regulatórios Anatel', 'Status de conformidade por operadora'],
+  },
+  {
+    icon: Radiation,
+    title: 'Espectro',
+    description: 'Valuation de licenças de espectro e mapeamento de holdings por operadora. Análise de oportunidades em faixas de frequência para estratégia de M&A.',
+    metric: 'Valuation de licenças',
+    highlights: ['Valuation de licenças de espectro', 'Holdings por operadora', 'Análise de faixas de frequência'],
+  },
+  {
+    icon: CreditCard,
+    title: 'Crédito ISP',
+    description: 'Credit scoring de provedores com classificação AAA a CCC e modelo de probabilidade de default (PD). Avaliação de risco para financiamento e parcerias.',
+    metric: 'Scoring AAA–CCC',
+    highlights: ['Classificação AAA a CCC', 'Modelo de probabilidade de default', 'Avaliação de risco financeiro'],
+  },
+  {
+    icon: TowerControl,
+    title: 'Compartilhamento de Torres',
+    description: 'Identificação de oportunidades de colocation em torres existentes. Análise de proximidade, capacidade disponível e potencial de compartilhamento de infraestrutura.',
+    metric: 'Oportunidades de colocation',
+    highlights: ['Colocation em torres existentes', 'Análise de proximidade', 'Potencial de compartilhamento'],
+  },
+  {
+    icon: FileSearch,
+    title: 'Raio-X do Provedor',
+    description: 'Relatório completo por provedor com posição competitiva, dívidas fiscais, selos Anatel, publicações em diário oficial, BNDES e espectro. Gratuito + premium.',
+    metric: 'Relatório gratuito + premium',
+    highlights: ['Posição competitiva nacional + dívidas PGFN', 'Selos de qualidade Anatel + diário oficial', 'BNDES, espectro e reclamações'],
+  },
+  {
+    icon: Hexagon,
+    title: 'Hex Grid',
+    description: 'Visualização hexagonal H3 com métricas por célula. Análise granular de cobertura, demanda e infraestrutura em resolução espacial superior ao município.',
+    metric: 'Resolução H3 hexagonal',
+    highlights: ['Grid H3 com métricas por célula', 'Análise granular de cobertura', 'Resolução superior ao município'],
+  },
+  {
+    icon: History,
+    title: 'Histórico',
+    description: 'Evolução de 37 meses de dados por provedor e município. Tendências de crescimento, sazonalidade e análise temporal de market share e assinantes.',
+    metric: '37 meses de evolução',
+    highlights: ['Evolução por provedor e município', 'Tendências de crescimento', 'Análise de sazonalidade'],
+  },
 ];
 
 export default function ProdutoPage() {
@@ -132,12 +197,12 @@ export default function ProdutoPage() {
             className="font-serif text-3xl font-bold tracking-tight md:text-5xl"
             style={{ color: 'var(--text-on-dark)', lineHeight: 1.1 }}
           >
-            15+ módulos.{' '}
+            25 módulos.{' '}
             <span style={{ color: 'var(--text-on-dark-muted)' }}>Uma plataforma.</span>
           </h1>
           <p className="mt-5 text-base leading-relaxed max-w-2xl" style={{ color: 'var(--text-on-dark-secondary)' }}>
             Cada módulo resolve um problema específico do ciclo de decisão de um provedor
-            de internet. Todos operam sobre a mesma base integrada com 19+ fontes de dados públicos.
+            de internet. Todos operam sobre a mesma base integrada com 38+ fontes de dados públicos.
           </p>
         </div>
       </Section>
@@ -225,8 +290,8 @@ export default function ProdutoPage() {
             <span style={{ color: 'var(--text-on-dark-muted)' }}>Acesso gratuito ao mapa e dados básicos.</span>
           </h2>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/cadastro" className="pulso-btn-dark">
-              Criar conta gratuita
+            <Link href="/precos" className="pulso-btn-dark">
+              Entrar na lista de espera
             </Link>
             <Link href="/precos" className="pulso-btn-ghost">
               Ver planos

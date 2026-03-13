@@ -3,8 +3,9 @@ import Section from '@/components/ui/Section';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Whitepaper — Pulso Network',
+  title: 'Whitepaper',
   description: 'Plataforma de inteligência decisional para telecomunicações no Brasil. Arquitetura de dados, pipelines, metodologia e modelo de negócio.',
+  alternates: { canonical: 'https://pulso.network/recursos/whitepaper' },
 };
 
 const marketIndicators = [
@@ -170,7 +171,7 @@ const trustLevels = [
     color: 'var(--success)',
     sources: 'Anatel, IBGE, INMET, DATASUS, INEP, PNCP, BNDES, CAGED, SNIS, ANP, IPEA/FBSP, DOU',
     criteria: 'Fonte governamental, metodologia pública, reporte obrigatório, auditável',
-    tables: 20,
+    tables: 25,
   },
   {
     level: 'A2',
@@ -178,23 +179,23 @@ const trustLevels = [
     color: 'var(--accent)',
     sources: 'SRTM/NASA (30m), Sentinel-2/ESA (10m), MapBiomas (>85% acurácia)',
     criteria: 'Instituição científica, resolução conhecida, peer-reviewed, reproduzível',
-    tables: 4,
+    tables: 5,
   },
   {
     level: 'A3',
     name: 'Aberta',
     color: 'var(--accent)',
-    sources: 'OpenStreetMap (community-validated), Open-Meteo (intermediário INMET)',
+    sources: 'OpenStreetMap, Open-Meteo, PeeringDB, IX.br, OpenCelliD, Ookla, Microsoft Buildings',
     criteria: 'Comunidade ativa, validação cruzada, licença aberta, complemento Geofabrik',
-    tables: 4,
+    tables: 8,
   },
   {
     level: 'B1',
     name: 'Computada',
     color: 'var(--text-secondary)',
-    sources: 'Opportunity scores, competitive analysis, base station attribution, quality derivation',
+    sources: 'Opportunity scores, competitive analysis, base station attribution, quality derivation, Pulso Score, Credit Score ISP, Starlink threat index, weather risk, spatial analytics',
     criteria: 'Fórmula documentada, inputs de nível A, atualização automática pós-ingestão',
-    tables: 4,
+    tables: 8,
   },
 ];
 
@@ -223,9 +224,14 @@ const competitiveMatrix = [
   { capability: 'Monitoramento satelital (Sentinel-2)', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
   { capability: 'Planejamento rural com energia solar', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
   { capability: 'Roteamento de fibra com BOM completo', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
-  { capability: 'Base integrada com 17M+ registros', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
+  { capability: 'Base integrada com 28M+ registros', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
   { capability: '38 pipelines automatizados', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
   { capability: 'Motor de cálculo Rust (sub-segundo)', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
+  { capability: 'Peering + IX.br analytics', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
+  { capability: 'Score de crédito ISP + Pulso Score', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
+  { capability: 'Análise de risco climático (ITU-R)', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
+  { capability: 'Raio-X gratuito do provedor', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
+  { capability: 'Inteligência de gazetas municipais', pulso: true, teleco: false, anatel: false, mckinsey: false, ookla: false },
 ];
 
 const valuationMetrics = [
@@ -239,17 +245,19 @@ const valuationMetrics = [
 ];
 
 const tiers = [
-  { name: 'Gratuito', price: 'R$0/mês', audience: 'ISPs exploradores', modules: 'Market Intelligence (básico), mapa de oportunidades' },
-  { name: 'Provedor', price: 'R$1.500/mês', audience: 'ISPs 1K-10K subs', modules: 'Market, Expansion, Competition, Compliance, Health' },
-  { name: 'Profissional', price: 'R$5.000/mês', audience: 'ISPs 10K-100K subs', modules: 'Tudo do Provedor + RF, Rural, M&A, Satellite, API' },
-  { name: 'Empresa', price: 'Sob consulta', audience: 'Operadoras, fundos', modules: 'Tudo + API ilimitada, white-label, SLA dedicado' },
+  { name: 'Gratuito', price: 'R$0/mês', audience: 'ISPs exploradores', modules: 'Mapa, Raio-X do Provedor (resumo), dados de penetração' },
+  { name: 'Starter', price: 'R$99/mês', audience: 'Análises pontuais', modules: '3 relatórios/mês, dados históricos, Diário Oficial, regulatório' },
+  { name: 'Provedor', price: 'R$1.500/mês', audience: 'ISPs 1K-10K subs', modules: 'Market, Expansion, Competition, Compliance, Health, 10 relatórios/mês' },
+  { name: 'Profissional', price: 'R$5.000/mês', audience: 'ISPs 10K-100K subs', modules: 'Todos os 24 módulos + API REST + 50 relatórios/mês' },
+  { name: 'Empresa', price: 'Sob consulta', audience: 'Operadoras, fundos', modules: 'Tudo + API ilimitada, white-label, SLA dedicado, SSO/SAML' },
 ];
 
 const revenueProjections = [
+  { metric: 'Assinantes Starter', y1: '200', y2: '600', y3: '1500' },
   { metric: 'Assinantes Provedor', y1: '50', y2: '150', y3: '400' },
   { metric: 'Assinantes Profissional', y1: '10', y2: '40', y3: '100' },
   { metric: 'Contratos Empresa', y1: '2', y2: '5', y3: '10' },
-  { metric: 'ARR (Receita Anual Recorrente)', y1: 'R$1,8M', y2: 'R$6,6M', y3: 'R$16,8M' },
+  { metric: 'ARR (Receita Anual Recorrente)', y1: 'R$2,1M', y2: 'R$7,3M', y3: 'R$18,6M' },
 ];
 
 function CellValue({ value }: { value: boolean | string }) {
@@ -328,15 +336,15 @@ export default function WhitepaperPage() {
           <p className="text-base leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
             O Brasil abriga o quinto maior mercado de telecomunicações do mundo, com mais de 13.534 provedores de internet
             atendendo 5.572 municípios em um território de 8,5 milhões de km². A plataforma Pulso Network resolve
-            a fragmentação de dados do setor com uma solução integrada: 38 pipelines automatizados ingerem dados de 19+ fontes
+            a fragmentação de dados do setor com uma solução integrada: 38 pipelines automatizados ingerem dados de 30+ fontes
             governamentais e científicas, normalizam formatos incompatíveis, validam integridade referencial, e transformam
             28 milhões de registros brutos em inteligência acionável — rankings de oportunidade, análise competitiva,
-            projetos RF com terreno real, e avaliação de M&A.
+            projetos RF com terreno real, avaliação de M&A, scores de crédito ISP, análise de peering, risco climático e inteligência regulatória.
           </p>
           <div className="mt-8 grid grid-cols-2 gap-0 md:grid-cols-3" style={{ border: '1px solid var(--border)' }}>
             {[
-              { value: '17M+', label: 'Registros de produção' },
-              { value: '19+', label: 'Fontes integradas' },
+              { value: '28M+', label: 'Registros de produção' },
+              { value: '30+', label: 'Fontes integradas' },
               { value: '38', label: 'Pipelines automatizados' },
               { value: '9.000+', label: 'LOC Rust (motor RF)' },
               { value: 'R$16,4M', label: 'Custo de reprodução' },
@@ -409,20 +417,21 @@ export default function WhitepaperPage() {
         </h2>
         <p className="text-sm leading-relaxed mb-10 max-w-3xl" style={{ color: 'var(--text-secondary)' }}>
           A plataforma não agrega dados — ela transforma. Cada registro passa por ingestão, normalização, validação
-          e enriquecimento antes de alimentar os 9 módulos que suportam decisões de investimento.
+          e enriquecimento antes de alimentar os 24 módulos que suportam decisões de investimento.
         </p>
 
         {/* Data flow infographic — 4 stages */}
         <div className="flex flex-col md:flex-row md:items-stretch gap-0 mb-10">
           <FlowStage
-            label="19+ Fontes"
+            label="30+ Fontes"
             sublabel="Dados brutos"
             items={[
               'Anatel (4 datasets)',
               'IBGE (7 datasets)',
               'NASA SRTM, ESA Sentinel-2',
               'PNCP, DOU, BNDES, INEP',
-              'DATASUS, CAGED, OSM',
+              'DATASUS, CAGED, OSM, INMET',
+              'PeeringDB, IX.br, Ookla',
             ]}
           />
           <FlowArrow />
@@ -441,10 +450,10 @@ export default function WhitepaperPage() {
           />
           <FlowArrow />
           <FlowStage
-            label="45 Tabelas"
+            label="64+ Tabelas"
             sublabel="PostgreSQL + PostGIS"
             items={[
-              '17M+ registros validados',
+              '28M+ registros validados',
               'Materialized views',
               'Integridade referencial',
               'UPSERT (sem duplicatas)',
@@ -453,14 +462,14 @@ export default function WhitepaperPage() {
           />
           <FlowArrow />
           <FlowStage
-            label="9 Módulos"
+            label="24 Módulos"
             sublabel="Inteligência acionável"
             items={[
-              'Market Intelligence',
-              'Expansion + Competition',
-              'RF Design + Rural',
-              'Compliance + Health',
-              'M&A + Satellite',
+              'Market Intel + Expansion',
+              'Competition + RF Design',
+              'Compliance + M&A + Rural',
+              'Peering + IXP + Weather Risk',
+              'Starlink + FWA + Backhaul',
             ]}
             accent
           />
@@ -469,11 +478,11 @@ export default function WhitepaperPage() {
         {/* Key metrics bar */}
         <div className="grid grid-cols-2 gap-0 md:grid-cols-5" style={{ border: '1px solid var(--border)' }}>
           {[
-            { value: '19+', label: 'Fontes externas' },
+            { value: '30+', label: 'Fontes externas' },
             { value: '38', label: 'Pipelines' },
-            { value: '45', label: 'Tabelas' },
-            { value: '17M+', label: 'Registros' },
-            { value: '9', label: 'Módulos' },
+            { value: '64+', label: 'Tabelas' },
+            { value: '28M+', label: 'Registros' },
+            { value: '24', label: 'Módulos' },
           ].map((stat) => (
             <div
               key={stat.label}
@@ -852,7 +861,7 @@ export default function WhitepaperPage() {
           </table>
         </div>
         <p className="mt-6 text-sm leading-relaxed max-w-3xl" style={{ color: 'var(--text-muted)' }}>
-          10 capacidades. 5 concorrentes analisados. Nenhum oferece mais que 3 das 10. O Pulso oferece as 10 — integradas,
+          15 capacidades. 5 concorrentes analisados. Nenhum oferece mais que 3 das 15. O Pulso oferece as 15 — integradas,
           automatizadas, e atualizadas diariamente.
         </p>
       </Section>
@@ -900,7 +909,7 @@ export default function WhitepaperPage() {
           Estratégia Comercial
         </div>
         <h2 className="font-serif text-2xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
-          SaaS vertical com 4 tiers de precificação
+          SaaS vertical com 5 tiers de precificação
         </h2>
         <p className="text-sm leading-relaxed mb-8 max-w-3xl" style={{ color: 'var(--text-secondary)' }}>
           O modelo SaaS vertical é o mais adequado para este mercado: os 13.534 ISPs brasileiros têm necessidades
@@ -978,8 +987,8 @@ export default function WhitepaperPage() {
             <span style={{ color: 'var(--text-on-dark-muted)' }}>Tier gratuito disponível.</span>
           </h2>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/cadastro" className="pulso-btn-dark">
-              Criar conta gratuita
+            <Link href="/precos" className="pulso-btn-dark">
+              Entrar na lista de espera
             </Link>
             <Link href="/recursos" className="pulso-btn-ghost">
               Voltar a recursos

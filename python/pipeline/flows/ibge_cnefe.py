@@ -253,6 +253,7 @@ class IBGECNEFEPipeline(BasePipeline):
 
         for _, row in data.iterrows():
             try:
+                cur.execute("SAVEPOINT row_sp")
                 cur.execute("""
                     INSERT INTO building_density
                         (l2_id, municipality_code, total_addresses, residential_addresses,
@@ -279,9 +280,10 @@ class IBGECNEFEPipeline(BasePipeline):
                     int(row.get("year", 2022)),
                 ))
                 loaded += 1
+                cur.execute("RELEASE SAVEPOINT row_sp")
             except Exception as e:
                 logger.warning(f"Failed to load density row: {e}")
-                conn.rollback()
+                cur.execute("ROLLBACK TO SAVEPOINT row_sp")
 
         conn.commit()
         self.rows_inserted = loaded

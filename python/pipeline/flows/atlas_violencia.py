@@ -262,6 +262,7 @@ class AtlasViolenciaPipeline(BasePipeline):
 
         for _, row in data.iterrows():
             try:
+                cur.execute("SAVEPOINT row_sp")
                 cur.execute("""
                     INSERT INTO safety_indicators
                         (l2_id, municipality_code, year,
@@ -285,9 +286,10 @@ class AtlasViolenciaPipeline(BasePipeline):
                     float(row.get("risk_score", 0)),
                 ))
                 loaded += 1
+                cur.execute("RELEASE SAVEPOINT row_sp")
             except Exception as e:
                 logger.warning(f"Failed to load safety row: {e}")
-                conn.rollback()
+                cur.execute("ROLLBACK TO SAVEPOINT row_sp")
 
         conn.commit()
         self.rows_inserted = loaded

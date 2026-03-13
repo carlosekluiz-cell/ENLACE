@@ -1,0 +1,22 @@
+[Unit]
+Description=Enlace Data Pipeline Scheduler
+After=postgresql.service network.target
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=dev
+WorkingDirectory=/home/dev/enlace
+ExecStart=/usr/bin/python3 -m python.pipeline.scheduler
+Restart=on-failure
+RestartSec=60
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=enlace-scheduler
+
+# Environment
+Environment=PYTHONPATH=/home/dev/enlace
+Environment=DATABASE_URL=postgresql://enlace:enlace@localhost:5432/enlace
+
+[Install]
+WantedBy=multi-user.target

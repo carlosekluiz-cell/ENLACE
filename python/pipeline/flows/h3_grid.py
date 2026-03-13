@@ -136,16 +136,18 @@ class H3GridPipeline(BasePipeline):
 
                 for mun_id, mun_code, mun_name in batch:
                     try:
+                        cur.execute("SAVEPOINT row_sp")
                         cells = self._compute_municipality(
                             cur, conn, mun_id, resolution
                         )
                         total_cells_inserted += cells
+                        cur.execute("RELEASE SAVEPOINT row_sp")
                     except Exception as e:
                         logger.warning(
                             f"Failed to compute H3 for {mun_name} "
                             f"(id={mun_id}): {e}"
                         )
-                        conn.rollback()
+                        cur.execute("ROLLBACK TO SAVEPOINT row_sp")
                         failed += 1
                         continue
 

@@ -169,11 +169,13 @@ class PNCPContractsPipeline(BasePipeline):
             ("status", "VARCHAR(100)"),
         ]:
             try:
+                cur.execute("SAVEPOINT alter_sp")
                 cur.execute(f"""
                     ALTER TABLE government_contracts ADD COLUMN IF NOT EXISTS {col} {coldef}
                 """)
+                cur.execute("RELEASE SAVEPOINT alter_sp")
             except Exception:
-                conn.rollback()
+                cur.execute("ROLLBACK TO SAVEPOINT alter_sp")
         conn.commit()
 
         # Check if we have recent data (within last 1 day)
@@ -502,6 +504,7 @@ class PNCPContractsPipeline(BasePipeline):
         skipped = 0
         for _, row in data.iterrows():
             try:
+                cur.execute("SAVEPOINT row_sp")
                 cur.execute("""
                     INSERT INTO government_contracts
                     (contracting_entity_cnpj, contracting_entity_name, sphere,
@@ -533,10 +536,11 @@ class PNCPContractsPipeline(BasePipeline):
                     row["modality"],
                     row["status"],
                 ))
+                cur.execute("RELEASE SAVEPOINT row_sp")
                 loaded += 1
             except Exception as e:
                 logger.debug(f"Skipping contract row: {e}")
-                conn.rollback()
+                cur.execute("ROLLBACK TO SAVEPOINT row_sp")
                 skipped += 1
 
         conn.commit()

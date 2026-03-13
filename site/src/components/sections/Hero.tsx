@@ -2,19 +2,21 @@ import Link from 'next/link';
 import GeoCanvas from '@/components/ui/GeoCanvas';
 
 const metrics = [
-  { value: '5.572', label: 'Municípios analisados' },
-  { value: '13.534', label: 'ISPs monitorados' },
+  { value: '28M+', label: 'Data points cruzados' },
+  { value: '128K+', label: 'Provedores rastreados' },
+  { value: '5.572', label: 'Municípios cobertos' },
+  { value: '38+', label: 'Fontes públicas' },
+  { value: '68', label: 'Tabelas de dados' },
   { value: 'R$ 50 bi', label: 'Mercado mapeado' },
-  { value: '28M+', label: 'Dados cruzados' },
-  { value: '28', label: 'Módulos de análise' },
-  { value: '19', label: 'Fontes públicas' },
 ];
 
 const dataSources = [
   'Anatel STEL', 'IBGE Censo', 'NASA SRTM', 'INMET', 'Sentinel-2 ESA',
   'DataSUS', 'INEP', 'CAGED', 'PeeringDB', 'IX.br/NIC.br', 'Ookla Speedtest',
   'OpenCellID', 'BNDES', 'PNCP', 'DOU', 'CNPJ/RFB', 'Atlas da Violência',
-  'SNIS', 'IBGE POF',
+  'SNIS', 'IBGE POF', 'PGFN Dívida Ativa', 'Portal da Transparência',
+  'consumidor.gov.br', 'Receita Federal Sócios', 'MapBiomas', 'ANEEL',
+  'Querido Diário', 'Anatel RQUAL',
 ];
 
 export default function Hero() {
@@ -52,34 +54,19 @@ export default function Hero() {
           className="mt-6 max-w-xl text-base leading-relaxed md:text-lg"
           style={{ color: 'var(--text-on-dark-secondary)' }}
         >
-          O que diretorias de ISP gastam semanas para levantar — concorrência,
-          expansão, M&A, conformidade, satélite, RF — aqui está ao vivo,
-          cruzado automaticamente com 19 fontes de dados públicos.
+          28 milhões de data points cruzados de 38+ fontes públicas — concorrência,
+          expansão, M&A, due diligence fiscal, conformidade — tudo ao vivo.
+          A maior base de inteligência ISP do mundo.
         </p>
 
         {/* CTAs */}
         <div className="mt-10 flex flex-wrap items-center gap-3">
-          <Link href="/cadastro" className="pulso-btn-dark">
-            Começar gratuitamente
+          <Link href="/precos" className="pulso-btn-dark">
+            Entrar na lista de espera
           </Link>
           <Link href="/produto" className="pulso-btn-ghost">
             Ver a plataforma ao vivo &rarr;
           </Link>
-        </div>
-
-        {/* Social proof */}
-        <div
-          className="mt-10 flex flex-wrap items-center gap-4 font-mono text-xs"
-          style={{ color: 'var(--text-on-dark-muted)' }}
-        >
-          <span className="flex items-center gap-2">
-            <span className="inline-block h-2 w-2" style={{ background: 'var(--success)', borderRadius: '50%' }} />
-            Usado por provedores em 14 estados
-          </span>
-          <span style={{ color: 'var(--border-dark-strong)' }}>|</span>
-          <span>Dados atualizados mensalmente</span>
-          <span style={{ color: 'var(--border-dark-strong)' }}>|</span>
-          <span>Sem cartão de crédito</span>
         </div>
 
         {/* Metrics grid — buyer-centric */}

@@ -318,6 +318,7 @@ class AnatelRQUALPipeline(BasePipeline):
 
         for _, row in data.iterrows():
             try:
+                cur.execute("SAVEPOINT row_sp")
                 cur.execute("""
                     INSERT INTO quality_seals
                         (l2_id, provider_id, year_half, overall_score,
@@ -340,9 +341,10 @@ class AnatelRQUALPipeline(BasePipeline):
                     str(row.get("seal_level", "sem_selo")),
                 ))
                 loaded += 1
+                cur.execute("RELEASE SAVEPOINT row_sp")
             except Exception as e:
                 logger.warning(f"Failed to load quality row: {e}")
-                conn.rollback()
+                cur.execute("ROLLBACK TO SAVEPOINT row_sp")
 
         conn.commit()
         self.rows_inserted = loaded
