@@ -26,7 +26,14 @@ Keep the exact same 8-section structure and WeasyPrint visual design. Edit parag
 
 ## Changes by Section
 
-### Section 1: Side-by-side comparison (pages 2-3)
+Note: Section numbers below match the source file's numbering (01-08), not page numbers.
+
+### Executive Summary (before Section 01)
+- Replace "28 milhões de registros cruzados de 38+ fontes públicas" with a contextual statement about what the platform does (e.g., "plataforma que cruza automaticamente dados de dezenas de fontes públicas")
+- Keep the 4%/40%/56% metrics — those are clear and self-explanatory
+- Keep the table of contents as-is
+
+### Section 01: Side-by-side comparison
 - Clean up dense table cells. Example: replace "DCF automático, due diligence digital (783K vínculos, 261K dívidas, 463K reclamações)" with "Valuation automático e due diligence digital — cruzando dívidas fiscais, vínculos societários e reclamações de consumidores para milhares de provedores"
 - Max 2 acronyms per sentence in body text
 
@@ -54,25 +61,33 @@ Keep the exact same 8-section structure and WeasyPrint visual design. Edit parag
 - Break the dense ID-systems paragraph (8 systems in one sentence) into a short bulleted list
 - Replace raw cross-reference numbers with contextual descriptions. Example: "783K vínculos, 777 donos multi-ISP, 1.709 participações cruzadas" becomes "Grafo societário: identifica donos que controlam múltiplos provedores e participações cruzadas"
 
-### Section 5: SaaS para Provedores (pages 8-9)
+### Section 04b: SaaS para Provedores
+Note: This is the second half of Section 04 in the source (reuses `<div class="num">04</div>`).
 - Replace "4 bases legais LGPD" with "framework jurídico implementado conforme LGPD"
-- Drop "audit log" from access levels table (dev detail)
+- Drop both occurrences of "audit log" (access levels table line 411 AND callout line 429)
 
-### Section 6: Rust (page 10)
+### Section 05: Software sob Medida para Grandes Empresas
+- The enterprise products table has ticket estimates (R$200K-3M) and stack descriptions — keep the tickets, simplify the stack column to business language (e.g., "agente + motor RF + dashboard" is fine, but drop any dev terms if present)
+- No other changes needed — this section is already business-oriented
+
+### Section 06: Rust
 - Keep the business moat argument: "Python: 833 vCPUs. Rust: 1 servidor"
 - Keep the green callout "Por que ninguém mais fez" (already business language)
 - Drop entirely: "sem null pointers, sem data races, sem memory leaks"
-- Drop the blue callout about "correção em tempo de compilação"
+- Drop the blue callout about "correção em tempo de compilação" — delete it, don't replace (the two cards + green callout still fill the section)
 
-### Section 7: IA em Telecom (page 11)
+### Section 07: IA em Telecom
 - Drop "pyod" (library name, dev detail)
 - Rest stays as-is
 
-### Section 8: LatAm (pages 11-12)
+### Section 08: LatAm
 - No changes. Already written in business language.
 
 ### Conclusion
-- Replace raw metrics numbers with contextual versions consistent with the rest of the document
+- Keep the 4%/40%/56% metrics — clear and self-explanatory
+- In the Pulso card, replace "28.4M registros, 38+ fontes, 150+ APIs" with contextual version (e.g., "plataforma que cruza automaticamente dezenas de fontes públicas")
+- Keep the Teleco card as-is (already business language)
+- Keep the green integration callout as-is (already clean)
 
 ## Global Rules
 
@@ -82,11 +97,16 @@ Keep the exact same 8-section structure and WeasyPrint visual design. Edit parag
    - CEIS/CNEP (cadastros de sanções do governo federal)
    - QSA (Quadro de Sócios e Administradores — Receita Federal)
    - LGPD (Lei Geral de Proteção de Dados)
+   - DCF (Fluxo de Caixa Descontado — método de valuation)
+   - HHI (Índice Herfindahl-Hirschman — concentração de mercado)
+   - WACC (custo médio ponderado de capital)
+   - NDA, CREA, ANM — assumed known by the audience (legal/engineering/mining terms common in Brazilian business)
 3. **Drop developer jargon:** gRPC, TLS, SQLite, RFC numbers, null pointers, data races, memory leaks, compile-time, pyod, audit log, binário
-4. **Numbers with context:** Don't dump raw counts. Say what the number means for the reader.
-5. **Max 2 technical acronyms per sentence** in body text (tables can be denser)
+4. **Numbers with context:** Don't dump raw counts. Say what the number means for the reader. Summary statistics like "38+ fontes" are OK in tables/metrics boxes but should have context in body text.
+5. **Max 2 technical acronyms per sentence** in body text. Tables are exempt but should still be scannable.
 6. **Keep the visual design** — all CSS, section headers, metrics boxes, cards, callouts unchanged
 7. **Framing:** Pulso = tech company whose technology produces intelligence. Teleco = consulting/editorial/relationships. They don't compete; they complement.
+8. **Maintain HTML entity encoding style** — the source uses `&eacute;`, `&atilde;` etc. Keep this convention for consistency.
 
 ## Implementation
 
@@ -98,3 +118,4 @@ Edit `docs/pulso-teleco-final.py` inline — modify the HTML string content only
 - A telecom CEO gets the overlap/synergy argument in one sitting
 - All technical substance is preserved — nothing dumbed down, just clarified
 - Rust moat argument lands without requiring dev knowledge
+- **Verifiable:** Zero occurrences of banned developer terms (gRPC, TLS, SQLite, RFC, null pointer, data race, memory leak, pyod, compile-time, binário) in body text after edit
