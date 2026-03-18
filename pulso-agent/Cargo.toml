@@ -1,0 +1,54 @@
+[package]
+name = "pulso-agent"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Open-source, vendor-agnostic ISP network intelligence agent. Monitors OLTs (Huawei/ZTE/FiberHome/Datacom/Intelbras/Parks/BDCOM/VSOL/CDATA/Ubiquiti), MikroTik routers, RADIUS sessions, and TR-069 CPE — pushing telemetry to the Pulso Network intelligence platform."
+repository = "https://github.com/pulso-network/pulso-agent"
+homepage = "https://pulsonetwork.com.br"
+keywords = ["isp", "telecom", "snmp", "gpon", "mikrotik"]
+categories = ["network-programming", "command-line-utilities"]
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+toml = "0.8"
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "gzip"], default-features = false }
+russh = "0.46"
+russh-keys = "0.46"
+rasn = "0.18"
+rasn-snmp = "0.18"
+rasn-smi = "0.18"
+num-traits = "0.2"
+rusqlite = { version = "0.32", features = ["bundled"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+clap = { version = "4", features = ["derive"] }
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+md5 = "0.7"
+base64 = "0.22"
+regex = "1"
+async-trait = "0.1"
+thiserror = "2"
+anyhow = "1"
+
+tonic = { version = "0.12", features = ["tls"] }
+prost = "0.13"
+prost-types = "0.13"
+dashmap = "6"
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"
+
+[build-dependencies]
+tonic-build = "0.12"
