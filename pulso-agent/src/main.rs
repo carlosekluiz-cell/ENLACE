@@ -18,6 +18,7 @@ mod discovery;
 mod diagnostics;
 mod predictions;
 mod fault;
+mod output;
 
 #[derive(Parser, Debug)]
 #[command(name = "pulso-agent", version, about)]
@@ -84,6 +85,36 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize cloud transport
     let cloud = transport::CloudTransport::new(&cfg.cloud, args.dry_run)?;
+
+    // Initialize Elasticsearch output (if configured)
+    let elastic = cfg.output.as_ref()
+        .and_then(|o| o.elastic.as_ref())
+        .filter(|e| e.enabled)
+        .map(|e| output::ElasticOutput::new(e))
+        .transpose()?;
+
+    if elastic.is_some() {
+        info!("Elasticsearch output enabled");
+    }
+
+    // Initialize webhook dispatcher (if configured)
+    let webhooks = cfg.output.as_ref()
+        .and_then(|o| o.webhooks.as_ref())
+        .map(|w| output::WebhookDispatcher::new(w));
+
+    // Initialize fault detector (if configured)
+    let mut fault_detector = cfg.fault_detection.as_ref()
+        .filter(|f| f.enabled)
+        .map(|f| fault::FaultDetector::new(f));
+
+    if fault_detector.is_some() {
+        info!("Fault detection enabled");
+    }
+
+    // Load fibre topology (if configured)
+    let topology = cfg.topology.as_ref()
+        .map(|t| fault::FibreTopology::load(&t.mode, t.import_path.as_deref(), "", &[]))
+        .unwrap_or_else(|| fault::FibreTopology::empty());
 
     // Device Discovery mode
     if args.discover {
@@ -217,9 +248,59 @@ async fn main() -> anyhow::Result<()> {
 
                     // Run diagnostics
                     let diag = diagnostics::analyze_olt(&data);
-                    // Run predictions
-                    let preds = predictions::forecast_olt(&data, &db);
+                    // Run predictions (with configurable thresholds)
+                    let preds = predictions::forecast_olt_configured(
+                        &data, &db, cfg.degradation.as_ref()
+                    );
 
+                    // Fault detection (runs before data is moved)
+                    if let Some(ref mut detector) = fault_detector {
+                        let mut events = detector.check(&data.onts);
+                        for event in &mut events {
+                            event.olt_id = data.olt_id.clone();
+                        }
+                        if !events.is_empty() {
+                            let locator = fault::FaultLocator::new(&topology);
+                            let online: Vec<String> = data.onts.iter()
+                                .filter(|o| matches!(o.status, vendors::OntStatus::Online))
+                                .map(|o| o.serial_number.clone())
+                                .collect();
+
+                            for event in &events {
+                                let _location = locator.locate(event, &online);
+                                info!(
+                                    olt = %event.olt_id,
+                                    port = %event.pon_port,
+                                    affected = event.affected_onts.len(),
+                                    severity = %event.severity,
+                                    "Fault detected"
+                                );
+
+                                // Send fault to Elasticsearch
+                                if let Some(ref elastic) = elastic {
+                                    if let Err(e) = elastic.send_fault(event).await {
+                                        warn!(error = %e, "Failed to send fault to Elastic");
+                                    }
+                                }
+
+                                // Dispatch webhooks
+                                if let Some(ref wh) = webhooks {
+                                    wh.dispatch_fault(event).await;
+                                }
+                            }
+                        }
+                    }
+
+                    // Send ONT data to Elasticsearch
+                    if let Some(ref elastic) = elastic {
+                        if let Err(e) = elastic.send_onts(
+                            &cfg.agent_id, &data.olt_id, &data.vendor, &data.model, &data.onts
+                        ).await {
+                            warn!(error = %e, "Failed to send ONTs to Elastic");
+                        }
+                    }
+
+                    // NOW move data into telemetry payload
                     telemetry.add_olt(data);
                     telemetry.add_diagnostics(diag);
                     telemetry.add_predictions(preds);
@@ -309,6 +390,11 @@ async fn main() -> anyhow::Result<()> {
         if args.once {
             info!("Single collection cycle complete, exiting");
             break;
+        }
+
+        // Periodically downsample old signal readings (every cycle)
+        if let Err(e) = db.downsample_old_readings(24) {
+            warn!(error = %e, "Failed to downsample signal readings");
         }
     }
 

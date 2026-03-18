@@ -183,7 +183,7 @@ impl LocalBuffer {
         Ok(Self { path })
     }
 
-    fn conn(&self) -> anyhow::Result<rusqlite::Connection> {
+    pub(crate) fn conn(&self) -> anyhow::Result<rusqlite::Connection> {
         Ok(rusqlite::Connection::open(&self.path)?)
     }
 
@@ -262,6 +262,26 @@ impl LocalBuffer {
             Ok((row.get::<_, i64>(0)?, row.get::<_, f32>(1)?))
         })?;
         Ok(rows.filter_map(|r| r.ok()).collect())
+    }
+
+    /// Downsample old signal readings to 1 per hour.
+    /// Keeps all readings from the last `keep_hours` hours at full resolution.
+    pub fn downsample_old_readings(&self, keep_hours: u32) -> anyhow::Result<()> {
+        let conn = self.conn()?;
+        let cutoff = chrono::Utc::now().timestamp() - (keep_hours as i64 * 3600);
+
+        conn.execute_batch(&format!(
+            "DELETE FROM ont_signal_history
+             WHERE timestamp < {cutoff}
+             AND rowid NOT IN (
+                 SELECT MAX(rowid)
+                 FROM ont_signal_history
+                 WHERE timestamp < {cutoff}
+                 GROUP BY serial_number, timestamp / 3600
+             )"
+        ))?;
+
+        Ok(())
     }
 
     // RADIUS session management
@@ -371,5 +391,32 @@ mod tests {
         let history = db.get_ont_signal_history("TEST-001", 1).unwrap();
         assert_eq!(history.len(), 1);
         assert!((history[0].1 - (-22.5)).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_downsample_old_readings() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = LocalBuffer::open(dir.path()).unwrap();
+
+        // Insert 100 readings over 2 days for one ONT
+        let now = chrono::Utc::now().timestamp();
+        let conn = db.conn().unwrap();
+        for i in 0..100 {
+            let ts = now - (48 * 3600) + (i * 1800); // Every 30 min over 2 days
+            conn.execute(
+                "INSERT OR REPLACE INTO ont_signal_history (serial_number, rx_power_dbm, timestamp) VALUES (?1, ?2, ?3)",
+                rusqlite::params!["TEST-DS", -22.0 + (i as f64 * 0.01), ts],
+            ).unwrap();
+        }
+        drop(conn);
+
+        let before = db.get_ont_signal_history("TEST-DS", 3).unwrap();
+        assert_eq!(before.len(), 100);
+
+        db.downsample_old_readings(24).unwrap();
+
+        let after = db.get_ont_signal_history("TEST-DS", 3).unwrap();
+        // Readings older than 24h should be downsampled to 1/hour
+        assert!(after.len() < before.len(), "Should have fewer readings after downsample");
     }
 }
