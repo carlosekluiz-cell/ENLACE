@@ -65,14 +65,100 @@ This spec describes how to extend the existing agent for CF's specific stack and
 
 ### Files to modify:
 
-- `Cargo.toml` — add `geo` crate, vendor `openolt.proto`/`extensions.proto`, `tonic-build`
+- `Cargo.toml` — add `tonic`, `prost`, `dashmap`, vendor `openolt.proto`/`extensions.proto`, `tonic-build`
 - `build.rs` — compile OpenOLT protobuf definitions
-- `src/config/mod.rs` — add elastic, webhook, fault_detection, topology config sections
+- `src/config/mod.rs` — add new config structs (see below) and restructure output config
 - `src/vendors/mod.rs` — register Adtran collector, extend `OltCollector` trait for gRPC
 - `src/diagnostics/mod.rs` — add ethernet negotiation check, restart detection, action recommendations
 - `src/predictions/mod.rs` — configurable history window (90 days), geographic grouping, XGS-PON thresholds
 - `src/transport/mod.rs` — add elastic + webhook dispatch alongside cloud transport
 - `src/main.rs` — wire fault detection + elastic output into main loop
+
+## 3a. Config Migration
+
+The existing `AgentConfig` has a top-level `cloud: CloudConfig` field (required, no default for `api_key`). The new config introduces `[output.cloud]`, `[output.elastic]`, `[[output.webhooks]]`, `[fault_detection]`, `[topology]`, and `[degradation]` sections.
+
+**Backward compatibility:** The existing `cloud` field is preserved as-is. The new `output` section is **additive** — if present, it takes precedence; if absent, the agent falls back to the existing `cloud` field behavior. This means existing Brazilian ISP deployments continue working without config changes.
+
+```rust
+// New structs added to config/mod.rs
+
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct OutputConfig {
+    pub cloud: Option<CloudOutputConfig>,      // replaces top-level `cloud` when present
+    pub elastic: Option<ElasticConfig>,
+    pub webhooks: Option<Vec<WebhookConfig>>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CloudOutputConfig {
+    pub enabled: bool,                         // Default: true
+    pub endpoint: String,
+    pub api_key: String,
+    pub send_interval_secs: u64,
+    pub verify_tls: bool,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ElasticConfig {
+    pub enabled: bool,                         // Default: false
+    pub url: String,
+    pub index_prefix: String,                  // Default: "enlace"
+    pub bulk_size: usize,                      // Default: 1000
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub api_key: Option<String>,
+    pub verify_tls: bool,                      // Default: true
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct WebhookConfig {
+    pub url: String,
+    pub events: Vec<String>,
+    pub format: String,                        // "slack", "pagerduty", "generic"
+    pub routing_key: Option<String>,           // PagerDuty only
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct FaultDetectionConfig {
+    pub enabled: bool,                         // Default: false
+    pub min_offline_onts: usize,               // Default: 5
+    pub time_window_seconds: u64,              // Default: 60
+    pub severity: FaultSeverityConfig,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct FaultSeverityConfig {
+    pub critical: usize,                       // Default: 100
+    pub major: usize,                          // Default: 50
+    pub minor: usize,                          // Default: 10
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct TopologyConfig {
+    pub mode: String,                          // "import", "infer", "synthetic"
+    pub import_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct DegradationConfig {
+    pub history_days: u32,                     // Default: 30
+    pub trend_window_weeks: u32,               // Default: 4
+    pub watch_threshold_db: f64,               // Default: 0.5
+    pub warning_threshold_db: f64,             // Default: 1.0
+    pub critical_threshold_db: f64,            // Default: 2.0
+    pub min_critical_rx_dbm: f64,              // Default: -27.0
+}
+
+// AgentConfig gains (all optional with defaults):
+pub struct AgentConfig {
+    // ... existing fields (cloud, olts, mikrotiks, radius, tr069, etc.) ...
+    pub output: Option<OutputConfig>,          // NEW
+    pub fault_detection: Option<FaultDetectionConfig>,  // NEW
+    pub topology: Option<TopologyConfig>,      // NEW
+    pub degradation: Option<DegradationConfig>, // NEW
+}
+```
 
 ## 4. Adtran SDX gRPC Adapter
 
@@ -82,23 +168,37 @@ OpenOLT gRPC API on port 9191. The SDX 6320 is VOLTHA Continuously Certified. Pr
 - `openolt.proto` — core OLT/ONT messages
 - `extensions.proto` — optical power, distance, diagnostics
 
-### Collection Flow
+### Architecture: Persistent gRPC Channel + Local State Table
+
+Unlike the Huawei SNMP adapter (stateless per-poll queries), the Adtran adapter maintains a **persistent gRPC channel** with a long-lived `EnableIndication` stream. `EnableIndication` is a server-side streaming RPC — the OLT pushes events (ONT registrations, deregistrations, alarms) as they happen. It does NOT return a snapshot of all current ONTs.
+
+**Design:**
+1. `AdtranCollector` owns a background `tokio::task` that keeps the `EnableIndication` stream open
+2. This task maintains a `DashMap<(u32, u32), OntState>` keyed by `(intf_id, onu_id)` — the ONT state table
+3. On receiving `OnuIndication`, updates the state table (status, serial, timestamp)
+4. On receiving `DyingGaspIndication`, marks ONT as `DyingGasp` in the state table
+5. On agent startup, seeds the state table by iterating all PON ports and calling `GetOnuInfo` per known ONT — this covers ONTs that registered before the agent started
+
+**Per-poll `collect()` reads from the state table, not from the gRPC stream directly:**
 
 ```
 AdtranCollector::collect() -> Result<OltData>
-  1. Connect to SDX IP:9191 via tonic gRPC client
-  2. GetDeviceInfo() → model, firmware, hardware version
-  3. EnableIndication() stream → OnuIndication per ONT
-     - oper_state: "up" | "down"
-     - serial_number: 4 ASCII + 4 bytes (e.g., "ADTN153201C4")
-  4. Per ONT: GetPonRxPower(intf_id, onu_id)
-     → rx_power as f64 (already in dBm, NO scaling needed)
-  5. Per ONT: GetOnuInfo()
-     → tx_power (meanOpticalLaunchPower), laser_bias, temperature
-  6. Per ONT: GetLogicalOnuDistance()
-     → distance in metres (uint32)
-  7. Map all into OltData struct (same output as Huawei adapter)
+  1. Read current ONT state table snapshot (lock-free via DashMap)
+  2. For each known ONT:
+     a. GetPonRxPower(intf_id, onu_id) → rx_power as f64 (already in dBm, NO scaling)
+     b. GetOnuInfo() → tx_power, laser_bias, temperature
+     c. GetLogicalOnuDistance() → distance in metres (uint32)
+  3. GetDeviceInfo() → model, firmware (cached after first call)
+  4. Map all into OltData struct (same output as Huawei adapter)
 ```
+
+**Startup sequence:**
+1. Connect to SDX IP:9191 via tonic gRPC client
+2. Call `GetDeviceInfo()` — verify connectivity, get model/firmware
+3. Enumerate PON ports via interface indications
+4. Seed ONT state table: for each PON port, iterate `onu_id` 0..127 and call `GetOnuInfo` to discover registered ONTs
+5. Start background `EnableIndication` stream task to receive live updates
+6. Begin normal poll loop
 
 ### Key Differences from Huawei Adapter
 
@@ -112,8 +212,32 @@ AdtranCollector::collect() -> Result<OltData>
 | Connection | Stateless UDP per poll | Persistent gRPC channel |
 | Port | 161 (SNMP) | 9191 (gRPC) |
 
-### Config
+### New Config Structs
 
+`OltConfig` gains a new `grpc` field alongside existing `snmp`, `ssh`, `netconf`, `rest_api`:
+
+```rust
+// Added to config/mod.rs
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct GrpcConfig {
+    pub port: u16,              // Default: 9191
+    pub tls: bool,              // Default: false
+    pub tls_cert: Option<PathBuf>,
+    pub tls_key: Option<PathBuf>,
+    pub tls_ca: Option<PathBuf>,
+    pub connect_timeout_ms: u64, // Default: 5000
+    pub request_timeout_ms: u64, // Default: 10000
+}
+
+// OltConfig gains:
+pub struct OltConfig {
+    // ... existing fields ...
+    pub grpc: Option<GrpcConfig>,  // NEW
+}
+```
+
+**TOML example:**
 ```toml
 [[olts]]
 name = "Lambeth-POP-OLT1"
@@ -134,12 +258,7 @@ Adtran SDX does not respond to SNMP sysObjectID. Detection path:
 
 ### Fallback
 
-If gRPC fails (port blocked, firmware issue), fall back to NETCONF/YANG (TR-385) via SSH on port 830. NETCONF paths:
-- ONT presence: `/ietf-interfaces:interfaces-state/interface[type='bbf-xponvani:v-ani']/bbf-xponvani:v-ani/onu-presence-state`
-- ONT distance: `/ietf-interfaces:interfaces-state/interface/bbf-xponvani:v-ani/onu-present-on-this-olt/onu-fiber-distance`
-- ONT serial: `detected-serial-number` under `onu-present-on-this-olt`
-
-NETCONF fallback is lower priority — gRPC is the primary path. NETCONF support can be added in a later phase if needed.
+If gRPC fails (port blocked, firmware issue), NETCONF/YANG (TR-385) via SSH on port 830 is a potential fallback. However, NETCONF YANG paths are firmware-version-dependent and must be verified against the actual SDX 6320 at CF before implementation. **NETCONF fallback is deferred to a later phase** — gRPC (OpenOLT) is the only Adtran path in scope for the initial deployment.
 
 ## 5. Elasticsearch Output
 
@@ -192,6 +311,8 @@ Daily indices with configurable prefix:
   }
 }
 ```
+
+**Note on `geo` field:** ONT lat/lon is populated from the topology data via `ont_serial → topology_node → lat/lon` lookup. The `elastic.rs` output module receives a reference to the `FibreTopology` at construction time. When topology mode is `"infer"` (distance-only) or no match is found for an ONT serial, the `geo` field is **omitted entirely** from the document — not set to null.
 
 **Fault event:**
 ```json
@@ -341,13 +462,26 @@ routing_key = "xxxx"
 
 **Trigger logic:**
 ```
-if (offline_count_on_pon_port >= min_offline_onts
+// Count only hard-offline ONTs (no dying-gasp indication).
+// DyingGasp = power failure at individual ONT premises, not trunk cut.
+// Trunk cuts cause silent offline (no dying-gasp) for all downstream ONTs.
+let hard_offline = onts_on_port
+    .filter(|o| o.state == Offline && o.last_transition != DyingGasp)
+    .count();
+
+if (hard_offline >= min_offline_onts
     && time_since_first_offline <= time_window_seconds
     && !is_maintenance_window())
 {
     emit FaultEvent to locator
 }
 ```
+
+**DyingGasp filtering:** An ONT that sends a dying-gasp before going offline is experiencing a local power failure, not a trunk cut. Trunk cut victims go silent without dying-gasp. The trigger counts only hard-offline ONTs (no dying-gasp received). If 5+ ONTs send dying-gasp simultaneously (e.g., area power outage), this is NOT a fibre fault — it's correctly excluded. A simultaneous power outage + fibre cut (rare) would still be detected from the non-dying-gasp ONTs.
+
+**DyingGasp recovery window:** If an ONT transitions `Online → DyingGasp → Online` within 120 seconds, it was a brief power interruption. No alert generated. If it stays offline beyond 120s, it transitions to `Offline` state.
+
+**Maintenance windows:** Deferred to a later phase. The `is_maintenance_window()` check is stubbed to always return `false`. When needed, it can be driven by a static TOML schedule or an API call.
 
 **Memory:** ~100 bytes per ONT for status ring buffer. At 102,400 ONTs: ~10 MB.
 
@@ -433,7 +567,7 @@ import_path = "/etc/pulso/topology/"
 ### Ethernet Port Negotiation Check
 
 When ONT reports normal optical power but customer reports slow internet:
-1. Check ONT ethernet port speed (from OMCI or SNMP)
+1. Check ONT ethernet port speed. For Huawei: SNMP OID `hwGponDeviceOntEthernetSpeed` under `.1.3.6.1.4.1.2011.6.128`. For Adtran: OpenOLT `GetOnuInfo` includes OMCI ME 11 (Physical Path Termination Point Ethernet UNI) which reports negotiated speed. The `OntData` struct gains an optional `eth_speed_mbps: Option<u32>` field.
 2. If negotiated at 100Mbps instead of 1Gbps: flag as `ethernet_negotiation_issue`
 3. Recommended action: "Remote investigation — customer likely has a bad ethernet cable or using 100M port"
 
@@ -603,22 +737,24 @@ The agent runs **inside CF's network**, on a VM or container with:
 - Binary: ~6.5 MB (with gRPC additions)
 - RAM: ~15-20 MB (102K ONTs + 90-day signal history in SQLite)
 - CPU: <1% steady state, brief spike during poll cycle
-- Disk: ~500 MB for SQLite signal history (90 days, 102K ONTs, 30s intervals)
+- Disk: Signal history requires downsampling. At 30s intervals, 102K ONTs, 90 days = ~26.5 billion rows (~530 GB) which is infeasible. **Downsampling policy:** store every poll reading for the last 24 hours (for real-time diagnostics), then downsample to 1 reading per hour for 90-day trend analysis. This reduces storage to: 102K × 2,880 (24h at 30s) + 102K × 2,160 (89 days × 24h) = ~520M rows ≈ **~15 GB**. A SQLite `PRAGMA auto_vacuum` and nightly retention job keeps this bounded. For the CF pilot (1 POP, ~5K ONTs), disk usage will be ~750 MB.
 
 ## 13. Dependencies (Additions to Cargo.toml)
 
 ```toml
-# New dependencies
-geo = "0.28"                    # Geographic calculations (haversine, midpoint)
+# New dependencies (added to pulso-agent/Cargo.toml)
 tonic = { version = "0.12", features = ["tls"] }  # gRPC client for Adtran
 prost = "0.13"                  # Protobuf serialization
+dashmap = "6"                   # Lock-free concurrent HashMap for ONT state table
 
 # Build dependencies
 [build-dependencies]
 tonic-build = "0.12"            # Compile openolt.proto + extensions.proto
 ```
 
-`tonic` and `prost` are already workspace dependencies in the main `rust/Cargo.toml`. `geo` is also a workspace dependency. No net-new external dependencies.
+**Note:** These are genuinely new dependencies for the `pulso-agent` crate. While `tonic` and `prost` exist in the main `rust/` workspace (`pulso-service`), `pulso-agent` is a standalone crate with its own `Cargo.toml`. Adding tonic/prost will increase binary size (estimated ~8-9 MB, up from 6.3 MB) and initial build time (~3-4 minutes for first compilation due to h2, tower, hyper, and tokio-rustls transitive deps).
+
+**Not adding `geo` crate.** The geographic calculations needed (haversine distance, midpoint between two lat/lon points) are ~15 lines of arithmetic. At London's scale (~50km), even a flat-earth approximation with cosine correction has <0.1% error. Two free functions in `fault/locator.rs` are sufficient. If more complex geo operations are needed later, the crate can be added then.
 
 ## 14. Risks and Mitigations
 
