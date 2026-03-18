@@ -1,0 +1,64 @@
+# Community Fibre UK — Pulso Agent Example Config
+# Adtran SDX 6320 (gRPC) + Huawei MA5800 (SNMP)
+# Elasticsearch output + Slack webhooks + fault detection
+
+agent_id = "cf-lambeth-01"
+data_dir = "/tmp/pulso-agent"
+poll_interval_secs = 30
+
+[cloud]
+endpoint = "https://api.pulso.network"
+api_key = "YOUR_API_KEY"
+
+# Adtran SDX 6320 — OpenOLT gRPC (no SNMP)
+[[olts]]
+name = "Lambeth-POP-OLT1"
+ip = "10.0.1.10"
+vendor = "adtran"
+
+[olts.grpc]
+port = 9191
+tls_enabled = false
+
+# Huawei MA5800 — SNMP v2c
+[[olts]]
+name = "Lambeth-POP-OLT2"
+ip = "10.0.1.11"
+vendor = "huawei"
+
+[olts.snmp]
+community = "public"
+
+# Elasticsearch / OpenSearch output
+[output.elastic]
+enabled = true
+url = "http://elastic.internal:9200"
+index_prefix = "enlace"
+bulk_size = 1000
+verify_tls = false
+
+# Slack webhook for fault alerts
+[[output.webhooks]]
+url = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+events = ["fault_detected", "fault_critical"]
+format = "slack"
+
+# Fault detection
+[fault_detection]
+enabled = true
+min_offline_onts = 5
+time_window_seconds = 60
+
+[fault_detection.severity]
+critical = 100
+major = 50
+minor = 10
+
+# Fibre topology (optional — for fault location)
+[topology]
+mode = "synthetic"
+
+# Degradation prediction thresholds (optional)
+[degradation]
+history_days = 30
+min_critical_rx_dbm = -28.0
