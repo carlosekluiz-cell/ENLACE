@@ -23,6 +23,7 @@ mod output;
 mod detection;
 mod csv_import;
 mod audit;
+mod serve;
 #[cfg(test)]
 mod audit_tests;
 #[cfg(test)]
@@ -179,10 +180,9 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // Handle serve mode (leave as TODO for Task 5)
+    // Handle serve mode
     if let Some(port) = args.serve_port {
-        // TODO: Task 5 will implement serve::start_server(port)
-        eprintln!("Serve mode not yet implemented. Port: {}", port);
+        crate::serve::start_server(port).await?;
         return Ok(());
     }
 
