@@ -22,6 +22,7 @@ mod fault;
 mod output;
 mod detection;
 mod csv_import;
+mod audit;
 #[cfg(test)]
 mod audit_tests;
 #[cfg(test)]
@@ -135,6 +136,14 @@ struct Args {
     /// Verbosity level (-v info, -vv debug, -vvv trace)
     #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
+
+    /// Path to CSV file for one-time audit (outputs JSON to stdout)
+    #[arg(long)]
+    audit_csv: Option<PathBuf>,
+
+    /// Start HTTP audit server on this port
+    #[arg(long)]
+    serve_port: Option<u16>,
 }
 
 #[tokio::main]
@@ -161,6 +170,21 @@ async fn main() -> anyhow::Result<()> {
         version = env!("CARGO_PKG_VERSION"),
         "Pulso Agent starting"
     );
+
+    // Handle audit mode
+    if let Some(csv_path) = &args.audit_csv {
+        let readings = crate::csv_import::parse_csv(csv_path, None)?;
+        let result = crate::audit::run_audit(readings)?;
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    // Handle serve mode (leave as TODO for Task 5)
+    if let Some(port) = args.serve_port {
+        // TODO: Task 5 will implement serve::start_server(port)
+        eprintln!("Serve mode not yet implemented. Port: {}", port);
+        return Ok(());
+    }
 
     // Load configuration
     let cfg = config::AgentConfig::load(&args.config)?;
