@@ -17,8 +17,101 @@ mod transport;
 mod discovery;
 mod diagnostics;
 mod predictions;
+mod netconf;
 mod fault;
 mod output;
+mod detection;
+mod csv_import;
+#[cfg(test)]
+mod audit_tests;
+#[cfg(test)]
+mod real_seed_tests;
+#[cfg(test)]
+mod runtime_replay_tests;
+#[cfg(test)]
+mod incident_benchmark_tests;
+
+struct OltCycleArtifacts {
+    diagnostics: diagnostics::OltDiagnostics,
+    predictions: predictions::Predictions,
+    fault_events: Vec<fault::FaultEvent>,
+}
+
+async fn process_olt_cycle(
+    cfg: &config::AgentConfig,
+    db: &transport::LocalBuffer,
+    telemetry: &mut transport::TelemetryPayload,
+    fault_detector: Option<&mut fault::FaultDetector>,
+    topology: &fault::FibreTopology,
+    elastic: Option<&output::ElasticOutput>,
+    webhooks: Option<&output::WebhookDispatcher>,
+    data: vendors::OltData,
+) -> OltCycleArtifacts {
+    if let Err(e) = db.store_signal_history(&data.onts) {
+        warn!(error = %e, "Failed to store signal history");
+    }
+    if let Err(e) = db.store_pon_utilization(&data.olt_id, &data.pon_ports) {
+        warn!(error = %e, "Failed to store PON utilization");
+    }
+
+    let diagnostics = diagnostics::analyze_olt(&data);
+    let predictions = predictions::forecast_olt_configured(&data, db, cfg.degradation.as_ref());
+
+    let mut fault_events = Vec::new();
+    if let Some(detector) = fault_detector {
+        let mut events = detector.check(&data.onts);
+        for event in &mut events {
+            event.olt_id = data.olt_id.clone();
+        }
+        if !events.is_empty() {
+            let locator = fault::FaultLocator::new(topology);
+            let online: Vec<String> = data.onts.iter()
+                .filter(|o| matches!(o.status, vendors::OntStatus::Online))
+                .map(|o| o.serial_number.clone())
+                .collect();
+
+            for event in &events {
+                let _location = locator.locate(event, &online);
+                info!(
+                    olt = %event.olt_id,
+                    port = %event.pon_port,
+                    affected = event.affected_onts.len(),
+                    severity = %event.severity,
+                    "Fault detected"
+                );
+
+                if let Some(elastic) = elastic {
+                    if let Err(e) = elastic.send_fault(event).await {
+                        warn!(error = %e, "Failed to send fault to Elastic");
+                    }
+                }
+
+                if let Some(wh) = webhooks {
+                    wh.dispatch_fault(event).await;
+                }
+            }
+        }
+        fault_events = events;
+    }
+
+    if let Some(elastic) = elastic {
+        if let Err(e) = elastic.send_onts(
+            &cfg.agent_id, &data.olt_id, &data.vendor, &data.model, &data.onts
+        ).await {
+            warn!(error = %e, "Failed to send ONTs to Elastic");
+        }
+    }
+
+    telemetry.add_olt(data);
+    telemetry.add_diagnostics(diagnostics.clone());
+    telemetry.add_predictions(predictions.clone());
+
+    OltCycleArtifacts {
+        diagnostics,
+        predictions,
+        fault_events,
+    }
+}
 
 #[derive(Parser, Debug)]
 #[command(name = "pulso-agent", version, about)]
@@ -238,72 +331,16 @@ async fn main() -> anyhow::Result<()> {
 
             match result {
                 Ok(Ok(data)) => {
-                    // Store signal history for predictions
-                    if let Err(e) = db.store_signal_history(&data.onts) {
-                        warn!(error = %e, "Failed to store signal history");
-                    }
-                    if let Err(e) = db.store_pon_utilization(&data.olt_id, &data.pon_ports) {
-                        warn!(error = %e, "Failed to store PON utilization");
-                    }
-
-                    // Run diagnostics
-                    let diag = diagnostics::analyze_olt(&data);
-                    // Run predictions (with configurable thresholds)
-                    let preds = predictions::forecast_olt_configured(
-                        &data, &db, cfg.degradation.as_ref()
-                    );
-
-                    // Fault detection (runs before data is moved)
-                    if let Some(ref mut detector) = fault_detector {
-                        let mut events = detector.check(&data.onts);
-                        for event in &mut events {
-                            event.olt_id = data.olt_id.clone();
-                        }
-                        if !events.is_empty() {
-                            let locator = fault::FaultLocator::new(&topology);
-                            let online: Vec<String> = data.onts.iter()
-                                .filter(|o| matches!(o.status, vendors::OntStatus::Online))
-                                .map(|o| o.serial_number.clone())
-                                .collect();
-
-                            for event in &events {
-                                let _location = locator.locate(event, &online);
-                                info!(
-                                    olt = %event.olt_id,
-                                    port = %event.pon_port,
-                                    affected = event.affected_onts.len(),
-                                    severity = %event.severity,
-                                    "Fault detected"
-                                );
-
-                                // Send fault to Elasticsearch
-                                if let Some(ref elastic) = elastic {
-                                    if let Err(e) = elastic.send_fault(event).await {
-                                        warn!(error = %e, "Failed to send fault to Elastic");
-                                    }
-                                }
-
-                                // Dispatch webhooks
-                                if let Some(ref wh) = webhooks {
-                                    wh.dispatch_fault(event).await;
-                                }
-                            }
-                        }
-                    }
-
-                    // Send ONT data to Elasticsearch
-                    if let Some(ref elastic) = elastic {
-                        if let Err(e) = elastic.send_onts(
-                            &cfg.agent_id, &data.olt_id, &data.vendor, &data.model, &data.onts
-                        ).await {
-                            warn!(error = %e, "Failed to send ONTs to Elastic");
-                        }
-                    }
-
-                    // NOW move data into telemetry payload
-                    telemetry.add_olt(data);
-                    telemetry.add_diagnostics(diag);
-                    telemetry.add_predictions(preds);
+                    let _artifacts = process_olt_cycle(
+                        &cfg,
+                        &db,
+                        &mut telemetry,
+                        fault_detector.as_mut(),
+                        &topology,
+                        elastic.as_ref(),
+                        webhooks.as_ref(),
+                        data,
+                    ).await;
                 }
                 Ok(Err(e)) => {
                     warn!(olt = %collector.olt_id(), error = %e, "OLT collection failed");
