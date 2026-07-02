@@ -1,0 +1,86 @@
+{
+  "generated_at": "2026-06-17T18:24:01.214455297+00:00",
+  "seed_artifact": "/home/dev/enlace/enlace-telemetry/agent/../outputs/uk_blind_validation_scorecard_2026-03-23_98p8.json",
+  "scenarios_passed": 8,
+  "scenarios_total": 8,
+  "scenarios": [
+    {
+      "scenario_id": "reflectance_bad_ont",
+      "fixture_hash": "b76b2932aac94df5adbdc584410307c982e8be71c7c397e0f866c1325543c636",
+      "outcome": "pass",
+      "details": {
+        "affected_onts": 6,
+        "suspect_ont": "REFL-Bala-Green-01"
+      }
+    },
+    {
+      "scenario_id": "fibre_cut_branch_outage",
+      "fixture_hash": "d394df6acab7ac1563bcc64bcbc50fda8b2aaca3934c032eb2cafc829af24540",
+      "outcome": "pass",
+      "details": {
+        "affected_onts": 10,
+        "fault_type": "fibre_cut"
+      }
+    },
+    {
+      "scenario_id": "splice_degradation_prebreak",
+      "fixture_hash": "8158e9b824c83cf8f897c261e7a430aa71b07affda57d7b48052b607fef1c9c7",
+      "outcome": "pass",
+      "details": {
+        "issue": "InsufficientOltPower",
+        "margin_db": 1.0800000000000018,
+        "suspect_ont": "SPLICE-9a-01"
+      }
+    },
+    {
+      "scenario_id": "sfp_port_degradation_prebreak",
+      "fixture_hash": "1bc5ec9db06c7a24ee05ed603b5197438e01bb5618e5d87478bff44857ea45ab",
+      "outcome": "pass",
+      "details": {
+        "outlier_vs_siblings": false,
+        "port": "olt-a/pon0",
+        "severity": "Critical",
+        "trend_per_week": -0.2449999999948394
+      }
+    },
+    {
+      "scenario_id": "flapping_ont_instability",
+      "fixture_hash": "7ec329960f259ff1b4dc8f47718a959ecdaa0dea689ec08b1a9e07eb0ac8ca37",
+      "outcome": "pass",
+      "details": {
+        "flap_rate_per_hour": 12.545454545454547,
+        "ont": "FLAP-Wilde-Place-01",
+        "probable_cause": "DirtyConnector"
+      }
+    },
+    {
+      "scenario_id": "weather_correlated_degradation",
+      "fixture_hash": "0d9d7ed8eca9c2aab9cfe5956995867369be7e4f90ee451297d54f003b202e06",
+      "outcome": "pass",
+      "details": {
+        "patterns": [
+          "NighttimeCondensation"
+        ]
+      }
+    },
+    {
+      "scenario_id": "capacity_exhaustion_prebreak",
+      "fixture_hash": "4b7dcf7f6f0dbbdac95a943bf13c69ee1b64139f19607dc56d7a62a4da9793ae",
+      "outcome": "pass",
+      "details": {
+        "active_onts": 231,
+        "alert_level": "Critical",
+        "months_to_full": -55.666666666666664
+      }
+    },
+    {
+      "scenario_id": "service_degradation_churn_risk",
+      "fixture_hash": "c9638744b200a12516b0cbb15258b84df00da3d10ba9e0596278e4b12d05eb8c",
+      "outcome": "pass",
+      "details": {
+        "flagged_onts": 4,
+        "top_probability": 0.35
+      }
+    }
+  ]
+}

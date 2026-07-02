@@ -87,6 +87,12 @@ export interface TicketStateInfo {
   acked_at: string | null;
   closed_by: string | null;
   closed_by_name: string | null;
+  /**
+   * True when the close was system-actored (telemetry auto-close on an
+   * agent resolve event, P88): closed_by is null and the UI renders an
+   * "Auto-closed by telemetry" badge. Human closes are always false.
+   */
+  closed_by_system: boolean;
   closed_at: string | null;
   close_note: string | null;
   updated_at: string | null;

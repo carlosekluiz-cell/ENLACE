@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Enlace — Network Telemetry Pilot Proposal</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root{
+    --accent:#6366f1; --accent-deep:#4f46e5; --accent-subtle:#eef2ff;
+    --dark:#0c0a09; --surface:#1c1917;
+    --text:#1c1917; --muted:#57534e; --faint:#a8a29e; --line:#ece9e4;
+  }
+  @page{ size:A4; margin:18mm 16mm 16mm 16mm;
+    @bottom-left{ content:"Enlace · Network Telemetry Pilot — prepared for Community Fibre";
+      font-family:'DM Sans',sans-serif; font-size:7.5pt; color:#a8a29e; }
+    @bottom-right{ content:counter(page); font-family:'DM Sans',sans-serif; font-size:8pt; color:#a8a29e; }
+  }
+  @page:first{ margin:0; background:#0c0a09; @bottom-left{content:none} @bottom-right{content:none} }
+
+  *{ box-sizing:border-box; }
+  body{ font-family:'DM Sans',ui-sans-serif,system-ui,sans-serif; color:var(--text);
+    font-size:10pt; line-height:1.5; margin:0; -webkit-font-smoothing:antialiased; }
+  h1,h2,h3,h4{ font-family:'Fraunces',Georgia,serif; font-weight:600; line-height:1.15; color:var(--dark); }
+  p{ margin:0 0 8px; }
+  a{ color:var(--accent-deep); text-decoration:none; }
+  .mono{ font-family:'JetBrains Mono',monospace; }
+
+  /* cover */
+  .cover{ height:297mm; background:var(--dark); color:#fafaf9; padding:38mm 22mm; display:flex; flex-direction:column; }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .mark{ width:38px; height:38px; }
+  .brand .name{ font-family:'Fraunces',serif; font-size:21pt; font-weight:600; }
+  .cover .eyebrow{ margin-top:16mm; color:var(--accent); font-family:'JetBrains Mono',monospace;
+    font-size:9.5pt; letter-spacing:.14em; text-transform:uppercase; }
+  .cover h1{ color:#fff; font-size:33pt; margin:10px 0 0; max-width:15ch; }
+  .cover .sub{ color:#d6d3d1; font-size:12.5pt; margin-top:14px; max-width:48ch; }
+  .cover .prepared{ margin-top:14mm; border-top:1px solid #44403c; padding-top:16px; color:#d6d3d1; font-size:9.5pt; line-height:1.7; }
+  .cover .prepared b{ color:#fff; }
+
+  /* sections */
+  .page{ padding-top:1mm; }
+  .break{ break-before:page; }
+  .kicker{ color:var(--accent-deep); font-family:'JetBrains Mono',monospace; font-size:8.5pt;
+    letter-spacing:.12em; text-transform:uppercase; margin:0 0 4px; }
+  h2{ font-size:17pt; margin:0 0 8px; }
+  h3{ font-size:11.5pt; margin:14px 0 3px; color:var(--dark); }
+  h4{ font-size:10pt; margin:0 0 2px; }
+  .rule{ height:2px; width:44px; background:var(--accent); margin:0 0 13px; border:0; }
+  .lead{ font-size:10.6pt; color:var(--muted); }
+  section{ margin-bottom:16px; }
+  .nobreak{ break-inside:avoid; }
+  .small{ font-size:8.4pt; color:var(--faint); }
+  ul{ margin:4px 0 8px; padding-left:16px; }
+  li{ margin:2px 0; }
+
+  /* tables */
+  table{ width:100%; border-collapse:collapse; margin:4px 0 8px; }
+  th,td{ text-align:left; padding:6px 9px; font-size:9pt; vertical-align:top; }
+  thead th{ background:var(--dark); color:#fff; font-family:'DM Sans'; font-weight:500; }
+  tbody tr:nth-child(even){ background:#faf9f7; }
+  tbody td{ border-bottom:1px solid var(--line); }
+  td .m{ font-family:'JetBrains Mono',monospace; color:var(--accent-deep); }
+
+  /* capability grid */
+  .capgrid{ display:flex; flex-wrap:wrap; gap:8px; }
+  .cap{ flex:1 1 30%; min-width:30%; background:#faf9f7; border:1px solid var(--line); border-radius:7px; padding:9px 11px; }
+  .cap .t{ font-family:'Fraunces',serif; font-weight:600; font-size:9.6pt; color:var(--dark); }
+  .cap .d{ font-size:8.4pt; color:var(--muted); margin-top:2px; line-height:1.4; }
+
+  /* flow */
+  .flow{ display:flex; gap:10px; margin:6px 0 4px; }
+  .flow .f{ flex:1; background:var(--accent-subtle); border:1px solid #dfe2ff; border-radius:8px; padding:11px 12px; }
+  .flow .f .n{ font-family:'JetBrains Mono',monospace; font-size:8pt; color:var(--accent-deep); letter-spacing:.1em; }
+  .flow .f h4{ margin:3px 0 3px; }
+  .flow .f p{ font-size:8.6pt; color:var(--muted); margin:0; }
+
+  /* chips */
+  .chips{ display:flex; flex-wrap:wrap; gap:5px; margin:4px 0 8px; }
+  .chip{ font-family:'JetBrains Mono',monospace; font-size:8pt; padding:3px 8px; border-radius:20px;
+    background:#fff; border:1px solid var(--line); color:var(--muted); }
+
+  /* feature block */
+  .feat{ break-inside:avoid; margin-bottom:13px; padding-left:13px; border-left:2px solid var(--accent); }
+  .feat h3{ margin:0 0 2px; font-size:11pt; }
+  .feat p{ font-size:9.3pt; margin:0 0 4px; }
+  .feat .spec{ font-family:'JetBrains Mono',monospace; font-size:7.8pt; color:var(--accent-deep); }
+
+  /* findings / score */
+  .findings{ background:var(--accent-subtle); border:1px solid #dfe2ff; border-radius:8px; padding:13px 15px; }
+  .findings ul{ margin:6px 0 0; padding-left:0; list-style:none; }
+  .findings li{ padding:5px 0; border-bottom:1px dashed #cdd2f7; font-size:9.4pt; }
+  .findings li:last-child{ border-bottom:0; }
+  .findings li b{ color:var(--accent-deep); font-family:'JetBrains Mono',monospace; }
+  .scorebadge{ float:right; text-align:center; background:#fff; border:1px solid #dfe2ff; border-radius:8px; padding:8px 14px; margin-left:14px; }
+  .scorebadge .n{ font-family:'Fraunces',serif; font-size:26pt; font-weight:600; color:var(--accent-deep); line-height:1; }
+  .scorebadge .l{ font-size:7.5pt; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+
+  .trust{ display:flex; flex-wrap:wrap; gap:9px; }
+  .trust .t{ flex:1 1 45%; background:#faf9f7; border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:9.2pt; }
+  .trust .t b{ color:var(--dark); }
+
+  .steps{ counter-reset:step; }
+  .step{ counter-increment:step; position:relative; padding:3px 0 10px 32px; break-inside:avoid; }
+  .step::before{ content:counter(step); position:absolute; left:0; top:1px; width:21px; height:21px;
+    background:var(--accent); color:#fff; border-radius:50%; font-size:9.5pt; font-weight:700;
+    display:flex; align-items:center; justify-content:center; font-family:'DM Sans'; }
+
+  .offer{ background:var(--dark); color:#fafaf9; border-radius:10px; padding:17px 20px; }
+  .offer h2{ color:#fff; } .offer p{ color:#d6d3d1; }
+  .offer .ask{ color:var(--accent); font-family:'JetBrains Mono',monospace; font-size:9.6pt; margin-top:8px; }
+</style>
+</head>
+<body>
+
+<!-- ===================== COVER ===================== -->
+<div class="cover">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><linearGradient id="cm" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#818cf8"/><stop offset="1" stop-color="#4f46e5"/></linearGradient></defs>
+      <rect width="32" height="32" rx="8" fill="url(#cm)"/>
+      <path d="M5 17.5 H11.2 L14.2 8.5 L18 24 L21 16 H27" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="14.2" cy="8.5" r="1.9" fill="#fff"/>
+    </svg>
+    <div class="name">Enlace</div>
+  </div>
+  <div class="eyebrow">Network Telemetry Pilot · Proposal</div>
+  <h1>See your fibre network before your customers do.</h1>
+  <p class="sub">A read-only telemetry agent that reads the data your OLTs already
+    produce and turns it into early warnings — fibre cuts, degrading signal, optical
+    faults, ghost connections and customers drifting toward churn.</p>
+  <div class="prepared">
+    Prepared for <b>Community Fibre</b><br>
+    By <b>Pulso Technologies Limited</b> — a UK telecom-technology startup<br>
+    Registered in England &amp; Wales, company no. 17151141 · enlace.network · hello@enlace.network
+  </div>
+</div>
+
+<!-- ===================== EXEC SUMMARY + AT A GLANCE ===================== -->
+<div class="page">
+  <section class="nobreak">
+    <div style="background:var(--accent-subtle);border:1px solid #dfe2ff;border-radius:8px;padding:12px 15px;margin-bottom:16px;">
+      <p class="kicker" style="margin-bottom:3px;">About this proposal</p>
+      <p style="margin:0;font-size:9.4pt;">Pulso Technologies is a <b>pre-launch telecom-technology
+        startup</b>, and Enlace is our <b>first product</b>. This document sets out what Enlace does and
+        what we <b>intend to deliver</b> in a pilot with you. Every result shown here comes from our own
+        <b>internal validation</b> on representative data — not customer data. The pilot is how we prove
+        it on your live network.</p>
+    </div>
+  </section>
+  <section>
+    <p class="kicker">The opportunity</p>
+    <h2>Your network is already talking. Most NOCs can't hear it.</h2>
+    <hr class="rule">
+    <p class="lead">For a fast-scaling London full-fibre network like Community Fibre, visibility has
+      to keep pace with every premises passed. Your OLTs already know when a customer's signal is
+      dying, when a PON branch has gone dark, and when a connection has quietly stopped carrying
+      traffic — but that data sits siloed by vendor, unread, so operations stay <b>reactive</b>.</p>
+    <p>The customer calls first. A ticket opens. An engineer rolls a van — often to find no
+      fault at the premises at all. Reactive operations cost twice: in truck rolls
+      (£80–150 each) and in the churn of customers who lost service before anyone knew.
+      <b>Enlace closes that gap.</b> One lightweight agent reads telemetry from the equipment
+      you already run, normalises it across vendors, and runs the analysis below
+      <i>at the edge</i> — flagging the specific problem, on the specific ONT, before the phone rings.</p>
+  </section>
+
+  <section class="nobreak">
+    <p class="kicker">At a glance</p>
+    <h2>Eleven things Enlace finds in your network.</h2>
+    <hr class="rule">
+    <div class="capgrid">
+      <div class="cap"><div class="t">Fibre cuts</div><div class="d">Mass dropouts on a PON branch, with an estimated break location</div></div>
+      <div class="cap"><div class="t">Power vs fibre</div><div class="d">Dying-gasp signatures separate an area power cut from a physical break</div></div>
+      <div class="cap"><div class="t">Reflectance culprit</div><div class="d">The one ONT whose return-loss is knocking its neighbours offline</div></div>
+      <div class="cap"><div class="t">Signal degradation</div><div class="d">Per-ONT optical decline with an estimated time-to-failure</div></div>
+      <div class="cap"><div class="t">Optical budget</div><div class="d">Loss attributed to fibre, splitter, connectors — with the probable cause</div></div>
+      <div class="cap"><div class="t">SFP ageing</div><div class="d">OLT transceiver wear, seen as a whole-port synchronised decline</div></div>
+      <div class="cap"><div class="t">Weather faults</div><div class="d">Condensation, rain ingress and thermal stress — no weather station needed</div></div>
+      <div class="cap"><div class="t">Flapping ONTs</div><div class="d">Repeated up/down cycling, with cascade-risk and probable cause</div></div>
+      <div class="cap"><div class="t">Ghost connections</div><div class="d">Provisioned, online, but carrying no real traffic — revenue leakage</div></div>
+      <div class="cap"><div class="t">Churn risk</div><div class="d">90-day churn probability and revenue at risk, from signal behaviour</div></div>
+      <div class="cap"><div class="t">Capacity</div><div class="d">Splitter ports trending toward exhaustion, with months-to-full</div></div>
+      <div class="cap"><div class="t">Help-desk view</div><div class="d">Colour-coded health your front line can read without an engineer</div></div>
+    </div>
+    <p style="margin-top:8px;">Each one is normally invisible until it becomes a support call
+      or a repeat truck roll. Enlace surfaces them as prioritised <b>tickets</b> with a fix,
+      a team and an ROI — and an executive <b>health score</b> for the whole network.</p>
+  </section>
+</div>
+
+<!-- ===================== HOW IT WORKS ===================== -->
+<div class="page break">
+  <section>
+    <p class="kicker">How it works</p>
+    <h2>One agent: collect, detect at the edge, act.</h2>
+    <hr class="rule">
+    <div class="flow">
+      <div class="f"><div class="n">01 · COLLECT</div><h4>From the kit you already run</h4>
+        <p>Read-only polling of OLTs, MikroTik routers, RADIUS and CPE — normalised into one data model across every vendor.</p></div>
+      <div class="f"><div class="n">02 · DETECT</div><h4>Analysis on-site</h4>
+        <p>Eleven detection modules run locally on the agent. No raw customer data leaves the network — only findings.</p></div>
+      <div class="f"><div class="n">03 · ACT</div><h4>Tickets &amp; dashboards</h4>
+        <p>Prioritised tickets to your NOC, alerts to Slack/Elasticsearch, and a help-desk health view — or just a report.</p></div>
+    </div>
+  </section>
+
+  <section class="nobreak">
+    <h3>Speaks every box on your network</h3>
+    <p>A single binary (~6&nbsp;MB, &lt;1% CPU) collects over seven protocols and normalises
+      twelve OLT vendors plus a generic SNMP fallback. Polling is configurable, as fast as
+      60-second intervals. If the link to the cloud drops, readings buffer locally and sync later.</p>
+    <h4 class="mono" style="font-family:'JetBrains Mono';font-size:8.4pt;color:var(--muted);">PROTOCOLS</h4>
+    <div class="chips">
+      <span class="chip">SNMP v2c/v3</span><span class="chip">SSH CLI</span><span class="chip">NETCONF</span>
+      <span class="chip">gRPC streaming</span><span class="chip">RouterOS API</span><span class="chip">RADIUS</span><span class="chip">TR-069 / GenieACS</span>
+    </div>
+    <h4 class="mono" style="font-family:'JetBrains Mono';font-size:8.4pt;color:var(--muted);">OLT VENDORS</h4>
+    <div class="chips">
+      <span class="chip">Adtran SDX</span><span class="chip">Huawei</span><span class="chip">Nokia</span><span class="chip">ZTE</span>
+      <span class="chip">FiberHome</span><span class="chip">Datacom</span><span class="chip">Intelbras</span><span class="chip">Parks</span>
+      <span class="chip">BDCOM</span><span class="chip">VSOL</span><span class="chip">CDATA</span><span class="chip">Ubiquiti</span><span class="chip">+ generic SNMP</span>
+    </div>
+    <p class="small">Per ONT, Enlace normalises: serial, PON port, Rx/Tx optical power, status,
+      distance, uptime, last-down cause and Ethernet link speed — plus temperature, voltage and
+      laser bias where the equipment exposes OMCI/NETCONF detail.</p>
+  </section>
+</div>
+
+<!-- ===================== FAULT INTELLIGENCE ===================== -->
+<div class="page break">
+  <section>
+    <p class="kicker">Fault intelligence</p>
+    <h2>Know what broke, why, and roughly where.</h2>
+    <hr class="rule">
+
+    <div class="feat">
+      <h3>Mass-offline detection — fibre cut vs power outage</h3>
+      <p>When several ONTs on a PON port drop together, Enlace classifies the root cause by
+        whether they sent a <i>dying gasp</i> first. No dying gasp → a physical fibre cut.
+        Dying gasps → an area power failure. A mix → both, flagged as such.</p>
+      <p class="spec">Trigger: ≥ configurable N offline within a 60s window · severity scales with affected count</p>
+    </div>
+
+    <div class="feat">
+      <h3>Reflectance — the "return-loss" culprit ONT</h3>
+      <p>A dirty connector or damaged fibre on <i>one</i> ONT can throw optical reflections that
+        corrupt upstream timing and knock its neighbours offline — while the culprit itself stays
+        up. Enlace finds the offending ONT: it isolates the mass-dropout, rules out fibre cuts and
+        already-degraded units, then looks for the Tx-power anomaly on the ONT that remained online.</p>
+      <p class="spec">Output: suspect serial, distance, Tx anomaly (dBm) · confidence 0.3 → 0.9 as the same suspect recurs across events</p>
+    </div>
+
+    <div class="feat">
+      <h3>Fault localisation — narrow the search before the van rolls</h3>
+      <p>Using ONT distances (and PON-tree topology where available), Enlace estimates where on
+        the fibre run the break sits — e.g. "break at 800–850&nbsp;m on port 0/1/4" — so the field
+        team starts at the right joint instead of walking the whole route.</p>
+      <p class="spec">Output: estimated distance from OLT + human-readable span (last-online → first-offline node)</p>
+    </div>
+  </section>
+</div>
+
+<!-- ===================== PREDICTIVE & OPTICAL ===================== -->
+<div class="page break">
+  <section>
+    <p class="kicker">Predictive &amp; optical health</p>
+    <h2>Catch failures while they're still trends.</h2>
+    <hr class="rule">
+
+    <div class="feat">
+      <h3>Signal degradation &amp; time-to-failure</h3>
+      <p>Enlace fits a trend to each ONT's optical power over a rolling 30-day history and
+        projects when it will cross the failure threshold — turning "it broke last night" into
+        "this one fails in ~9 days, schedule it." Every forecast carries a confidence (the fit's R²).</p>
+      <p class="spec">Severity by slope (dBm/day): Watch −0.015 · Warning −0.035 · Critical −0.07 or Rx &lt; −27 dBm · output: days-to-failure + confidence</p>
+    </div>
+
+    <div class="feat">
+      <h3>Optical budget — attribute the loss</h3>
+      <p>For each ONT, Enlace models the expected loss (fibre attenuation, splitter, connectors)
+        and compares it to reality, attributing any <i>excess</i> loss to a probable cause —
+        so a marginal link comes with a hypothesis, not just a number.</p>
+      <table>
+        <thead><tr><th>Margin to threshold</th><th>Status</th><th>Excess loss points to…</th></tr></thead>
+        <tbody>
+          <tr><td><span class="m">&gt; 6 dB</span></td><td>Excellent</td><td>—</td></tr>
+          <tr><td><span class="m">3–6 dB</span></td><td>Good</td><td>—</td></tr>
+          <tr><td><span class="m">1–3 dB</span></td><td>Marginal</td><td>Connector loss · splice degradation · macro-bend</td></tr>
+          <tr><td><span class="m">0–1 dB</span></td><td>Critical</td><td>Splitter over-loss · insufficient OLT power</td></tr>
+          <tr><td><span class="m">&lt; 0 dB</span></td><td>Failed</td><td>Below receiver sensitivity</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="feat">
+      <h3>SFP ageing on the OLT</h3>
+      <p>When an OLT transceiver wears out, <i>every</i> ONT on that port drifts down together,
+        regardless of distance. Enlace spots that synchronised, port-wide decline and flags the
+        port as an outlier against its siblings — distinguishing a £40 SFP swap from a fibre job.</p>
+      <p class="spec">Output: per-port Rx trend (dBm/week), how tightly ONTs track it, weeks-to-failure, outlier-vs-siblings flag</p>
+    </div>
+  </section>
+</div>
+
+<!-- ===================== ENVIRONMENTAL & STABILITY ===================== -->
+<div class="page break">
+  <section>
+    <p class="kicker">Environmental &amp; stability</p>
+    <h2>Faults the weather and loose joints cause.</h2>
+    <hr class="rule">
+
+    <div class="feat">
+      <h3>Weather-correlated faults — no weather station required</h3>
+      <p>By grouping ONTs that sit close together on a span, Enlace separates infrastructure
+        problems from one-off ONT faults and reads the environmental signature directly from
+        the optics:</p>
+      <ul>
+        <li><b>Nighttime condensation</b> — signal consistently worse overnight → moisture in a splice enclosure or aerial joint.</li>
+        <li><b>Periodic rain ingress</b> — coordinated 2–8&nbsp;hour dips that fully recover → a failed water seal in a joint.</li>
+        <li><b>Thermal expansion</b> — higher signal variance in afternoon heat → aerial cable under thermal stress.</li>
+      </ul>
+      <p class="spec">Requires ≥ 3 ONTs within 100&nbsp;m on a port · output: pattern, affected ONTs, distance range, correlation strength</p>
+    </div>
+
+    <div class="feat">
+      <h3>Flapping ONTs &amp; cascade risk</h3>
+      <p>An ONT cycling online/offline wastes OLT CPU, drowns the NOC in alarms, and on a busy
+        port can cascade-crash the whole branch. Enlace measures the flap rate, scores the cascade
+        risk by how loaded the port is, and proposes a probable cause.</p>
+      <p class="spec">Severity: Sporadic 2–5/h · Moderate 5–15/h · Severe &gt;15/h · cause: marginal Rx (dirty connector), power instability, or periodic hardware fault</p>
+    </div>
+  </section>
+</div>
+
+<!-- ===================== CUSTOMER & REVENUE ===================== -->
+<div class="page break">
+  <section>
+    <p class="kicker">Customer &amp; revenue intelligence</p>
+    <h2>Connect the network to the P&amp;L.</h2>
+    <hr class="rule">
+
+    <div class="feat">
+      <h3>Ghost connections — find the revenue leakage</h3>
+      <p>Some ONTs are provisioned and "online" but never actually used. Enlace flags them —
+        either no Ethernet link at all, or a healthy signal with a perfectly flat profile (real
+        customers create variance) — and estimates the revenue tied up in each.</p>
+      <p class="spec">Criteria: uptime &gt; 90%, healthy Rx, no Ethernet activity / flat variance · sorted by days online (biggest leak first)</p>
+    </div>
+
+    <div class="feat">
+      <h3>Churn risk &amp; revenue at risk</h3>
+      <p>Enlace translates optical behaviour into a 90-day churn probability — combining the
+        signal trend with "micro-dropouts" (brief disconnections that frustrate customers) — and
+        attaches the monthly revenue at risk, so retention can act on the right accounts first.</p>
+      <p class="spec">Impact tiers from Rx + slope (and a bump for repeated micro-dropouts) · output: probability, days degrading, revenue at risk</p>
+    </div>
+
+    <div class="feat">
+      <h3>Capacity planning</h3>
+      <p>Enlace infers each splitter's size, measures how fast it's filling, and projects when it
+        hits 95% — so you order and build ahead of demand instead of scrambling when a street sells out.</p>
+      <p class="spec">Alerts: Watch 50–75% · Warning 75–90% · Critical &gt;90% · output: splitter type, utilisation, new connections/month, months-to-full</p>
+    </div>
+  </section>
+</div>
+
+<!-- ===================== OPERATIONS ===================== -->
+<div class="page break">
+  <section>
+    <p class="kicker">From insight to action</p>
+    <h2>Findings become tickets, not noise.</h2>
+    <hr class="rule">
+    <p>Every detection is turned into a structured ticket — with a priority, the right team, an
+      SLA, an estimated fix cost and the revenue at risk, so the NOC can triage by ROI rather than
+      by whoever shouted loudest.</p>
+    <table>
+      <thead><tr><th>Finding</th><th>Priority</th><th>Routed to</th><th>SLA</th></tr></thead>
+      <tbody>
+        <tr><td>Reflectance source ONT</td><td><span class="m">P1</span></td><td>Customer / field</td><td>1 day</td></tr>
+        <tr><td>Capacity critical</td><td><span class="m">P2</span></td><td>Passive (build)</td><td>5 days</td></tr>
+        <tr><td>Churn risk cohort</td><td><span class="m">P2</span></td><td>Management / retention</td><td>5 days</td></tr>
+        <tr><td>Weather / water ingress</td><td><span class="m">P3</span></td><td>Passive (splice)</td><td>14 days</td></tr>
+        <tr><td>Ghost connections</td><td><span class="m">P3</span></td><td>Management</td><td>14 days</td></tr>
+      </tbody>
+    </table>
+
+    <div class="feat" style="margin-top:8px;">
+      <h3>Impact scoring</h3>
+      <p>Faults are weighted by how many customers are affected <i>and</i> when — a daytime
+        business-hours outage outranks the same fault at 3&nbsp;a.m. — so the highest-impact work
+        floats to the top automatically.</p>
+    </div>
+    <div class="feat">
+      <h3>Help-desk health view</h3>
+      <p>A colour-coded card (green / amber / red) per OLT, written in plain language. A front-line
+        agent can tell a caller "there's an area power fault affecting your street, crews are aware"
+        — without escalating to an engineer or reading an SNMP table.</p>
+    </div>
+  </section>
+</div>
+
+<!-- ===================== PROOF + TRUST + INTEGRATIONS ===================== -->
+<div class="page break">
+  <section class="nobreak">
+    <p class="kicker">Internal validation</p>
+    <h2>What a single 7-day export reveals.</h2>
+    <hr class="rule">
+    <div class="findings">
+      <div class="scorebadge"><div class="n">52</div><div class="l">Health score</div></div>
+      <p style="margin:0 0 2px;"><b>Internal validation run</b> — representative data, not customer data:
+        ~52 ONTs across 4 PON ports, one OLT, 7 days of optical/status readings. Enlace surfaced:</p>
+      <ul>
+        <li><b>1 fibre cut</b> — a PON branch where multiple ONTs dropped together with no dying gasp (a physical break, not power)</li>
+        <li><b>1 area power event</b> — separated from the fibre cut by dying-gasp signatures</li>
+        <li><b>1 ghost connection</b> — online all week, carrying no real traffic</li>
+        <li><b>3 at-risk customers</b> — signal trending toward failure, scored for churn</li>
+        <li><b>1 flapping ONT</b> — repeated instability on a marginal line</li>
+      </ul>
+    </div>
+    <p class="small" style="margin-top:8px;">Engine: validated against a benchmark of real-world
+      incident patterns (fibre cuts, splice and SFP pre-failure, reflectance, flapping,
+      weather-correlated degradation, capacity exhaustion, churn) — all detected end-to-end;
+      180+ automated tests; audits ~1,000 ONTs in roughly 10&nbsp;milliseconds. The pilot is how
+      we validate it against <i>your</i> real network.</p>
+  </section>
+
+  <section class="nobreak">
+    <p class="kicker">Trust &amp; integration</p>
+    <h2>Safe to run on a live network.</h2>
+    <hr class="rule">
+    <div class="trust">
+      <div class="t"><b>Read-only.</b> Enlace never sends a write command to your equipment.</div>
+      <div class="t"><b>Credentials stay local.</b> Only aggregated findings leave the network — never customer data.</div>
+      <div class="t"><b>No lock-in.</b> Vendor-agnostic and built on open standards (SNMP, NETCONF) — your data stays yours.</div>
+      <div class="t"><b>Resilient.</b> Local buffer survives connectivity loss; retries with backoff.</div>
+    </div>
+    <div class="feat" style="margin-top:11px;">
+      <h3>Read-only by design — your engineers can verify it</h3>
+      <p>Enlace issues only query operations — SNMP <span class="mono">GET</span>, CLI
+        <span class="mono">show</span>/<span class="mono">display</span> commands, NETCONF
+        <span class="mono">&lt;get&gt;</span>, RouterOS read calls and a passive RADIUS listener. It
+        never issues a set, write, configuration or reboot command. Equipment credentials stay on your
+        network and are never transmitted — only computed metrics and findings leave. We'll walk your
+        engineers through exactly what the agent does and every operation it runs, so they can sign it
+        off — without us exposing our source.</p>
+    </div>
+    <p style="margin-top:8px;">Findings flow where your team already works: structured tickets,
+      <b>Elasticsearch</b> for search and analytics, <b>Slack / PagerDuty</b> for P1/P2 alerts, or
+      any custom webhook — and a dry-run mode that just prints, so you can see exactly what would be sent.</p>
+  </section>
+</div>
+
+<!-- ===================== OFFER ===================== -->
+<div class="page break">
+  <section class="nobreak">
+    <p class="kicker">How the pilot works</p>
+    <h2>One CSV to first findings.</h2>
+    <hr class="rule">
+    <div class="steps">
+      <div class="step"><h4>Send us a month of data</h4>
+        <p style="font-size:9.3pt;">Export roughly a month of ONT / optical-power readings from an area
+          where you've had issues. No install, no agent on your network — just a CSV.</p></div>
+      <div class="step"><h4>We analyse it with you</h4>
+        <p style="font-size:9.3pt;">We run it through Enlace and walk you through what it found — the
+          faults, at-risk customers, ghosts and capacity hot-spots in that window, on your own data.</p></div>
+      <div class="step"><h4>Go live — read-only</h4>
+        <p style="font-size:9.3pt;">When you're ready, we deploy the agent against a live OLT for the
+          pilot — strictly read-only — so you see it work in real time. Free for the duration.</p></div>
+    </div>
+  </section>
+
+  <section class="nobreak" style="margin-top:6px;">
+    <div class="offer">
+      <p class="kicker" style="color:var(--accent);">The offer</p>
+      <h2>A free pilot for launch partners.</h2>
+      <p>We're inviting a small number of UK fibre operators to validate Enlace on their own
+        networks — and we'd like <b style="color:#fff;">Community Fibre</b> to be one of them. The
+        pilot is <b style="color:#fff;">free for the pilot period</b>, with preferential pricing
+        reserved for launch partners when we move to paid.</p>
+      <p class="ask">The ask: one CSV export, or a 15-minute call. That's it.</p>
+    </div>
+  </section>
+
+  <section class="nobreak" style="margin-top:14px;">
+    <h3 style="font-size:12pt;">Next step</h3>
+    <p>Two ways to start, whichever is easier: book a <b>15-minute call</b> this week, or send us a
+      single OLT export — about a month of data from an area you've had trouble with — and we'll
+      return a findings report within <b>24 hours</b>. Email <a>hello@enlace.network</a> to set it up.</p>
+    <p class="small" style="margin-top:20px;border-top:1px solid var(--line);padding-top:10px;">
+      Enlace is a product of <b>Pulso Technologies Limited</b>, a pre-launch UK telecom-technology
+      startup — registered in England &amp; Wales, company no. 17151141. enlace.network · hello@enlace.network</p>
+  </section>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,99 @@
+# Pulso Agent — Vendor Device Profile
+# Huawei SmartAX MA5800 series (MA5800-X2, MA5800-X7, MA5800-X17)
+#
+# This YAML file maps SNMP OIDs and CLI commands to normalized metrics.
+# Community contributions welcome — see CONTRIBUTING.md
+
+vendor: huawei
+models:
+  - MA5800-X2
+  - MA5800-X7
+  - MA5800-X17
+  - MA5600T
+  - MA5608T
+
+detection:
+  sys_object_id_prefix: "1.3.6.1.4.1.2011"
+  sys_descr_patterns:
+    - "MA5800"
+    - "MA5600"
+    - "MA5608"
+    - "SmartAX"
+
+protocols:
+  snmp:
+    versions: ["v2c", "v3"]
+    default_community: "public"
+    notes: "SNMP enabled by default. R019+ may need: sysman server source snmp any-interface"
+  ssh:
+    default_port: 22
+    cli_type: "vrp"  # Huawei VRP CLI
+    prompt_pattern: "^(\\S+)([>#])\\s*$"
+    enable_command: null  # No enable mode on Huawei OLT
+  netconf:
+    supported: true
+    port: 830
+    notes: "Available on MA5800 with iMaster NCE"
+
+snmp_oids:
+  system:
+    cpu_usage: "1.3.6.1.4.1.2011.6.3.4.1.2.0"
+    memory_usage: "1.3.6.1.4.1.2011.6.3.4.1.3.0"
+    temperature: "1.3.6.1.4.1.2011.6.3.4.1.8.0"
+
+  ont:
+    table_base: "1.3.6.1.4.1.2011.6.128.1.1.2.43.1"
+    serial_number: "1.3.6.1.4.1.2011.6.128.1.1.2.43.1.3"
+    status: "1.3.6.1.4.1.2011.6.128.1.1.2.46.1.15"
+    rx_power: "1.3.6.1.4.1.2011.6.128.1.1.2.51.1.4"
+    tx_power: "1.3.6.1.4.1.2011.6.128.1.1.2.51.1.5"
+    distance: "1.3.6.1.4.1.2011.6.128.1.1.2.46.1.20"
+    uptime: "1.3.6.1.4.1.2011.6.128.1.1.2.46.1.24"
+    down_cause: "1.3.6.1.4.1.2011.6.128.1.1.2.46.1.22"
+    description: "1.3.6.1.4.1.2011.6.128.1.1.2.43.1.9"
+
+  ont_value_transforms:
+    rx_power_unit: "0.01_dbm"   # Value / 100 = dBm
+    tx_power_unit: "0.01_dbm"
+    status_map:
+      1: "online"
+      2: "offline"
+    down_cause_map:
+      1: "dying_gasp"
+      2: "los"
+      3: "lof"
+      4: "deactivated"
+
+cli_commands:
+  ont_info: "display ont info {slot}/{port} all"
+  ont_optical: "display ont optical-info {slot}/{port} all"
+  interface_gpon: "display interface gpon {slot}/{port}"
+  board_info: "display board 0"
+  system_info: "display version"
+  ont_autofind: "display ont autofind all"
+  alarm_active: "display alarm active"
+
+cli_parsers:
+  ont_info:
+    header_pattern: "ONT-ID\\s+State\\s+SN"
+    row_pattern: "^\\s*(\\d+)\\s+(\\w+)\\s+(\\S+)"
+    fields:
+      - { index: 1, name: "ont_index", type: "u32" }
+      - { index: 2, name: "status", type: "string" }
+      - { index: 3, name: "serial_number", type: "string" }
+
+  ont_optical:
+    header_pattern: "ONT-ID\\s+Rx optical"
+    row_pattern: "^\\s*(\\d+)\\s+(-?[\\d.]+)\\s+(-?[\\d.]+)"
+    fields:
+      - { index: 1, name: "ont_index", type: "u32" }
+      - { index: 2, name: "rx_power_dbm", type: "f64" }
+      - { index: 3, name: "tx_power_dbm", type: "f64" }
+
+signal_thresholds:
+  excellent_dbm: -15.0
+  good_dbm: -20.0
+  acceptable_dbm: -25.0
+  warning_dbm: -27.0
+  critical_dbm: -28.0
+  failure_dbm: -30.0

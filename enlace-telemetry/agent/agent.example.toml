@@ -1,0 +1,39 @@
+agent_id = "13bbf2a5-debf-41c0-a5a0-f59f99e9ba68"
+data_dir = "/var/lib/pulso-agent"
+poll_interval_secs = 60
+
+[cloud]
+endpoint = "https://api.pulsonetwork.com.br/v1/telemetry"
+api_key = "YOUR_API_KEY"
+send_interval_secs = 300
+verify_tls = true
+
+[[olts]]
+name = "OLT-Principal"
+ip = "10.0.0.1"
+vendor = "auto"
+model = ""
+
+[olts.snmp]
+version = "v2c"
+community = "public"
+port = 161
+timeout_ms = 5000
+max_repetitions = 50
+
+[olts.ssh]
+username = "admin"
+password = "admin"
+port = 22
+enabled = true
+
+[[mikrotiks]]
+name = "MK-Core"
+ip = "10.0.0.254"
+port = 8728
+username = "pulso"
+password = "CHANGE_ME"
+collect_pppoe = true
+collect_bgp = true
+collect_interfaces = true
+collect_queues = true

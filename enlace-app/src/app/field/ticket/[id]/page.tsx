@@ -22,6 +22,7 @@ import { googleMapsUrl } from "@/lib/shareTicket";
 import { closeTicketAction, useTicketList } from "@/lib/useOps";
 import AppShell from "@/components/AppShell";
 import AssumptionBadge from "@/components/AssumptionBadge";
+import AutoClosedBadge from "@/components/AutoClosedBadge";
 import NoAuditState from "@/components/NoAuditState";
 import ShareTicketActions from "@/components/ShareTicketActions";
 import TicketStatusPill from "@/components/TicketStatusPill";
@@ -139,6 +140,7 @@ function StateSection({ t }: { t: TicketWithState }) {
       <div className="flex items-center gap-2 mb-2">
         <span className="op-label">lifecycle</span>
         <TicketStatusPill status={s.status} />
+        {s.status === "closed" && s.closed_by_system && <AutoClosedBadge />}
       </div>
       <div className="flex flex-col gap-1 font-mono text-[11px]" style={{ color: "var(--text-on-dark-secondary)" }}>
         <span>
@@ -154,8 +156,11 @@ function StateSection({ t }: { t: TicketWithState }) {
         {s.status === "closed" && (
           <>
             <span style={{ color: "var(--status-online)" }}>
-              closed: {s.closed_by_name ?? s.closed_by} ·{" "}
-              {s.closed_at ? fmtDate(s.closed_at) : ""}
+              closed:{" "}
+              {s.closed_by_system
+                ? "telemetry (system)"
+                : (s.closed_by_name ?? s.closed_by)}{" "}
+              · {s.closed_at ? fmtDate(s.closed_at) : ""}
             </span>
             <span style={{ color: "var(--text-on-dark)" }}>
               close-out note: {s.close_note}

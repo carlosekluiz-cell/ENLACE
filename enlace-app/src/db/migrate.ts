@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS ticket_state (
   acked_by         TEXT,
   acked_at         TEXT,
   closed_by        TEXT,
+  closed_by_system INTEGER NOT NULL DEFAULT 0,
   closed_at        TEXT,
   close_note       TEXT,
   updated_at       TEXT NOT NULL
@@ -88,5 +89,14 @@ export function migrate(sqlite: DatabaseType.Database): void {
   }>;
   if (!userCols.some((c) => c.name === "phone")) {
     sqlite.exec("ALTER TABLE users ADD COLUMN phone TEXT");
+  }
+
+  const ticketStateCols = sqlite.pragma("table_info(ticket_state)") as Array<{
+    name: string;
+  }>;
+  if (!ticketStateCols.some((c) => c.name === "closed_by_system")) {
+    sqlite.exec(
+      "ALTER TABLE ticket_state ADD COLUMN closed_by_system INTEGER NOT NULL DEFAULT 0",
+    );
   }
 }

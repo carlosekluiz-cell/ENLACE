@@ -12,6 +12,10 @@ export const PUBLIC_PATHS: readonly string[] = [
   "/api/auth/login",
   "/api/auth/session",
   "/api/auth/logout",
+  // Agent webhook ingress: authenticated by its own shared bearer token
+  // (ENLACE_HOOK_TOKEN, machine credential) inside the route — the caller
+  // is the pulso-agent, not a person with a session cookie.
+  "/api/hooks/agent-events",
 ];
 
 /** Minimum role per app-page route prefix. Admin ranks above all floors. */

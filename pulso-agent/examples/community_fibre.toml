@@ -1,5 +1,5 @@
 # Community Fibre UK — Pulso Agent Example Config
-# Adtran SDX 6320 (gRPC) + Huawei MA5800 (SNMP)
+# Adtran SDX 6320 (NETCONF) + Huawei MA5800 (SNMP)
 # Elasticsearch output + Slack webhooks + fault detection
 
 agent_id = "cf-lambeth-01"
@@ -10,15 +10,16 @@ poll_interval_secs = 30
 endpoint = "https://api.enlace.network/v1/telemetry"
 api_key = "YOUR_API_KEY"
 
-# Adtran SDX 6320 — OpenOLT gRPC (no SNMP)
+# Adtran SDX 6320 — NETCONF/YANG (BBF TR-385) over SSH, port 830 (primary path)
 [[olts]]
 name = "Lambeth-POP-OLT1"
 ip = "10.0.1.10"
 vendor = "adtran"
 
-[olts.grpc]
-port = 9191
-tls = false
+[olts.netconf]
+username = "netconf-user"
+password = "YOUR_NETCONF_PASSWORD"
+port = 830
 
 # Huawei MA5800 — SNMP v2c
 [[olts]]

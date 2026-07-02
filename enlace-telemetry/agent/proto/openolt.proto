@@ -1,0 +1,110 @@
+// Minimal OpenOLT proto — subset of opencord/voltha-protos (Apache-2.0)
+// Contains only the messages and RPCs used by the Adtran SDX adapter.
+// Full source: https://github.com/opencord/voltha-protos
+syntax = "proto3";
+package openolt;
+
+message Empty {}
+
+message DeviceInfo {
+    string vendor = 1;
+    string model = 2;
+    string hardware_version = 3;
+    string firmware_version = 4;
+    string device_id = 16;
+    string device_serial_number = 17;
+    uint32 pon_ports = 12;
+}
+
+message SerialNumber {
+    bytes vendor_id = 1;
+    bytes vendor_specific = 2;
+}
+
+message Onu {
+    uint32 intf_id = 1;
+    uint32 onu_id = 2;
+    SerialNumber serial_number = 3;
+    uint32 pir = 4;
+}
+
+message OnuIndication {
+    uint32 intf_id = 1;
+    uint32 onu_id = 2;
+    string oper_state = 3;
+    string admin_state = 5;
+    SerialNumber serial_number = 4;
+}
+
+message AlarmIndication {
+    oneof data {
+        DyingGaspIndication dying_gasp_ind = 1;
+        OnuAlarmIndication onu_alarm_ind = 6;
+    }
+}
+
+message DyingGaspIndication {
+    uint32 intf_id = 1;
+    uint32 onu_id = 2;
+    string status = 3;
+}
+
+message OnuAlarmIndication {
+    uint32 intf_id = 1;
+    uint32 onu_id = 2;
+    string los_status = 3;
+    string lob_status = 4;
+    string lopc_miss_status = 5;
+    string lopc_mic_error_status = 6;
+}
+
+message Indication {
+    oneof data {
+        OnuIndication onu_ind = 4;
+        AlarmIndication alarm_ind = 6;
+    }
+}
+
+message IntfOperIndication {
+    string type = 1;
+    uint32 intf_id = 2;
+    string oper_state = 3;
+}
+
+message PowerMeanTypical {
+    double rx_power_mean_dbm = 1;
+    double tx_power_mean_dbm = 2;
+    double laser_bias_current_mean = 3;
+    double temperature_mean = 4;
+}
+
+message OnuLogicalDistance {
+    uint32 intf_id = 1;
+    uint32 onu_id = 2;
+    uint32 logical_onu_distance = 3;
+    uint32 logical_onu_distance_zero_touch = 4;
+}
+
+message OnuInfo {
+    uint32 intf_id = 1;
+    uint32 onu_id = 2;
+    enum OnuState {
+        NOT_CONFIGURED = 0;
+        ACTIVE = 1;
+        INACTIVE = 2;
+        DISABLED = 3;
+    }
+    OnuState state = 3;
+    bool losi = 4;
+    bool lofi = 5;
+    bool loami = 6;
+    SerialNumber serial_number = 7;
+}
+
+service Openolt {
+    rpc GetDeviceInfo(Empty) returns (DeviceInfo);
+    rpc EnableIndication(Empty) returns (stream Indication);
+    rpc GetOnuInfo(Onu) returns (OnuInfo);
+    rpc GetPonRxPower(Onu) returns (PowerMeanTypical);
+    rpc GetLogicalOnuDistance(Onu) returns (OnuLogicalDistance);
+}

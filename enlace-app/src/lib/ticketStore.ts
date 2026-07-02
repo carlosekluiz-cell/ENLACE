@@ -43,6 +43,7 @@ interface StateRow {
   ackedBy: string | null;
   ackedAt: string | null;
   closedBy: string | null;
+  closedBySystem: number;
   closedAt: string | null;
   closeNote: string | null;
   updatedAt: string;
@@ -58,6 +59,7 @@ const OPEN_STATE: TicketStateInfo = {
   acked_at: null,
   closed_by: null,
   closed_by_name: null,
+  closed_by_system: false,
   closed_at: null,
   close_note: null,
   updated_at: null,
@@ -86,6 +88,7 @@ function toStateInfo(row: StateRow, names: Map<string, string>): TicketStateInfo
     acked_at: row.ackedAt,
     closed_by: row.closedBy,
     closed_by_name: row.closedBy ? (names.get(row.closedBy) ?? null) : null,
+    closed_by_system: row.closedBySystem === 1,
     closed_at: row.closedAt,
     close_note: row.closeNote,
     updated_at: row.updatedAt,
@@ -192,6 +195,7 @@ function upsertState(
     ackedBy: string | null;
     ackedAt: string | null;
     closedBy: string | null;
+    closedBySystem: number;
     closedAt: string | null;
     closeNote: string | null;
   }>,
@@ -214,6 +218,7 @@ function upsertState(
         ackedBy: set.ackedBy ?? null,
         ackedAt: set.ackedAt ?? null,
         closedBy: set.closedBy ?? null,
+        closedBySystem: set.closedBySystem ?? 0,
         closedAt: set.closedAt ?? null,
         closeNote: set.closeNote ?? null,
         updatedAt,
@@ -330,6 +335,39 @@ export function closeTicket(
     ...(status === "open"
       ? { ackedBy: actorUserId, ackedAt: now }
       : {}),
+  });
+}
+
+/**
+ * System-actored close (telemetry auto-close, P88): open|acked|dispatched →
+ * closed with closed_by NULL and closed_by_system = 1. Only the agent-events
+ * hook calls this, and only after verifying the resolve event FULLY covers
+ * the ticket's ONT serials. A ticket a human already closed is never
+ * touched — callers check status first; this throws 409 as a backstop.
+ */
+export function autoCloseTicket(
+  auditRow: AuditRow,
+  ref: string,
+  note: string,
+): TicketStateInfo {
+  requireAgentTicket(auditRow, ref);
+  if (!note.trim()) {
+    throw new TicketError(400, "close_note is required to close a ticket");
+  }
+
+  const existing = stateRowFor(auditRow.tenantId, auditRow.id, ref);
+  if (existing?.status === "closed") {
+    throw new TicketError(409, "ticket is already closed");
+  }
+
+  // Ack state is left untouched — if nobody acknowledged before telemetry
+  // confirmed recovery, the record honestly says "not acknowledged".
+  return upsertState(auditRow.tenantId, auditRow.id, ref, existing, {
+    status: "closed",
+    closedBy: null,
+    closedBySystem: 1,
+    closedAt: new Date().toISOString(),
+    closeNote: note.trim(),
   });
 }
 

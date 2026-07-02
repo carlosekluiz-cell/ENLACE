@@ -1,0 +1,7 @@
+vendor: cdata
+models: [FD1604S, FD1608S, FD1616S]
+notes: "MIB available in LibreNMS repo (FD-OLT-MIB)"
+snmp_oids:
+  ont:
+    status: "1.3.6.1.4.1.34592.1.3.4.1.5.1.1.5"
+    rx_power: "1.3.6.1.4.1.34592.1.3.4.1.5.1.1.3"

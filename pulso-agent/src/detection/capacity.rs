@@ -44,13 +44,16 @@ pub struct SplitterCapacity {
 }
 
 /// Alert level for splitter capacity.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+///
+/// Derived ordering (Ok < Watch < Warning < Critical) lets the alert logic
+/// take the max of the percentage tier and the absolute-headroom rule.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum CapacityAlert {
     /// Utilisation is acceptable and growth is manageable.
     Ok,
     /// Utilisation > 50% and will fill within 6 months.
     Watch,
-    /// Utilisation > 75%.
+    /// Utilisation > 75%, or 2 or fewer free ports remain.
     Warning,
     /// Utilisation > 90%.
     Critical,
@@ -164,8 +167,8 @@ pub fn predict_splitter_capacity_with_topology(
             None
         };
 
-        // Alert level
-        let alert_level = if utilisation_pct > 90.0 {
+        // Alert level: percentage tiers
+        let pct_alert = if utilisation_pct > 90.0 {
             CapacityAlert::Critical
         } else if utilisation_pct > 75.0 {
             CapacityAlert::Warning
@@ -174,6 +177,18 @@ pub fn predict_splitter_capacity_with_topology(
         } else {
             CapacityAlert::Ok
         };
+
+        // Absolute-headroom rule: 2 or fewer free ports is at least a Warning
+        // regardless of percentage. A 1:8 splitter at 6/8 is only 75% but has
+        // just 2 ports left — one install away from a truck roll.
+        let free_ports = max_ports.saturating_sub(active_onts);
+        let headroom_alert = if free_ports <= 2 {
+            CapacityAlert::Warning
+        } else {
+            CapacityAlert::Ok
+        };
+
+        let alert_level = pct_alert.max(headroom_alert);
 
         // Extract OLT ID from port string (e.g., "0/1/0" → OLT is implicit)
         let olt_id = port
@@ -339,6 +354,78 @@ mod tests {
         assert_eq!(cap_64.splitter_type, "1:64");
         assert_eq!(cap_64.max_ports, 64);
         assert!(cap_64.splitter_assumed, "count-inferred ratio must be flagged assumed");
+    }
+
+    /// Helper: n stable ONTs on `port` (same set on first and last day).
+    fn stable_readings(n: u32, port: &str, prefix: &str) -> Vec<OntReading> {
+        let now = Utc::now();
+        let mut readings = Vec::new();
+        for i in 0..n {
+            let serial = format!("{}{:03}", prefix, i);
+            readings.push(make_reading(&serial, port, now - Duration::days(30)));
+            readings.push(make_reading(&serial, port, now));
+        }
+        readings
+    }
+
+    #[test]
+    fn test_last_two_ports_rule_30_of_32_fires() {
+        // 30/32 = 93.75%: Critical by percentage AND only 2 free ports.
+        // The headroom rule must fire (>= Warning) and must NOT downgrade
+        // the Critical percentage tier.
+        let readings = stable_readings(30, "0/7/0", "ONT_H");
+        let mut topo = super::super::PonTopology::default();
+        topo.splitter_ratio_by_port.insert("0/7/0".to_string(), 32);
+
+        let caps = predict_splitter_capacity_with_topology(&readings, Some(&topo));
+        assert_eq!(caps.len(), 1);
+        assert_eq!(caps[0].max_ports - caps[0].active_onts, 2);
+        assert!(
+            caps[0].alert_level >= CapacityAlert::Warning,
+            "2 free ports must fire at least Warning, got {}",
+            caps[0].alert_level
+        );
+        assert_eq!(
+            caps[0].alert_level,
+            CapacityAlert::Critical,
+            "critical-by-percentage must not be downgraded by the headroom rule"
+        );
+    }
+
+    #[test]
+    fn test_last_two_ports_rule_5_of_8_does_not_fire() {
+        // 5/8 = 62.5% with 3 free ports and no growth: below every tier.
+        let readings = stable_readings(5, "0/8/0", "ONT_I");
+        let mut topo = super::super::PonTopology::default();
+        topo.splitter_ratio_by_port.insert("0/8/0".to_string(), 8);
+
+        let caps = predict_splitter_capacity_with_topology(&readings, Some(&topo));
+        assert_eq!(caps.len(), 1);
+        assert_eq!(caps[0].max_ports - caps[0].active_onts, 3);
+        assert_eq!(
+            caps[0].alert_level,
+            CapacityAlert::Ok,
+            "3 free ports at 62.5% with no growth must stay Ok"
+        );
+    }
+
+    #[test]
+    fn test_last_two_ports_rule_6_of_8_fires() {
+        // 6/8 = 75% exactly — the percentage tier (> 75%) does NOT fire,
+        // but only 2 ports remain, so the headroom rule must raise Warning.
+        let readings = stable_readings(6, "0/9/0", "ONT_J");
+        let mut topo = super::super::PonTopology::default();
+        topo.splitter_ratio_by_port.insert("0/9/0".to_string(), 8);
+
+        let caps = predict_splitter_capacity_with_topology(&readings, Some(&topo));
+        assert_eq!(caps.len(), 1);
+        assert!((caps[0].utilisation_pct - 75.0).abs() < 0.01);
+        assert_eq!(caps[0].max_ports - caps[0].active_onts, 2);
+        assert_eq!(
+            caps[0].alert_level,
+            CapacityAlert::Warning,
+            "2 free ports must be at least Warning even at exactly 75%"
+        );
     }
 
     #[test]

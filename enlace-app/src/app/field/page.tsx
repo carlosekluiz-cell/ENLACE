@@ -11,6 +11,7 @@ import { severityColor } from "@/lib/format";
 import type { FieldProjection } from "@/lib/opsTypes";
 import { useProjection } from "@/lib/useOps";
 import AppShell from "@/components/AppShell";
+import AutoClosedBadge from "@/components/AutoClosedBadge";
 import ImportReportBanner from "@/components/ImportReportBanner";
 import NoAuditState from "@/components/NoAuditState";
 import TicketStatusPill from "@/components/TicketStatusPill";
@@ -70,6 +71,9 @@ function FieldQueue() {
                           {ticket_ref}
                         </span>
                         <TicketStatusPill status={state.status} />
+                        {state.status === "closed" && state.closed_by_system && (
+                          <AutoClosedBadge />
+                        )}
                       </div>
                       <p className="text-sm mb-1" style={{ color: "var(--text-on-dark-secondary)" }}>
                         {ticket.fault_type} · {ticket.affected_ont_count} ONT

@@ -110,6 +110,12 @@ export const ticketState = sqliteTable(
     ackedBy: text("acked_by"),
     ackedAt: text("acked_at"),
     closedBy: text("closed_by"),
+    /**
+     * 1 when the close was system-actored (telemetry auto-close, P88):
+     * closed_by stays NULL and the UI renders "Auto-closed by telemetry".
+     * Human closes always have closed_by set and this flag 0.
+     */
+    closedBySystem: integer("closed_by_system").notNull().default(0),
     closedAt: text("closed_at"),
     closeNote: text("close_note"),
     updatedAt: text("updated_at").notNull(),
