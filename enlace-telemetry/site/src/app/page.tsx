@@ -102,8 +102,8 @@ export default function Home() {
                 ["8.7 MB", "Binary size"],
                 ["12+", "OLT vendors"],
                 ["60s", "Poll interval"],
-                ["<1%", "CPU usage"],
-                ["6", "Protocols"],
+                ["0.12s", "1,000-ONT audit"],
+                ["5", "Protocols"],
                 ["0", "Credentials sent"],
               ].map(([value, label]) => (
                 <div key={label} className="pt-5">
@@ -282,7 +282,7 @@ export default function Home() {
                 "Continuous failure prediction",
                 "Dashboard with signal, distance, trend",
                 "70% of calls resolved by help desk",
-                "Churn scoring (coming soon)",
+                "Churn risk scored before the customer calls",
               ].map((item) => (
                 <li
                   key={item}
@@ -428,7 +428,7 @@ export default function Home() {
             >
               <span style={{ color: "#22c55e" }}>[INFO]</span>{" core-olt-1: SNMP poll started\n"}
               <span style={{ color: "#22c55e" }}>[INFO]</span>{" core-olt-1: 847 ONTs collected in 4.2s\n"}
-              <span style={{ color: "#22c55e" }}>[INFO]</span>{" edge-olt-2: gRPC stream opened\n"}
+              <span style={{ color: "#22c55e" }}>[INFO]</span>{" edge-olt-2: NETCONF session opened\n"}
               <span style={{ color: "#22c55e" }}>[INFO]</span>{" edge-olt-2: 312 ONTs collected in 1.8s\n"}
               <span style={{ color: "var(--text-on-dark-muted)" }}>{"───────────────────────────────────"}</span>{"\n"}
               {"  Rx power, Tx power, distance, status,\n"}
@@ -487,12 +487,12 @@ export default function Home() {
         </p>
 
         <h2 className="font-serif text-3xl font-bold md:text-5xl">
-          Six intelligence modules.
+          17 intelligence modules.
           <span
             className="block mt-2"
             style={{ color: "var(--text-on-dark-muted)" }}
           >
-            Each one replaces a manual process.
+            Six highlighted here. Each one replaces a manual process.
           </span>
         </h2>
 
@@ -516,15 +516,15 @@ export default function Home() {
               icon: UserMinus,
               title: "Churn Scoring",
               anchor: "",
-              desc: "Degrading signal + repeated disconnects + low usage = cancellation risk score. Currently in development.",
-              metric: "Coming Q3 2026",
+              desc: "Degrading signal + micro-dropouts = estimated 90-day churn probability and revenue at risk — with every assumption stated inline.",
+              metric: "Assumptions stated",
             },
             {
               icon: BarChart3,
               title: "Capacity Planning",
               anchor: "/features#capacity-planning",
-              desc: "PON port utilisation tracking. Alerts at 80%. Splitter saturation forecasting.",
-              metric: "80% threshold alert",
+              desc: "PON port utilisation tracking. Watch above 50% when filling within 6 months; warning above 75%, critical above 90%.",
+              metric: "Months-to-full forecast",
             },
             {
               icon: Layers,
@@ -658,7 +658,7 @@ export default function Home() {
                 ],
                 ["ZTE", "C320, C300, C600, C650", "SNMP + SSH"],
                 ["FiberHome", "AN5516, AN6001", "SNMP + SSH"],
-                ["Adtran", "SDX 6320", "gRPC (OpenOLT)"],
+                ["Adtran", "SDX 6320", "NETCONF/YANG + SNMP + CSV import"],
                 ["Datacom", "DM4610, DM4615", "SNMP + NETCONF"],
                 ["Nokia", "ISAM/Lightspan", "SNMP + NETCONF"],
                 ["Parks", "FiberLink 200/300/400", "SNMP + SSH"],
@@ -757,6 +757,16 @@ export default function Home() {
             </tbody>
           </table>
         </div>
+
+        <p
+          className="mt-4 font-mono text-xs leading-relaxed"
+          style={{ color: "var(--text-muted)" }}
+        >
+          Validated collection paths today: SNMP v2c/v3, NETCONF, RouterOS
+          API, passive RADIUS, and TR-069 (GenieACS). SSH CLI and gRPC
+          streaming are implemented but still in validation against real
+          firmware.
+        </p>
       </Section>
 
       {/* ── SECTION 6: TRUST ────────────────────────────────────── */}
@@ -876,8 +886,16 @@ export default function Home() {
                 ["Read-only / no lock-in", "Closed", "Yes — open standards"],
                 ["Vendor lock-in", "Total", "None"],
                 ["Pricing model", "Per subscriber", "Free pilot at launch"],
-                ["Install time", "Weeks", "5 minutes"],
-                ["Credentials leave network", "Yes", "Never"],
+                [
+                  "Install",
+                  "Cloud onboarding project",
+                  "One command, minutes",
+                ],
+                [
+                  "Credentials & management",
+                  "Live in the vendor cloud",
+                  "Stay on your network",
+                ],
               ].map(([feature, calix, enlace]) => (
                 <tr
                   key={feature}

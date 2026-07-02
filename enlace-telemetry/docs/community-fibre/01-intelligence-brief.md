@@ -75,11 +75,11 @@ This is the single most important strategic finding. The phrase is almost certai
 | Billed **per connected device / per subscriber** | **No per-endpoint licensing** |
 | Deepest on Adtran kit; "multi-vendor" is new & cloud-bound | **Vendor-agnostic across 12+ OLT vendors** — one normalised view as their estate diversifies |
 | Threshold/AI assurance in the vendor's framing | **Read-only, predictive analytics + fault localisation; complements, doesn't replace** |
-| NETCONF/RESTCONF + Kafka, Adtran-native | **Ingests Adtran NETCONF/RESTCONF/CSV today** (the repo already has an SDX 6320 parser) |
+| NETCONF/RESTCONF + Kafka, Adtran-native | **Ingests Adtran via NETCONF/YANG (the SDX's native interface) or CSV/Mosaic PM export today** (the repo already has an SDX 6320 parser) |
 
 **The line to use:** *"We're not here to replace Adtran's assurance — we sit beside it. We're the vendor-neutral, self-hosted layer that keeps your telemetry on your own infrastructure, costs nothing per device, and unifies whatever non-Adtran kit you add next."*
 
-> Technical note: the SDX 6xxx is **NETCONF-first and does not support SNMP**. Our ingest path for them is NETCONF/RESTCONF or CSV/PM export (already built), not classic SNMP polling. Know this so we don't promise an SNMP integration that won't exist on their OLTs.
+> Technical note: the SDX 6xxx is **NETCONF-first**. Our ingest path for them leads with NETCONF/YANG (built, with an SNMP fallback path) or CSV/PM export (already built), not classic SNMP polling. Know this so we don't promise an SNMP-only integration on their OLTs.
 
 ---
 

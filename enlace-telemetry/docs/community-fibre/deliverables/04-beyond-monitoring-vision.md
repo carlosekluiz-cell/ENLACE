@@ -28,8 +28,8 @@ Telemetry detects loss-of-signal / mass-offline on a PON port
   → classify: trunk cut (all ONTs down) vs branch vs single drop
   → locate: distance-to-break + PON port + splitter, or the specific ONT = a known service address
   → open a tiered ticket (P1 outage immediately) in your existing tooling
-  → notify the field/NOC team on WhatsApp with a map pin to the fault
-  → when telemetry confirms the signal is restored, auto-resolve the ticket
+  → one-tap WhatsApp dispatch to the field team — ticket, device, fault, severity, map link
+  → when telemetry confirms the signal is restored, auto-close the ticket
 ```
 
 ### Loop B — slow degradation (days to weeks) — the high-value one
@@ -47,14 +47,15 @@ reached them.** That is the difference between monitoring and intelligence.
 
 ## How the loop reaches a person
 
-- **Auto-ticketing & escalation.** Enlace pushes incidents into the tooling you already run —
-  PagerDuty, Opsgenie, ServiceNow, Jira Service Management — with **P1–P4 severity** and time-based
-  escalation to the right on-call. This is a standard, production-proven integration pattern.
-- **WhatsApp alerts with a location pin.** Everyone's on WhatsApp. Via the WhatsApp Business / Cloud API,
-  Enlace sends the field team an alert — ticket ID, device, fault type, severity — **with a map pin to the
-  fault site**. They reply in the same thread; arrival and updates flow back.
-- **Map-pin dispatch today, for the per-ONT case.** A fault narrowed to a specific ONT *is* a known
-  subscriber address — dispatchable immediately, no extra hardware.
+- **Auto-ticketing & escalation.** Enlace outputs to Elasticsearch, Slack and PagerDuty natively, plus
+  custom webhooks that drop into Opsgenie, ServiceNow or Jira Service Management — with **P1–P4 severity**
+  and SLA-based routing to the right team.
+- **One-tap WhatsApp dispatch.** Everyone's on WhatsApp. The supervisor shares a ready-made message —
+  ticket ID, device, fault type, severity and a map link — **straight into the technician's WhatsApp
+  chat.** *(WhatsApp Business API push is a roadmap integration.)*
+- **Fault-to-location today, for the per-ONT case.** A fault is narrowed to the serving ONT and its
+  location (distance range and map link); where you provide your ONT-to-address mapping, that becomes
+  the subscriber's street address on the ticket — dispatchable immediately, no extra hardware.
 
 ---
 
@@ -62,13 +63,17 @@ reached them.** That is the difference between monitoring and intelligence.
 
 We'd rather under-promise. Here's the honest split.
 
-**Ready now (proven patterns):**
-- Automated incident creation with P1–P4 tiering and escalation into your ticketing/on-call tool.
-- Automated WhatsApp alerts to the NOC/field team, including a map-pin location.
-- Per-ONT fault → known service address for immediate dispatch.
+**Ready now (built and tested):**
+- Automated incident creation with P1–P4 tiering, SLA routing, and Slack/PagerDuty/webhook delivery.
+- One-tap WhatsApp dispatch from the ops app — ticket, device, fault type, severity, map link.
+- Fault-to-location on every ticket (serving ONT, distance range, map link).
 - Proactive planned-maintenance ticketing for slow degradation (Loop B).
-- Auto-resolution when telemetry confirms recovery.
-- Read-only throughout — credentials never leave your network.
+- Automatic ticket close-out on confirmed recovery.
+- Read-only operation throughout — credentials never leave your network.
+
+**Landing during the pilot:**
+- Street-address mapping on tickets, once you share your ONT-to-address data.
+- WhatsApp Business API push (today dispatch is one-tap share from the supervisor's screen).
 
 **Roadmap (we'll be clear about the dependency):**
 - *OTDR-distance → exact street pin.* Deployed at carrier scale elsewhere, but it needs an OTDR/RFTS feed

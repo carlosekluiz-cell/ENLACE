@@ -39,8 +39,8 @@ Loop B is the story that lands: **the customer never calls, because the fault wa
 We researched the feasibility of every component. Promise only what's proven:
 
 **Safe to promise in a pilot (production-proven patterns):**
-- Automated incident creation into ticketing/on-call (PagerDuty Events API v2 is the reference pattern; mirrored in Opsgenie, Jira SM, ServiceNow) with **P1–P4 severity tiering** and time-based escalation.
-- **Automated WhatsApp alerts** to the NOC/field team via the WhatsApp Cloud API using pre-approved *Utility* templates — **including a map-pin location header** (Meta Cloud API and 360dialog both support it).
+- Automated incident creation into ticketing/on-call — Slack and PagerDuty (Events-format) natively, Opsgenie / Jira SM / ServiceNow via the generic webhook — with **P1–P4 severity tiering** and SLA-based routing.
+- **One-tap WhatsApp dispatch** from the ops app: the supervisor shares a ready-made message — ticket ID, device, fault type, severity and a map link — straight into the technician's WhatsApp chat. *(WhatsApp Business API push — pre-approved Utility templates with a location header — is a roadmap integration.)*
 - **Map-pin dispatch for the per-ONT case** — a fault narrowed to a specific ONT *is* a known subscriber address; no OTDR required.
 - **Proactive planned-maintenance ticketing** for slow Rx degradation (Loop B).
 - **Auto-resolution** when telemetry confirms recovery.
@@ -57,7 +57,7 @@ We researched the feasibility of every component. Promise only what's proven:
 
 ## Part 2 — Why Rust is a real advantage, not a buzzword
 
-The competitive norm is heavyweight Java/JVM NMS platforms, Python pipelines, and hardware probes installed in the network. Enlace is a single **~8 MB static binary**, **~50 MB RAM per 1,000 ONTs**, **<2% of one core**, async I/O (Tokio), local SQLite buffer for offline resilience. Here's the defensible case — and where to tread carefully, because CF's engineers will push back.
+The competitive norm is heavyweight Java/JVM NMS platforms, Python pipelines, and hardware probes installed in the network. Enlace is a single **8.7 MB static binary** (musl, stripped), **under 50 MB RAM per 1,000 ONTs** (26 MB measured on a 1,000-ONT audit, which completes in 0.12 s), async I/O (Tokio), local SQLite buffer for offline resilience. Here's the defensible case — and where to tread carefully, because CF's engineers will push back.
 
 ### Claim 1 — No garbage collection → predictable tail latency
 

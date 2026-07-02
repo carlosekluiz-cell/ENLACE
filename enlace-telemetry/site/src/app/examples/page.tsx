@@ -8,34 +8,41 @@ import { ArrowRight, FlaskConical, AlertTriangle } from "lucide-react";
 export const metadata: Metadata = {
   title: "Example report — Enlace Telemetry",
   description:
-    "See what an Enlace audit produces: fleet health score, fault detection, ghost connections, churn risk, and per-ONT diagnostics. Example output from internal validation on representative data — not customer data.",
+    "See what an Enlace audit produces: fleet health score, fault classification with dying-gasp evidence, churn risk with stated assumptions, proactive tickets, and per-ONT diagnostics. Example output from internal validation on representative data — not customer data.",
 };
 
+// These findings are read straight from the bundled audit JSON — the
+// verbatim output of `pulso-agent --audit-csv` on the validation sample.
 const findings = [
   {
-    title: "Fibre cut",
+    title: "Two branch outages, classified by evidence",
     detail:
-      "Four ONTs on PON branch CTP-0/2 dropped at once with no dying gasp — the signature of a cut on the shared branch, not individual CPE faults.",
+      "Five ONTs on CTP-0/4 and four on CTP-0/2 dropped inside the detection window. On CTP-0/4, two sent a dying gasp and three went silent — mixed evidence, so the engine says “Mixed” instead of guessing power vs fibre. Per-ONT gasp evidence is attached to each fault.",
   },
   {
-    title: "Mixed power / fibre area event",
+    title: "Churn risk: 3 customers, assumptions stated",
     detail:
-      "On CTP-0/4, a mix of dying-gasp and silent drops points to a localised power event affecting part of the branch.",
+      "Three subscribers at −25 to −29 dBm with degrading signal — an estimated 35% 90-day churn probability and ~£378/yr revenue at risk each. Every figure carries its assumptions inline (ARPU £89.90, probability model), so the ROI is auditable, not asserted.",
   },
   {
-    title: "Ghost connection",
+    title: "One proactive ticket, ready to dispatch",
     detail:
-      "An ONT shows online with healthy optics but carries no real traffic — provisioned, billing, but effectively dormant.",
+      "The three churn risks were rolled into a single P2 ticket with a 5-day SLA: evidence lines per ONT, a recommended action, £1,133/yr at risk vs a £450 estimated fix — a 2.5× ROI with the cost assumptions printed on the ticket.",
   },
   {
-    title: "Churn risk (3 customers)",
+    title: "Shared-plant downtrend on CTP-0/1",
     detail:
-      "Three subscribers show signal trending toward failure, with repeated micro-dropouts — flagged before they call.",
+      "The whole PON branch is trending down at −0.74 dB/week — roughly 13 weeks to threshold at the current rate. A fleet-wide trend points at shared plant (splitter, feeder, OLT SFP), not any single customer's kit.",
   },
   {
-    title: "Flapping ONT",
+    title: "Three links running on marginal optical budget",
     detail:
-      "One ONT bounced 18 times in 24 hours — an unstable connection that intermittent checks would miss.",
+      "Loss-model analysis of all 52 links found three with ~8 dB more loss than their distance and splitter ratio explain — probable excess connector loss, flagged with the expected-vs-measured maths.",
+  },
+  {
+    title: "What it refused to claim",
+    detail:
+      "This sample has no FEC or laser-bias columns, so the report states “0 of 52 ONTs covered” for those analyses instead of implying health. No ghosts, no flapping, no rogue ONTs were flagged — absence of a finding is reported as absence of evidence, never as a pass.",
   },
 ];
 
@@ -111,7 +118,9 @@ export default function ExamplesPage() {
           style={{ color: "var(--text-on-dark-secondary)" }}
         >
           Click a finding to filter the ONT table. 52 ONTs across four PON
-          branches, analysed over a 7-day window.
+          branches, analysed over a 7-day window — this is the verbatim JSON
+          the current engine produced from our validation sample, including
+          its own coverage notes.
         </p>
 
         <ReportExplorer result={exampleAudit} />
@@ -133,7 +142,7 @@ export default function ExamplesPage() {
           What it found
         </p>
         <h2 className="font-serif text-3xl font-bold md:text-4xl">
-          Six findings worth a truck roll — or a phone call avoided
+          Six findings — including what it refused to claim
         </h2>
 
         <div className="mt-12 grid gap-6 md:grid-cols-2">

@@ -25,7 +25,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Enlace Telemetry — Your network is talking. Now you can listen.",
   description:
-    "Read-only PON telemetry agent. Collect OLT/ONU metrics via SNMP, TR-069, and gRPC from any vendor — Huawei, ZTE, Nokia, FiberHome, and more. Real-time fault detection, predictive analytics, and Elasticsearch integration.",
+    "Read-only PON telemetry agent. Collect OLT/ONU metrics via SNMP, NETCONF, and TR-069 from any vendor — Huawei, ZTE, Nokia, FiberHome, Adtran, and more. Real-time fault detection, predictive analytics, and Elasticsearch integration.",
   icons: { icon: "/logo.svg" },
   keywords: [
     "PON telemetry",
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     "ONU metrics",
     "SNMP",
     "TR-069",
-    "gRPC",
+    "NETCONF",
     "fiber optics",
     "network monitoring",
     "Enlace",

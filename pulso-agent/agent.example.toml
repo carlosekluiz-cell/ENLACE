@@ -43,6 +43,19 @@ radius_closed_session_days = 30
 radius_stale_open_days = 30
 dead_letter_days = 30
 
+# Optional: forward incident opens/resolves to the Enlace operations app so
+# telemetry-confirmed recoveries auto-close tickets. The bearer token is the
+# app's ENLACE_HOOK_TOKEN (agent → app machine credential); prefer
+# bearer_token_env so the secret stays out of this file. Generic-format
+# webhooks only — Slack/PagerDuty use their own auth.
+# [[output.webhooks]]
+# url = "https://app.enlace.network/api/hooks/agent-events"
+# events = ["fault_detected", "fault_resolved"]
+# format = "generic"
+# bearer_token_env = "ENLACE_HOOK_TOKEN"
+# # ...or inline (keep this file chmod 640):
+# # bearer_token = "YOUR_HOOK_TOKEN"
+
 [[olts]]
 name = "OLT-Principal"
 ip = "10.0.0.1"

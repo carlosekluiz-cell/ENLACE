@@ -33,7 +33,14 @@ function rxColor(rx: number | null): string {
 function statusDot(status: string): string {
   const s = status.toUpperCase();
   if (s === "ONLINE" || s === "ACTIVE") return "#22c55e";
-  if (s === "OFFLINE" || s === "DOWN" || s === "INACTIVE") return "#ef4444";
+  if (
+    s === "OFFLINE" ||
+    s === "DOWN" ||
+    s === "INACTIVE" ||
+    s === "FIBERCUT" ||
+    s === "POWERFAIL"
+  )
+    return "#ef4444";
   return "#f59e0b";
 }
 
@@ -41,6 +48,8 @@ function statusLabel(status: string): string {
   const s = status.toUpperCase();
   if (s === "ONLINE" || s === "ACTIVE") return "ONLINE";
   if (s === "OFFLINE" || s === "DOWN" || s === "INACTIVE") return "OFFLINE";
+  if (s === "FIBERCUT") return "OFFLINE (LOS)";
+  if (s === "LOWSIGNAL") return "LOW SIGNAL";
   return s;
 }
 
@@ -72,18 +81,31 @@ export default function OntTable({ result, filter }: OntTableProps) {
         .map((r) => r.ont_serial)
         .filter((s): s is string => !!s)
     );
+    // Only marginal/critical budgets are issues; "Excellent" is a pass.
     const opticalBudgetSerials = new Set(
       result.optical_budget
+        .filter(
+          (o) => o.budget_status !== "Excellent" && o.budget_status !== "Good"
+        )
         .map((o) => o.ont_serial)
-        .filter((s): s is string => !!s)
     );
 
     // Fault-affected serials
     const faultSerials = new Set<string>();
     for (const f of result.faults) {
-      if (f.affected_onts) {
-        for (const s of f.affected_onts) faultSerials.add(s);
-      }
+      for (const a of f.affected_onts ?? []) faultSerials.add(a.serial_number);
+    }
+
+    // Rogue candidate serials
+    const rogueSerials = new Set<string>();
+    for (const r of result.rogue ?? []) {
+      for (const c of r.candidates) rogueSerials.add(c.serial_number);
+    }
+
+    // Ticketed serials
+    const ticketSerials = new Set<string>();
+    for (const t of result.tickets) {
+      for (const s of t.affected_ont_serials) ticketSerials.add(s);
     }
 
     // Diagnostic alerts by serial
@@ -105,8 +127,12 @@ export default function OntTable({ result, filter }: OntTableProps) {
       let issueSeverity: "critical" | "warning" | "info" | null = null;
       let filterKey: string | null = null;
 
-      // Priority: fault > ghost > churn > flapping > reflectance > optical_budget > diagnostic alert
-      if (faultSerials.has(s)) {
+      // Priority: rogue > fault > ghost > churn > flapping > reflectance > optical_budget > diagnostic alert
+      if (rogueSerials.has(s)) {
+        issue = "Rogue suspect";
+        issueSeverity = "critical";
+        filterKey = "rogue";
+      } else if (faultSerials.has(s)) {
         issue = "Fault affected";
         issueSeverity = "critical";
         filterKey = "faults";
@@ -116,8 +142,9 @@ export default function OntTable({ result, filter }: OntTableProps) {
         filterKey = "ghosts";
       } else if (churnSerials.has(s)) {
         const cr = churnSerials.get(s)!;
-        issue = `Degrading (${cr.days_degrading}d, ${(cr.churn_probability_90day * 100).toFixed(0)}% churn risk)`;
-        issueSeverity = cr.churn_probability_90day > 0.5 ? "critical" : "warning";
+        issue = `Degrading (${cr.days_degrading}d, ~${(cr.estimated_churn_probability_90day * 100).toFixed(0)}% est. churn)`;
+        issueSeverity =
+          cr.estimated_churn_probability_90day > 0.3 ? "critical" : "warning";
         filterKey = "churn_risk";
       } else if (flappingSerials.has(s)) {
         issue = "Flapping";
@@ -166,10 +193,30 @@ export default function OntTable({ result, filter }: OntTableProps) {
     let list = rows;
 
     if (filter) {
-      // Special handling for capacity and weather_correlation (port-based, not serial-based)
+      // Special handling for port-based and cross-cutting categories
       if (filter === "capacity") {
-        const capPorts = new Set(result.capacity.map((c) => c.port));
-        list = list.filter((r) => capPorts.has(r.ponPort));
+        const capPorts = new Set(
+          result.capacity
+            .filter((c) => c.alert_level !== "Ok")
+            .map((c) => c.port)
+        );
+        const ports =
+          capPorts.size > 0
+            ? capPorts
+            : new Set(result.capacity.map((c) => c.port));
+        list = list.filter((r) => ports.has(r.ponPort));
+      } else if (filter === "sfp_health") {
+        const sfpPorts = new Set(
+          result.sfp_health
+            .filter((s) => s.severity !== "Healthy" && s.severity !== "Ok")
+            .map((s) => s.port)
+        );
+        list = list.filter((r) => sfpPorts.has(r.ponPort));
+      } else if (filter === "tickets") {
+        const ticketed = new Set(
+          result.tickets.flatMap((t) => t.affected_ont_serials)
+        );
+        list = list.filter((r) => ticketed.has(r.serial));
       } else if (filter === "weather_correlation") {
         const wxPorts = new Set(
           result.weather_correlation
@@ -188,7 +235,15 @@ export default function OntTable({ result, filter }: OntTableProps) {
     }
 
     return list;
-  }, [rows, filter, search, result.capacity, result.weather_correlation]);
+  }, [
+    rows,
+    filter,
+    search,
+    result.capacity,
+    result.sfp_health,
+    result.tickets,
+    result.weather_correlation,
+  ]);
 
   // Sort
   const sorted = useMemo(() => {

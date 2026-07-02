@@ -44,6 +44,15 @@ url = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
 events = ["fault_detected", "fault_critical"]
 format = "slack"
 
+# Enlace operations app ingress — incident opens/resolves drive ticket
+# auto-close. Authenticated with the app's ENLACE_HOOK_TOKEN read from the
+# environment at agent startup (generic-format webhooks only).
+# [[output.webhooks]]
+# url = "https://app.enlace.network/api/hooks/agent-events"
+# events = ["fault_detected", "fault_resolved"]
+# format = "generic"
+# bearer_token_env = "ENLACE_HOOK_TOKEN"
+
 # Fault detection
 [fault_detection]
 enabled = true

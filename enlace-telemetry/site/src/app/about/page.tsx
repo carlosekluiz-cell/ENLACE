@@ -91,7 +91,7 @@ export default function AboutPage() {
                 className="text-sm"
                 style={{ color: "var(--text-secondary)" }}
               >
-                For performance and reliability.
+                For performance and reliability. 500+ tests (528 passing).
               </p>
             </div>
 
@@ -111,13 +111,13 @@ export default function AboutPage() {
                 className="font-mono text-2xl font-bold mb-1"
                 style={{ color: "var(--text-primary)" }}
               >
-                15,482
+                ~23,500
               </p>
               <p
                 className="text-sm"
                 style={{ color: "var(--text-secondary)" }}
               >
-                Lines of code.
+                Lines of Rust (~39,500 including tests).
               </p>
             </div>
 

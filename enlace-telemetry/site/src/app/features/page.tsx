@@ -27,15 +27,20 @@ export default function FeaturesPage() {
               className="block mt-2"
               style={{ color: "var(--text-on-dark-muted)" }}
             >
-              Five modules. One agent. Zero guesswork.
+              17 modules. One agent. Zero guesswork.
             </span>
           </h1>
           <p
             className="mt-6 text-lg leading-relaxed max-w-2xl"
             style={{ color: "var(--text-on-dark-secondary)" }}
           >
-            Each module below is built into the Enlace agent. No add-ons, no
-            upsells — every feature ships with every install.
+            The agent ships 17 analysis modules — fault detection and
+            localisation, signal and laser end-of-life prediction, pre-FEC
+            health, churn scoring, ghost and rogue-ONT detection, optical
+            budget, reflectance, weather correlation, flapping, capacity,
+            SFP health, impact scoring and ticket generation. The five
+            highlighted below are the ones you&apos;ll use daily. No add-ons,
+            no upsells — every module ships with every install.
           </p>
         </div>
       </Section>
@@ -66,7 +71,8 @@ export default function FeaturesPage() {
                 "Multiple ONTs offline on same PON port = fibre cut (CRITICAL)",
                 "Single ONT offline, neighbours up = CPE failure (MINOR)",
                 "ONTs across different ports, same area = power outage (MAJOR)",
-                "Rx power dropping below -25 dBm = signal degradation (WARNING)",
+                "Dying-gasp evidence per ONT separates power loss from fibre damage",
+                "Rx power dropping below -27 dBm = signal degradation (WARNING)",
               ].map((item) => (
                 <li
                   key={item}
@@ -134,8 +140,8 @@ export default function FeaturesPage() {
             <ul className="mt-6 space-y-3 list-none p-0 m-0">
               {[
                 "Polls Rx power (dBm) every cycle, stores per-ONT time series",
-                "Linear regression calculates slope (dBm/week)",
-                "Warning at -25 dBm, critical at -28 dBm threshold crossing",
+                "Linear regression calculates slope (dBm/day) with R² confidence gating",
+                "Watch at -0.05, warning at -0.10, critical at -0.20 dBm/day — or any ONT below -27 dBm",
                 "Cause estimate based on degradation pattern (connector, bend, splice)",
               ].map((item) => (
                 <li
@@ -166,11 +172,10 @@ export default function FeaturesPage() {
               <pre className="whitespace-pre-wrap">
                 <span style={{ color: "var(--accent)" }}>[PREDICTION]</span>
                 {" ONT SN:HWTC-A1B2C3D4\n"}
-                {"  Current Rx: -24.8 dBm (normal)\n"}
-                {"  Trend: "}<span style={{ color: "#f59e0b" }}>-0.3 dBm/week</span>{" (degrading)\n"}
-                {"  Forecast: failure in "}<span style={{ color: "#f59e0b" }}>~23 days</span>{" at current rate\n"}
-                {"  Warning threshold (-25 dBm): ~1 day\n"}
-                {"  Critical threshold (-28 dBm): ~73 days\n"}
+                {"  Current Rx: -24.8 dBm\n"}
+                {"  Trend: "}<span style={{ color: "#f59e0b" }}>-0.12 dBm/day</span>{" (WARNING tier)\n"}
+                {"  Fit: R\u00b2 0.87 (trend confirmed)\n"}
+                {"  Forecast: crosses -27 dBm in "}<span style={{ color: "#f59e0b" }}>~18 days</span>{"\n"}
                 {"  Cause estimate: connector degradation or fibre bend\n"}
                 {"  "}<span style={{ color: "#22c55e" }}>{"\u2192 Schedule proactive maintenance"}</span>
               </pre>
@@ -202,10 +207,10 @@ export default function FeaturesPage() {
             </p>
             <ul className="mt-6 space-y-3 list-none p-0 m-0">
               {[
-                "ONTs per PON port — alert at 80% (103/128 for GPON)",
-                "Bandwidth utilisation — alert at 70% sustained for 15 min",
-                "Splitter occupancy — alert at last 2 available ports",
+                "ONTs per PON port — watch above 50% when filling within 6 months, warning above 75%, critical above 90%",
+                "Splitter occupancy per port — configured or inferred ratios, 1:2 to 1:128",
                 "Growth trend projection — months until full capacity",
+                "Per-ONT traffic counters collected today; port-level Gbps alerting is on the roadmap",
               ].map((item) => (
                 <li
                   key={item}
@@ -235,9 +240,8 @@ export default function FeaturesPage() {
               <pre className="whitespace-pre-wrap">
                 <span style={{ color: "#f59e0b" }}>[CAPACITY]</span>
                 {" OLT: HW-MA5800 Slot 0, PON 0/0/3\n"}
-                {"  ONTs: "}<span style={{ color: "#f59e0b" }}>112/128</span>{" (87.5%) "}<span style={{ color: "#f59e0b" }}>WARNING</span>{"\n"}
-                {"  Bandwidth: 1.82/2.49 Gbps downstream (73.1%)\n"}
-                {"  Splitter: 1:32 — 30/32 ports occupied\n"}
+                {"  ONTs: "}<span style={{ color: "#f59e0b" }}>112/128</span>{" (87.5%) "}<span style={{ color: "#f59e0b" }}>WARNING</span>{" (>75%)\n"}
+                {"  Splitter: 1:128 (configured)\n"}
                 {"  ───────────────────────────────────────\n"}
                 {"  Trend: +4 ONTs/month (last 90 days)\n"}
                 {"  Projection: "}<span style={{ color: "#ef4444" }}>Full in ~4 months</span>{"\n"}

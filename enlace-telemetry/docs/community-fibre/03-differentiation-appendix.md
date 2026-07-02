@@ -62,7 +62,7 @@
 
 ## D. The 17 detection modules (what's actually built)
 
-For the technical buyer who asks "what does it actually detect?" — all implemented and unit-tested (157 tests, 10/10 on the blind 400-ONT / 802k-row test):
+For the technical buyer who asks "what does it actually detect?" — all implemented and unit-tested (528 tests passing, 10/10 on the blind 400-ONT / 802k-row test):
 
 **Fault:** mass-offline detector (fibre-cut vs power-outage classification), fault locator (distance-to-break), PON topology inference.
 **Diagnostics & prediction:** per-ONT signal grading, ethernet-negotiation/restart/temperature/voltage/bias-current checks, 30-day linear-regression degradation forecast with R² confidence.

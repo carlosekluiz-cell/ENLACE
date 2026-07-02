@@ -33,7 +33,8 @@ degradations it opens a **planned-maintenance ticket before the customer is ever
 
 A **lightweight, read-only, vendor-agnostic software agent that applies predictive analytics at the PON optical
 layer** — without the per-device lock-in of vendor NMS, the CAPEX of OTDR hardware, or the integration weight of
-carrier OSS. A single ~8 MB Rust binary, ~50 MB RAM per 1,000 ONTs, self-hosted so telemetry stays on your
+carrier OSS. A single 8.7 MB static Rust binary (musl, no runtime dependencies), under 50 MB RAM per
+1,000 ONTs (26 MB measured on a 1,000-ONT audit), self-hosted so telemetry stays on your
 infrastructure. It **complements** Adtran's Mosaic/Clarity rather than competing with it — covering the
 cross-vendor, no-per-device-licence, data-sovereignty gaps a single-vendor cloud leaves. *(Detail:
 `05-technical-differentiation.md`.)*

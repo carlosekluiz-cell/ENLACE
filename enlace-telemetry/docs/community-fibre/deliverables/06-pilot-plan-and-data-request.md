@@ -25,7 +25,7 @@ industry averages.
 
 **Step 3 — Live read-only deployment (only if you want it).**
 Deploy the agent against a live OLT, **strictly read-only**, feeding alerts/tickets into your existing tooling
-(and optionally WhatsApp). Expand at your pace.
+(with one-tap WhatsApp dispatch from the ops app). Expand at your pace.
 
 ---
 
@@ -58,9 +58,11 @@ Enlace is built so your team can sign it off without seeing source:
 
 - **Read-only methods only:** SNMP GET, CLI `show`/`display`, NETCONF `get`, RouterOS read, passive RADIUS.
   **Never** set/write/configure/reboot.
-- **Credentials stay local** — only aggregated metrics leave the device; in the pilot's Step 1, nothing leaves
-  your network at all.
-- **Single ~8 MB binary**, no runtime dependencies, runs as an unprivileged user.
+- **Credentials never leave your network.** Telemetry sent outward is structured per-ONT findings and
+  optical metrics — never traffic contents or subscriber PII — and with self-hosted Elasticsearch nothing
+  leaves your infrastructure at all. In the pilot's Step 1, nothing leaves your network, full stop.
+- **Single 8.7 MB static binary**, no runtime dependencies, runs as an unprivileged user
+  (systemd-hardened: `NoNewPrivileges`, `ProtectSystem=strict`).
 - **Self-hosted option** — telemetry can stay entirely on your infrastructure.
 
 ---

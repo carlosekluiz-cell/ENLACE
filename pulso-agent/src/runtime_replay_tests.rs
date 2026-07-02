@@ -360,6 +360,8 @@ mod runtime_replay {
             events: vec!["fault_detected".into()],
             format: "generic".into(),
             routing_key: None,
+            bearer_token: None,
+            bearer_token_env: None,
         }]));
 
         // Cycle 1: all ONTs online — establishes the detector baseline

@@ -43,15 +43,17 @@ structurally leaves:
 | Billed per connected device / subscriber | **No per-endpoint licensing** |
 | Deepest on one vendor's hardware | **Vendor-agnostic across 12+ OLT vendors** as your estate diversifies |
 
-We ingest Adtran telemetry via NETCONF / RESTCONF or CSV/PM export today (the SDX 6320 parser is built).
-*(Note: the SDX OLT family is NETCONF-first and does not use SNMP — our integration accounts for that.)*
+We ingest Adtran telemetry via NETCONF/YANG — the SDX's native management interface — with SNMP fallback,
+or CSV/Mosaic PM export today (the SDX 6320 parser is built).
+*(Note: the SDX OLT family is NETCONF-first — our integration leads with that.)*
 
 ---
 
 ## Why Rust — and the honest limits
 
-Enlace is a single **~8 MB static binary**, **~50 MB RAM per 1,000 ONTs**, **<2% of one core**, async I/O,
-with a local buffer for offline resilience.
+Enlace is a single **8.7 MB static binary** (musl, stripped, zero runtime dependencies), **under 50 MB RAM
+per 1,000 ONTs** (26 MB peak RSS measured on a 1,000-ONT / 30,000-reading audit, which completes in **0.12 s**
+end-to-end), async I/O, with a local buffer for offline resilience.
 
 1. **No garbage collection → predictable latency.** Telemetry ingest creates and discards millions of small
    objects per second — the pattern that triggers GC pauses in JVM/Go runtimes. Rust frees memory
@@ -78,7 +80,7 @@ team-cost question, not a runtime one.*
 
 ---
 
-## What's actually built (17 detection modules, 157 tests)
+## What's actually built (17 detection modules, 500+ tests — 528 passing)
 
 **Fault:** mass-offline detection (fibre-cut vs power-outage classification), fault location
 (distance-to-break), PON topology inference.
@@ -87,8 +89,31 @@ bias-current checks; 30-day degradation forecast with confidence.
 **Advanced:** rogue-ONT / reflectance identification, churn prediction, time-of-day fault-impact scoring,
 ghost-customer detection, splitter-capacity forecasting, weather-correlation (condensation / rain ingress /
 thermal), flapping detection, SFP health, optical-budget analysis.
-**Output:** auto-ticket generation (P1–P4, team routing, ROI per ticket), Elasticsearch, webhooks (Slack /
-PagerDuty / generic).
+**Output:** auto-ticket generation (P1–P4, team routing, ROI per ticket with assumptions stated inline);
+Elasticsearch, Slack and PagerDuty natively, plus custom webhooks that drop into Opsgenie, ServiceNow or
+Jira; one-tap WhatsApp dispatch from the ops app.
+
+---
+
+## What's new since this proposal (over-delivery, with the honest gating)
+
+The engine kept moving while the proposal sat still. Built and tested since the original document:
+
+- **Pre-FEC health analytics** — corrected-codeword trending with dispersion-vs-attenuation diagnosis.
+  *Only ONTs that report FEC counters are assessed; the report states its coverage explicitly ("absence of
+  a finding is not evidence of health").*
+- **Passive rogue-ONT detection** — multi-victim upstream-corruption scoring with ranked candidate culprits.
+  *Passive scoring cannot prove a rogue; every finding carries the vendor-native confirmation step.*
+- **Laser end-of-life prediction** — bias-current drift with temperature detrending, classifying ageing vs
+  actively-failing transmitters. *Requires DDM bias telemetry; ONTs without it are counted as not analysed,
+  never as healthy.*
+- **Ghost detection v2 with octet evidence** — reset-aware traffic-counter deltas prove an ONT is unused,
+  rather than inferring it. *ONTs without octet coverage are reported as "insufficient data", not as ghosts.*
+- **Multi-persona ops app** — NOC / field / support / management projections with one-tap WhatsApp dispatch
+  and PDF reports that include a mandatory Data Honesty page. *WhatsApp is share-to-chat deep links today;
+  Business-API push is roadmap.*
+- **Auto-close on confirmed recovery** — the agent emits resolve events when a fault verifiably clears and
+  the app closes the matching ticket. *Closure requires confirmed recovery telemetry, not timeout.*
 
 **Honest note on validation:** detection logic passed a 10/10 blind test on a **synthetic** 400-ONT dataset,
 and our design rules matched Community Fibre reference schematics at ~98% on **network-design** accuracy.

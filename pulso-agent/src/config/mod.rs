@@ -287,6 +287,15 @@ pub struct WebhookConfig {
     pub events: Vec<String>,
     pub format: String,
     pub routing_key: Option<String>,
+    /// Bearer token sent as `Authorization: Bearer <token>` on every POST.
+    /// Only generic-format webhooks send it (e.g. the enlace-app
+    /// `/api/hooks/agent-events` ingress) — Slack and PagerDuty authenticate
+    /// through the webhook URL / `routing_key` and ignore this.
+    pub bearer_token: Option<String>,
+    /// Name of an environment variable to read the bearer token from at
+    /// startup (e.g. "ENLACE_HOOK_TOKEN") — keeps the secret out of the
+    /// config file. `bearer_token` takes precedence when both are set.
+    pub bearer_token_env: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -732,6 +741,12 @@ url = "https://pagerduty.example.com/v2/enqueue"
 events = ["fault_critical"]
 format = "pagerduty"
 routing_key = "abc123"
+
+[[output.webhooks]]
+url = "https://app.enlace.network/api/hooks/agent-events"
+events = ["fault_detected", "fault_resolved"]
+format = "generic"
+bearer_token_env = "ENLACE_HOOK_TOKEN"
 "#;
         let cfg: AgentConfig = toml::from_str(toml).expect("TOML parse failed");
         let output = cfg.output.as_ref().expect("output should be Some");
@@ -739,8 +754,16 @@ routing_key = "abc123"
         assert_eq!(elastic.url, "http://localhost:9200");
         assert_eq!(elastic.index_prefix, "pulso");
         let webhooks = output.webhooks.as_ref().expect("webhooks should be Some");
-        assert_eq!(webhooks.len(), 2);
+        assert_eq!(webhooks.len(), 3);
         assert_eq!(webhooks[1].routing_key.as_deref(), Some("abc123"));
+        // Bearer auth fields are optional and default to None
+        assert_eq!(webhooks[0].bearer_token, None);
+        assert_eq!(webhooks[0].bearer_token_env, None);
+        assert_eq!(
+            webhooks[2].bearer_token_env.as_deref(),
+            Some("ENLACE_HOOK_TOKEN")
+        );
+        assert_eq!(webhooks[2].bearer_token, None);
     }
 
     #[test]

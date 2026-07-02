@@ -6,7 +6,7 @@
 
 ## The 30-second frame
 
-> *"Most network monitoring tells you something's broken and pages a human — reactively. Enlace is built to close the loop: it reads the telemetry your OLTs already produce, predicts faults before customers feel them, locates them, and turns them into a tiered ticket and a WhatsApp alert with a map pin — automatically. It's a single 8 MB Rust binary, read-only, vendor-agnostic, and it runs beside your kit, not in someone else's cloud. We'd like to prove it on a slice of your real data, free."*
+> *"Most network monitoring tells you something's broken and pages a human — reactively. Enlace is built to close the loop: it reads the telemetry your OLTs already produce, predicts faults before customers feel them, locates them, and turns them into a tiered ticket the supervisor can dispatch to WhatsApp with one tap, map link included. It's a single 8.7 MB static Rust binary, read-only, vendor-agnostic, and it runs beside your kit, not in someone else's cloud. We'd like to prove it on a slice of your real data, free."*
 
 ## The arc to walk
 
@@ -44,7 +44,7 @@ Three gaps Mosaic structurally can't fill: **data sovereignty** (self-hosted), *
 - CF: ~1.4m passed, ~450k customers, **~32% take-up (sector-leading vs ~18%)**, £113m revenue, ~£50m EBITDA, cash-positive, resuming build to 2m+.
 - Industry: largest altnets lost **£1.5bn in 2024**; viability needs ~40% take-up; nexfibre buying Netomnia (~£2bn).
 - Value: truck roll ~£75–150; ~20% avoidable; churn ~10–18%; ARPU ~£30; CAC ~£240; proactive assurance cuts truck rolls **30–50%**, MTTR **~40%**; rogue ONT can down a **whole PON tree (32–128 subs)**; connector contamination is the **#1** physical fault.
-- Us: 8 MB binary, ~50 MB/1k ONTs, <2% core, 17 detection modules, 157 tests, 12+ vendors.
+- Us: 8.7 MB static binary, 26 MB RAM / 0.12 s for a 1,000-ONT audit, 17 detection modules, 528 tests, 12+ vendors.
 
 ## People
 

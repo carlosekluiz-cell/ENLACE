@@ -21,11 +21,22 @@ const REQUEST_TIMEOUT_SECS: u64 = 10;
 /// with format-specific payloads (Slack, PagerDuty, or generic JSON).
 pub struct WebhookDispatcher {
     client: reqwest::Client,
-    webhooks: Vec<WebhookConfig>,
+    webhooks: Vec<WebhookEndpoint>,
+}
+
+/// A configured webhook with its bearer token resolved once at startup.
+struct WebhookEndpoint {
+    config: WebhookConfig,
+    /// `Authorization: Bearer` token for generic-format webhooks; resolved
+    /// from `bearer_token` / `bearer_token_env` by [`resolve_bearer_token`].
+    bearer_token: Option<String>,
 }
 
 impl WebhookDispatcher {
     /// Create a new dispatcher with the given webhook configurations.
+    /// Bearer tokens (`bearer_token` / `bearer_token_env`) are resolved here,
+    /// once, so a missing environment variable warns at startup rather than
+    /// failing silently at dispatch time.
     pub fn new(webhooks: &[WebhookConfig]) -> Self {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(REQUEST_TIMEOUT_SECS))
@@ -34,7 +45,13 @@ impl WebhookDispatcher {
 
         Self {
             client,
-            webhooks: webhooks.to_vec(),
+            webhooks: webhooks
+                .iter()
+                .map(|w| WebhookEndpoint {
+                    bearer_token: resolve_bearer_token(w),
+                    config: w.clone(),
+                })
+                .collect(),
         }
     }
 
@@ -55,7 +72,8 @@ impl WebhookDispatcher {
         let event_types = event_types_for(update);
 
         let mut handles = Vec::new();
-        for webhook in &self.webhooks {
+        for endpoint in &self.webhooks {
+            let webhook = &endpoint.config;
             if !event_types.iter().any(|t| should_send(webhook, t)) {
                 continue;
             }
@@ -71,8 +89,9 @@ impl WebhookDispatcher {
             let client = self.client.clone();
             let url = webhook.url.clone();
             let format = webhook.format.clone();
+            let bearer_token = endpoint.bearer_token.clone();
             handles.push(tokio::spawn(async move {
-                send_with_retry(&client, &url, &format, body).await;
+                send_with_retry(&client, &url, &format, body, bearer_token.as_deref()).await;
             }));
         }
 
@@ -82,8 +101,52 @@ impl WebhookDispatcher {
     }
 }
 
+/// Resolve the effective bearer token for a webhook at startup.
+/// `bearer_token` wins; otherwise `bearer_token_env` is read from the
+/// environment (mirroring how the audit server reads PULSO_AUDIT_TOKEN).
+/// Only generic-format webhooks send `Authorization: Bearer` — Slack and
+/// PagerDuty authenticate via the webhook URL / `routing_key`, so a token
+/// configured on those formats is ignored with a warning.
+fn resolve_bearer_token(config: &WebhookConfig) -> Option<String> {
+    let token = match (&config.bearer_token, &config.bearer_token_env) {
+        (Some(token), _) => Some(token.clone()),
+        (None, Some(var)) => match std::env::var(var) {
+            Ok(value) if !value.is_empty() => Some(value),
+            _ => {
+                warn!(
+                    url = %config.url,
+                    env = %var,
+                    "bearer_token_env is set but the environment variable is \
+                     unset or empty — webhook will POST without Authorization"
+                );
+                None
+            }
+        },
+        (None, None) => None,
+    }?;
+
+    if matches!(config.format.as_str(), "slack" | "pagerduty") {
+        warn!(
+            url = %config.url,
+            format = %config.format,
+            "bearer_token is only sent on generic-format webhooks; Slack and \
+             PagerDuty use their own auth — ignoring the configured token"
+        );
+        return None;
+    }
+
+    Some(token)
+}
+
 /// POST `body` to `url` with 3 attempts and exponential backoff.
-async fn send_with_retry(client: &reqwest::Client, url: &str, format: &str, body: String) {
+/// When `bearer_token` is set, sends `Authorization: Bearer <token>`.
+async fn send_with_retry(
+    client: &reqwest::Client,
+    url: &str,
+    format: &str,
+    body: String,
+    bearer_token: Option<&str>,
+) {
     for attempt in 0..3u32 {
         if attempt > 0 {
             let delay = std::time::Duration::from_millis(500 * 2u64.pow(attempt - 1));
@@ -91,13 +154,15 @@ async fn send_with_retry(client: &reqwest::Client, url: &str, format: &str, body
             debug!(attempt, url = %url, "Retrying webhook dispatch");
         }
 
-        match client
+        let mut request = client
             .post(url)
             .header("Content-Type", "application/json")
-            .body(body.clone())
-            .send()
-            .await
-        {
+            .body(body.clone());
+        if let Some(token) = bearer_token {
+            request = request.header("Authorization", format!("Bearer {token}"));
+        }
+
+        match request.send().await {
             Ok(resp) if resp.status().is_success() => {
                 debug!(url = %url, format = %format, "Webhook dispatched");
                 return;
@@ -554,6 +619,8 @@ mod tests {
             events: vec!["fault_critical".into(), "fault_major".into()],
             format: "slack".into(),
             routing_key: None,
+            bearer_token: None,
+            bearer_token_env: None,
         };
 
         let wildcard = WebhookConfig {
@@ -561,6 +628,8 @@ mod tests {
             events: vec!["*".into()],
             format: "generic".into(),
             routing_key: None,
+            bearer_token: None,
+            bearer_token_env: None,
         };
 
         let non_matching = WebhookConfig {
@@ -568,6 +637,8 @@ mod tests {
             events: vec!["ont_offline".into()],
             format: "slack".into(),
             routing_key: None,
+            bearer_token: None,
+            bearer_token_env: None,
         };
 
         // Matching event type
@@ -596,6 +667,8 @@ mod tests {
             events: vec!["fault_detected".into()],
             format: "slack".into(),
             routing_key: None,
+            bearer_token: None,
+            bearer_token_env: None,
         };
         assert!(
             should_send(&spec_config, "fault_detected"),
@@ -606,6 +679,167 @@ mod tests {
         assert!(
             !should_send(&non_matching, "fault_critical"),
             "Should NOT match fault_critical when only ont_offline is configured"
+        );
+    }
+
+    fn make_webhook_config(url: &str, format: &str) -> WebhookConfig {
+        WebhookConfig {
+            url: url.into(),
+            events: vec!["*".into()],
+            format: format.into(),
+            routing_key: None,
+            bearer_token: None,
+            bearer_token_env: None,
+        }
+    }
+
+    #[test]
+    fn test_resolve_bearer_token_direct_and_env_precedence() {
+        // Direct token on a generic webhook resolves as-is
+        let mut config = make_webhook_config("https://app.enlace.network/api/hooks/agent-events", "generic");
+        config.bearer_token = Some("direct-secret".into());
+        assert_eq!(resolve_bearer_token(&config).as_deref(), Some("direct-secret"));
+
+        // bearer_token wins when both are set
+        std::env::set_var("PULSO_TEST_HOOK_TOKEN_PRECEDENCE", "env-secret");
+        config.bearer_token_env = Some("PULSO_TEST_HOOK_TOKEN_PRECEDENCE".into());
+        assert_eq!(resolve_bearer_token(&config).as_deref(), Some("direct-secret"));
+
+        // env-only falls back to the environment variable
+        config.bearer_token = None;
+        assert_eq!(resolve_bearer_token(&config).as_deref(), Some("env-secret"));
+
+        // Missing/unset env var resolves to no token (warns, never panics)
+        config.bearer_token_env = Some("PULSO_TEST_HOOK_TOKEN_DOES_NOT_EXIST".into());
+        assert_eq!(resolve_bearer_token(&config), None);
+
+        // Neither field set -> no token
+        config.bearer_token_env = None;
+        assert_eq!(resolve_bearer_token(&config), None);
+    }
+
+    #[test]
+    fn test_resolve_bearer_token_ignored_for_slack_and_pagerduty() {
+        // Slack and PagerDuty carry their own auth — a configured bearer
+        // token must not leak into their requests.
+        for format in ["slack", "pagerduty"] {
+            let mut config = make_webhook_config("https://hooks.example.com", format);
+            config.bearer_token = Some("secret".into());
+            assert_eq!(
+                resolve_bearer_token(&config),
+                None,
+                "{format} webhooks must not send Authorization: Bearer"
+            );
+        }
+    }
+
+    // --- Mock webhook sink recording the Authorization header ---------------
+
+    /// Spawn a minimal HTTP sink that records the Authorization header (or
+    /// None) of every POST. Returns (url, recorded_headers).
+    async fn spawn_header_sink() -> (
+        String,
+        std::sync::Arc<std::sync::Mutex<Vec<Option<String>>>>,
+    ) {
+        let headers: std::sync::Arc<std::sync::Mutex<Vec<Option<String>>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let state = headers.clone();
+        let app = axum::Router::new().route(
+            "/hook",
+            axum::routing::post(move |req_headers: axum::http::HeaderMap| {
+                let state = state.clone();
+                async move {
+                    let auth = req_headers
+                        .get("authorization")
+                        .and_then(|v| v.to_str().ok())
+                        .map(str::to_string);
+                    state.lock().unwrap().push(auth);
+                    "ok"
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        (format!("http://{}/hook", addr), headers)
+    }
+
+    #[tokio::test]
+    async fn test_generic_webhook_sends_bearer_header_when_configured() {
+        let (url, auths) = spawn_header_sink().await;
+        let mut config = make_webhook_config(&url, "generic");
+        config.bearer_token = Some("hook-secret".into());
+        let dispatcher = WebhookDispatcher::new(&[config]);
+
+        let update = make_update(
+            IncidentAction::Open, IncidentScope::Port, FaultType::FibreCut, "critical",
+        );
+        dispatcher.dispatch_incident(&update).await;
+
+        let auths = auths.lock().unwrap();
+        assert_eq!(auths.len(), 1, "exactly one webhook POST expected");
+        assert_eq!(
+            auths[0].as_deref(),
+            Some("Bearer hook-secret"),
+            "generic webhook must carry Authorization: Bearer <token>"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_generic_webhook_from_env_sends_bearer_header() {
+        std::env::set_var("PULSO_TEST_HOOK_TOKEN_DISPATCH", "env-hook-secret");
+        let (url, auths) = spawn_header_sink().await;
+        let mut config = make_webhook_config(&url, "generic");
+        config.bearer_token_env = Some("PULSO_TEST_HOOK_TOKEN_DISPATCH".into());
+        let dispatcher = WebhookDispatcher::new(&[config]);
+
+        let update = make_update(
+            IncidentAction::Resolve, IncidentScope::Port, FaultType::FibreCut, "critical",
+        );
+        dispatcher.dispatch_incident(&update).await;
+
+        let auths = auths.lock().unwrap();
+        assert_eq!(auths.len(), 1);
+        assert_eq!(auths[0].as_deref(), Some("Bearer env-hook-secret"));
+    }
+
+    #[tokio::test]
+    async fn test_webhook_without_token_sends_no_authorization_header() {
+        let (url, auths) = spawn_header_sink().await;
+        let dispatcher = WebhookDispatcher::new(&[make_webhook_config(&url, "generic")]);
+
+        let update = make_update(
+            IncidentAction::Open, IncidentScope::Port, FaultType::FibreCut, "critical",
+        );
+        dispatcher.dispatch_incident(&update).await;
+
+        let auths = auths.lock().unwrap();
+        assert_eq!(auths.len(), 1);
+        assert_eq!(
+            auths[0], None,
+            "no Authorization header when no bearer token is configured"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_slack_webhook_never_sends_bearer_header() {
+        let (url, auths) = spawn_header_sink().await;
+        let mut config = make_webhook_config(&url, "slack");
+        config.bearer_token = Some("must-not-leak".into());
+        let dispatcher = WebhookDispatcher::new(&[config]);
+
+        let update = make_update(
+            IncidentAction::Open, IncidentScope::Port, FaultType::FibreCut, "critical",
+        );
+        dispatcher.dispatch_incident(&update).await;
+
+        let auths = auths.lock().unwrap();
+        assert_eq!(auths.len(), 1);
+        assert_eq!(
+            auths[0], None,
+            "Slack webhooks use their own auth — bearer token must not leak"
         );
     }
 

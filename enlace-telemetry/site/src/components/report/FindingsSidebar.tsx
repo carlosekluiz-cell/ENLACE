@@ -48,15 +48,15 @@ export default function FindingsSidebar({
   }
 
   if (result.churn_risk.length > 0) {
-    const high = result.churn_risk.filter(
-      (c) => c.churn_probability_90day > 0.5
+    const severe = result.churn_risk.filter(
+      (c) => c.impact === "Severe" || c.estimated_churn_probability_90day > 0.3
     ).length;
     categories.push({
       key: "churn_risk",
-      label: "Signal Degrading",
+      label: "Churn Risk",
       count: result.churn_risk.length,
       severity: "warning",
-      subtitle: high > 0 ? `${high} high risk` : "monitoring",
+      subtitle: severe > 0 ? `${severe} severe (assumed model)` : "monitoring",
     });
   }
 
@@ -71,21 +71,61 @@ export default function FindingsSidebar({
   }
 
   if (result.capacity.length > 0) {
-    const critical = result.capacity.filter(
-      (c) => c.utilisation_pct >= 90
+    const alerting = result.capacity.filter((c) => c.alert_level !== "Ok");
+    const critical = alerting.filter(
+      (c) => c.alert_level === "Critical"
     ).length;
-    const warning = result.capacity.filter(
-      (c) => c.utilisation_pct >= 80 && c.utilisation_pct < 90
-    ).length;
-    const parts: string[] = [];
-    if (critical > 0) parts.push(`${critical} critical`);
-    if (warning > 0) parts.push(`${warning} warning`);
+    const maxUtil = Math.max(...result.capacity.map((c) => c.utilisation_pct));
     categories.push({
       key: "capacity",
       label: "PON Capacity",
-      count: result.capacity.length,
-      severity: critical > 0 ? "critical" : "warning",
-      subtitle: parts.join(", ") || "at capacity",
+      count: alerting.length > 0 ? alerting.length : result.capacity.length,
+      severity:
+        critical > 0 ? "critical" : alerting.length > 0 ? "warning" : "info",
+      subtitle:
+        alerting.length > 0
+          ? `${alerting.length} port${alerting.length === 1 ? "" : "s"} alerting`
+          : `${result.capacity.length} ports tracked · peak ${maxUtil.toFixed(0)}%`,
+    });
+  }
+
+  {
+    const trending = result.sfp_health.filter(
+      (s) => s.severity !== "Healthy" && s.severity !== "Ok"
+    );
+    if (trending.length > 0) {
+      const critical = trending.filter(
+        (s) => s.severity === "Critical"
+      ).length;
+      categories.push({
+        key: "sfp_health",
+        label: "PON-wide Trend",
+        count: trending.length,
+        severity: critical > 0 ? "critical" : "warning",
+        subtitle: "shared-plant degradation",
+      });
+    }
+  }
+
+  if ((result.rogue?.length ?? 0) > 0) {
+    categories.push({
+      key: "rogue",
+      label: "Rogue ONT Suspects",
+      count: result.rogue!.length,
+      severity: "critical",
+      subtitle: "needs vendor confirmation",
+    });
+  }
+
+  if (result.tickets.length > 0) {
+    categories.push({
+      key: "tickets",
+      label: "Tickets Raised",
+      count: result.tickets.length,
+      severity: "info",
+      subtitle: result.tickets
+        .map((t) => `${t.priority} ${t.fault_type}`)
+        .join(", "),
     });
   }
 
@@ -119,14 +159,20 @@ export default function FindingsSidebar({
     });
   }
 
-  if (result.optical_budget.length > 0) {
-    categories.push({
-      key: "optical_budget",
-      label: "Optical Budget",
-      count: result.optical_budget.length,
-      severity: "warning",
-      subtitle: "low margin links",
-    });
+  {
+    // Only marginal/critical budgets are findings; "Excellent" is a pass.
+    const lowMargin = result.optical_budget.filter(
+      (o) => o.budget_status !== "Excellent" && o.budget_status !== "Good"
+    );
+    if (lowMargin.length > 0) {
+      categories.push({
+        key: "optical_budget",
+        label: "Optical Budget",
+        count: lowMargin.length,
+        severity: "warning",
+        subtitle: `of ${result.optical_budget.length} links assessed`,
+      });
+    }
   }
 
   return (

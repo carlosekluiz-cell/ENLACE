@@ -35,8 +35,11 @@ drop into your existing workflow.
 ## Built to earn trust
 
 - **Read-only.** Enlace never sends a write command to your equipment.
-- **Your credentials stay local.** Only aggregated metrics leave the network — never customer data.
-- **Open source (Apache 2.0).** Inspect every line. No black box, no lock-in. If we disappeared tomorrow, you keep the code.
+- **Your credentials never leave your network.** Telemetry sent outward is structured per-ONT findings
+  and optical metrics — never traffic contents or subscriber PII — and self-hosted output keeps everything
+  on your infrastructure.
+- **Verifiable.** We'll walk your engineers through exactly what the agent does — read-only, open
+  standards (SNMP/NETCONF) — so they can sign it off. No black box behaviour, no lock-in.
 - **Vendor-agnostic.** Adtran, Huawei, Nokia, ZTE, FiberHome, Datacom and more — one agent, one data model, no per-vendor tooling.
 
 ## Where it stands
@@ -44,7 +47,8 @@ drop into your existing workflow.
 - Validated against a benchmark of real-world incident patterns — fibre cuts, splice and
   SFP pre-failure, reflectance, flapping, weather-correlated degradation, capacity exhaustion
   and churn — all detected end-to-end.
-- 180+ automated tests; audits ~1,000 ONTs in roughly 10 milliseconds.
+- 500+ automated tests (528 passing); audits a 52-ONT week of telemetry in 10 ms and
+  1,000 ONTs in ~0.12 s, end to end.
 - Designed and tested for UK fibre operators.
 
 ## The pilot — free for launch partners
