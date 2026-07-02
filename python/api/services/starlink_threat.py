@@ -66,7 +66,7 @@ async def compute_threat_index(
                 a2.area_km2,
                 COALESCE(SUM(bs.subscribers), 0) AS total_subscribers,
                 COUNT(DISTINCT bs.provider_id) AS provider_count,
-                COALESCE(SUM(CASE WHEN LOWER(bs.technology) = 'fiber' THEN bs.subscribers ELSE 0 END), 0) AS fiber_subscribers
+                COALESCE(SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END), 0) AS fiber_subscribers
             FROM admin_level_2 a2
             JOIN admin_level_1 a1 ON a2.l1_id = a1.id
             LEFT JOIN broadband_subscribers bs ON bs.l2_id = a2.id
@@ -162,7 +162,7 @@ async def get_threat_detail(
             a2.population, a2.area_km2,
             COALESCE(SUM(bs.subscribers), 0) AS total_subscribers,
             COUNT(DISTINCT bs.provider_id) AS provider_count,
-            COALESCE(SUM(CASE WHEN LOWER(bs.technology) = 'fiber' THEN bs.subscribers ELSE 0 END), 0) AS fiber_subscribers,
+            COALESCE(SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END), 0) AS fiber_subscribers,
             (SELECT COUNT(*) FROM base_stations bst
              JOIN admin_level_2 a22 ON ST_Contains(a22.geom, bst.geom) WHERE a22.id = :l2_id) AS tower_count
         FROM admin_level_2 a2
@@ -231,17 +231,25 @@ async def threat_summary(db: AsyncSession) -> dict[str, Any]:
     """National summary of Starlink threat distribution."""
     sql = text("""
         WITH latest_ym AS (SELECT MAX(year_month) AS ym FROM broadband_subscribers),
+        muni_subs AS (
+            SELECT l2_id,
+                   SUM(subscribers) AS subscribers,
+                   COUNT(DISTINCT provider_id) AS providers
+            FROM broadband_subscribers
+            WHERE year_month = (SELECT ym FROM latest_ym)
+            GROUP BY l2_id
+        ),
         state_data AS (
             SELECT
                 a1.abbrev AS state,
-                COUNT(DISTINCT a2.id) AS municipalities,
+                COUNT(a2.id) AS municipalities,
                 SUM(a2.population) AS population,
-                COALESCE(SUM(bs.subscribers), 0) AS subscribers,
-                COUNT(DISTINCT bs.provider_id) AS providers
+                COALESCE(SUM(ms.subscribers), 0) AS subscribers,
+                COALESCE(SUM(ms.providers), 0) AS providers
             FROM admin_level_1 a1
             JOIN admin_level_2 a2 ON a2.l1_id = a1.id
-            LEFT JOIN broadband_subscribers bs ON bs.l2_id = a2.id
-                AND bs.year_month = (SELECT ym FROM latest_ym)
+            LEFT JOIN muni_subs ms ON ms.l2_id = a2.id
+            WHERE a1.abbrev != 'DC'
             GROUP BY a1.abbrev
         )
         SELECT *,

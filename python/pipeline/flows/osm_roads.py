@@ -18,8 +18,27 @@ import pandas as pd
 from shapely.geometry import mapping
 
 from python.pipeline.base import BasePipeline
-from python.pipeline.config import DOWNLOAD_CACHE_DIR, DataSourceURLs, STATE_ABBREVIATIONS
+from python.pipeline.config import DOWNLOAD_CACHE_DIR, DataSourceURLs, ColombiaDataSourceURLs, STATE_ABBREVIATIONS
 from python.pipeline.http_client import PipelineHTTPClient, get_cache_path
+
+# Geofabrik download URLs for each LATAM country
+LATAM_GEOFABRIK_URLS = {
+    "MX": ("Mexico", "https://download.geofabrik.de/north-america/mexico-latest-free.shp.zip"),
+    "AR": ("Argentina", "https://download.geofabrik.de/south-america/argentina-latest-free.shp.zip"),
+    "CL": ("Chile", "https://download.geofabrik.de/south-america/chile-latest-free.shp.zip"),
+    "PE": ("Peru", "https://download.geofabrik.de/south-america/peru-latest-free.shp.zip"),
+    "EC": ("Ecuador", "https://download.geofabrik.de/south-america/ecuador-latest-free.shp.zip"),
+    "VE": ("Venezuela", "https://download.geofabrik.de/south-america/venezuela-latest-free.shp.zip"),
+    "BO": ("Bolivia", "https://download.geofabrik.de/south-america/bolivia-latest-free.shp.zip"),
+    "PY": ("Paraguay", "https://download.geofabrik.de/south-america/paraguay-latest-free.shp.zip"),
+    "UY": ("Uruguay", "https://download.geofabrik.de/south-america/uruguay-latest-free.shp.zip"),
+    "CU": ("Cuba", "https://download.geofabrik.de/central-america/cuba-latest-free.shp.zip"),
+    "DO": ("Dominican Republic", "https://download.geofabrik.de/central-america/haiti-and-domrep-latest-free.shp.zip"),
+}
+
+# Central American countries share one Geofabrik extract
+CENTRAL_AMERICA_COUNTRIES = {"PA", "CR", "GT", "HN", "SV", "NI"}
+CENTRAL_AMERICA_URL = "https://download.geofabrik.de/central-america-latest-free.shp.zip"
 
 logger = logging.getLogger(__name__)
 
@@ -53,16 +72,17 @@ HIGHWAY_CLASS_MAP = {
 
 
 class OSMRoadsPipeline(BasePipeline):
-    """Ingest real road network from Geofabrik regional shapefiles."""
+    """Ingest real road network from Geofabrik regional shapefiles (BR + CO)."""
 
     def __init__(self):
         super().__init__("osm_roads")
         self.urls = DataSourceURLs()
+        self.co_urls = ColombiaDataSourceURLs()
 
     def check_for_updates(self) -> bool:
         conn = self._get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM road_segments WHERE country_code = 'BR'")
+        cur.execute("SELECT COUNT(*) FROM road_segments")
         count = cur.fetchone()[0]
         cur.close()
         conn.close()
@@ -114,6 +134,50 @@ class OSMRoadsPipeline(BasePipeline):
 
                 except Exception as e:
                     logger.warning(f"Could not process {region}: {e}")
+
+        # --- Colombia: single country-level shapefile ---
+        try:
+            co_url = self.co_urls.osm_geofabrik_co
+            cache_path = get_cache_path("osm_colombia.shp.zip")
+            logger.info("Downloading Colombia shapefile...")
+            with PipelineHTTPClient(timeout=600) as http2:
+                http2.download_file(co_url, cache_path)
+            roads_gdf = self._extract_roads(cache_path)
+            if roads_gdf is not None and not roads_gdf.empty:
+                roads_gdf["_country_code"] = "CO"
+                all_roads.append(roads_gdf)
+                logger.info(f"Extracted {len(roads_gdf)} roads from Colombia")
+        except Exception as e:
+            logger.warning(f"Could not process Colombia roads: {e}")
+
+        # --- LATAM expansion: per-country Geofabrik shapefiles ---
+        with PipelineHTTPClient(timeout=600) as http3:
+            for cc, (country_name, geofabrik_url) in LATAM_GEOFABRIK_URLS.items():
+                try:
+                    cache_path = get_cache_path(f"osm_{cc.lower()}.shp.zip")
+                    logger.info(f"Downloading {country_name} shapefile...")
+                    http3.download_file(geofabrik_url, cache_path)
+                    roads_gdf = self._extract_roads(cache_path)
+                    if roads_gdf is not None and not roads_gdf.empty:
+                        roads_gdf["_country_code"] = cc
+                        all_roads.append(roads_gdf)
+                        logger.info(f"Extracted {len(roads_gdf)} roads from {country_name}")
+                except Exception as e:
+                    logger.warning(f"Could not process {country_name} roads: {e}")
+
+            # Central America: shared extract, tag per country via spatial join later
+            try:
+                cache_path = get_cache_path("osm_central_america.shp.zip")
+                logger.info("Downloading Central America shapefile...")
+                http3.download_file(CENTRAL_AMERICA_URL, cache_path)
+                roads_gdf = self._extract_roads(cache_path)
+                if roads_gdf is not None and not roads_gdf.empty:
+                    # Default to PA; country assignment happens during spatial join in transform
+                    roads_gdf["_country_code"] = "CA"
+                    all_roads.append(roads_gdf)
+                    logger.info(f"Extracted {len(roads_gdf)} roads from Central America")
+            except Exception as e:
+                logger.warning(f"Could not process Central America roads: {e}")
 
         if not all_roads:
             raise ValueError("No road data extracted from any region")
@@ -212,8 +276,11 @@ class OSMRoadsPipeline(BasePipeline):
             if surface in ("None", "nan", ""):
                 surface = "unknown"
 
+            # Use _country_code tag from download if present, else default BR
+            cc = row.get("_country_code", "BR") if hasattr(row, "get") else "BR"
+
             rows.append({
-                "country_code": "BR",
+                "country_code": cc,
                 "osm_id": osm_id,
                 "highway_class": row.get("highway_class", "unclassified"),
                 "name": name,
@@ -234,7 +301,7 @@ class OSMRoadsPipeline(BasePipeline):
 
         conn = self._get_connection()
         cur = conn.cursor()
-        cur.execute("DELETE FROM road_segments WHERE country_code = 'BR'")
+        cur.execute("DELETE FROM road_segments")
         conn.commit()
 
         from psycopg2.extras import execute_values

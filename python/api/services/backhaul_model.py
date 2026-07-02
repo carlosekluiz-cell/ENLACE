@@ -24,8 +24,8 @@ CAPACITY_PER_TOWER_GBPS = {
 }
 DEFAULT_CAPACITY_GBPS = 1.0
 
-# Traffic per subscriber (Mbps average during busy hour)
-TRAFFIC_PER_SUB_MBPS = 2.5
+# Traffic per subscriber (Mbps average during busy hour, with 1:20 oversubscription)
+TRAFFIC_PER_SUB_MBPS = 0.15
 
 
 async def get_utilization(
@@ -50,6 +50,7 @@ async def get_utilization(
                 a2.id AS l2_id, a2.name, a1.abbrev AS state,
                 a2.population,
                 COALESCE(SUM(bs.subscribers), 0) AS subscribers,
+                COUNT(DISTINCT bs.provider_id) AS provider_count,
                 (SELECT COUNT(*) FROM base_stations bst
                  JOIN admin_level_2 a22 ON ST_Contains(a22.geom, bst.geom)
                  WHERE a22.id = a2.id) AS tower_count
@@ -72,8 +73,10 @@ async def get_utilization(
     municipalities = []
     for row in rows:
         subs = row.subscribers
-        towers = row.tower_count or 1
-        total_capacity_gbps = towers * DEFAULT_CAPACITY_GBPS
+        towers = row.tower_count or 0
+        providers = row.provider_count or 1
+        # Capacity: each ISP contributes ~10 Gbps backhaul + towers add capacity
+        total_capacity_gbps = providers * 10.0 + towers * DEFAULT_CAPACITY_GBPS
         demand_gbps = subs * TRAFFIC_PER_SUB_MBPS / 1000
         utilization_pct = min(100, demand_gbps / max(total_capacity_gbps, 0.001) * 100)
 
@@ -84,6 +87,7 @@ async def get_utilization(
             "name": row.name,
             "state": row.state,
             "subscribers": subs,
+            "provider_count": providers,
             "tower_count": towers,
             "estimated_capacity_gbps": round(total_capacity_gbps, 2),
             "estimated_demand_gbps": round(demand_gbps, 3),

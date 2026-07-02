@@ -5,6 +5,9 @@ pub mod detector;
 pub mod topology;
 pub mod locator;
 
-pub use detector::{FaultDetector, FaultEvent, AffectedOnt};
+pub use detector::{
+    FaultDetector, FaultEvent, FaultType, AffectedOnt,
+    IncidentUpdate, IncidentAction, IncidentScope,
+};
 pub use topology::FibreTopology;
 pub use locator::{FaultLocator, FaultLocation};

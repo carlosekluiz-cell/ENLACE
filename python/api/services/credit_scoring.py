@@ -251,7 +251,7 @@ async def _compute_infrastructure_quality(
         )
         SELECT
             SUM(subscribers) AS total,
-            SUM(CASE WHEN LOWER(technology) = 'fiber' THEN subscribers ELSE 0 END) AS fiber
+            SUM(CASE WHEN LOWER(technology) IN ('fiber', 'ftth', 'fttb') THEN subscribers ELSE 0 END) AS fiber
         FROM broadband_subscribers
         WHERE provider_id = :pid
           AND year_month = (SELECT ym FROM latest_month)

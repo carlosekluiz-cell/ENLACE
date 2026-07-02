@@ -50,18 +50,37 @@ impl UbiquitiCollector {
         let devices: Vec<serde_json::Value> = resp.json().await?;
         let mut onts = Vec::new();
 
+        if !devices.is_empty() {
+            // Finding 9: the UISP device list does not carry a verified
+            // OLT-port attribute (the previous code stuffed the ONU's *name*
+            // into pon_port, making every ONT its own fake "port"). Until a
+            // real UISP capture confirms a port field, report the port as
+            // unknown rather than fabricate one.
+            tracing::warn!(
+                olt = %self.olt_id,
+                onts = devices.len(),
+                "UISP API does not expose a verified PON-port field — \
+                 pon_port set to \"{}\" for all ONTs; port-level fault \
+                 localization is degraded on Ubiquiti",
+                UNKNOWN_PON_PORT
+            );
+        }
+
         for dev in &devices {
             let serial = dev["identification"]["serialNumber"]
                 .as_str().unwrap_or("unknown").to_string();
-            let name = dev["identification"]["name"]
-                .as_str().unwrap_or("").to_string();
             let is_online = dev["overview"]["status"]
                 .as_str().map(|s| s == "active").unwrap_or(false);
+            // UISP reports dBm directly, but gate through the plausibility
+            // window: API glitches / sentinel exports (0-filled or huge
+            // values) must become None, not poison signal history.
             let rx_power = dev["overview"]["signal"]
-                .as_f64();
+                .as_f64()
+                .and_then(super::snmp_helper::plausible_dbm);
             let tx_power = dev["overview"]["signalLocal"]
                 .as_f64()
-                .or_else(|| dev["overview"]["txPower"].as_f64());
+                .or_else(|| dev["overview"]["txPower"].as_f64())
+                .and_then(super::snmp_helper::plausible_dbm);
             let distance = dev["overview"]["distance"]
                 .as_f64()
                 .map(|d| d as u32);
@@ -79,7 +98,7 @@ impl UbiquitiCollector {
 
             onts.push(OntData {
                 serial_number: serial,
-                pon_port: name,
+                pon_port: UNKNOWN_PON_PORT.to_string(),
                 ont_index: onts.len() as u32,
                 status,
                 last_down_cause: None, uptime_seconds: uptime,
@@ -89,7 +108,9 @@ impl UbiquitiCollector {
                 equipment_id: dev["identification"]["model"].as_str().map(String::from),
                 firmware_version: dev["identification"]["firmwareVersion"].as_str().map(String::from),
                 in_octets: None, out_octets: None,
+                fec_corrected: None, fec_uncorrected: None, bip_errors: None,
                 eth_speed_mbps: None,
+                extended: None,
             });
         }
         Ok(onts)
@@ -102,9 +123,17 @@ impl OltCollector for UbiquitiCollector {
     fn vendor_name(&self) -> &str { "ubiquiti" }
 
     async fn collect(&self) -> anyhow::Result<OltData> {
+        // UISP API failures propagate — an API error reported as "0 ONTs"
+        // reads as a mass outage downstream (silent-zero, audit theme 2).
         let onts = if self.config.rest_api.is_some() {
-            self.collect_via_uisp().await.unwrap_or_default()
+            self.collect_via_uisp().await?
         } else {
+            tracing::warn!(
+                olt = %self.olt_id,
+                "Ubiquiti collector has no UISP REST API configured — ONT \
+                 data cannot be collected via SNMP on UFiber; configure \
+                 rest_api for this OLT"
+            );
             Vec::new()
         };
 

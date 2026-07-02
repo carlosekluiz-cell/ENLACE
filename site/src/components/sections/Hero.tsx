@@ -3,7 +3,7 @@ import GeoCanvas from '@/components/ui/GeoCanvas';
 
 const metrics = [
   { value: '28M+', label: 'Data points cruzados' },
-  { value: '128K+', label: 'Provedores rastreados' },
+  { value: '13.534', label: 'ISPs ativos monitorados' },
   { value: '5.572', label: 'Municípios cobertos' },
   { value: '38+', label: 'Fontes públicas' },
   { value: '68', label: 'Tabelas de dados' },
@@ -14,9 +14,9 @@ const dataSources = [
   'Anatel STEL', 'IBGE Censo', 'NASA SRTM', 'INMET', 'Sentinel-2 ESA',
   'DataSUS', 'INEP', 'CAGED', 'PeeringDB', 'IX.br/NIC.br', 'Ookla Speedtest',
   'OpenCellID', 'BNDES', 'PNCP', 'DOU', 'CNPJ/RFB', 'Atlas da Violência',
-  'SNIS', 'IBGE POF', 'PGFN Dívida Ativa', 'Portal da Transparência',
-  'consumidor.gov.br', 'Receita Federal Sócios', 'MapBiomas', 'ANEEL',
-  'Querido Diário', 'Anatel RQUAL',
+  'SNIS', 'IBGE POF', 'Receita Federal',
+  'consumidor.gov.br', 'MapBiomas', 'ANEEL',
+  'Querido Diário', 'Anatel RQUAL', 'Pulso Agent',
 ];
 
 export default function Hero() {
@@ -55,8 +55,8 @@ export default function Hero() {
           style={{ color: 'var(--text-on-dark-secondary)' }}
         >
           28 milhões de data points cruzados de 38+ fontes públicas — concorrência,
-          expansão, M&A, due diligence fiscal, conformidade — tudo ao vivo.
-          A maior base de inteligência ISP do mundo.
+          expansão, M&A, conformidade e planejamento de rede — tudo ao vivo.
+          A maior base de telecom tech para ISPs do mundo.
         </p>
 
         {/* CTAs */}

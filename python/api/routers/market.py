@@ -18,6 +18,67 @@ from python.api.models.schemas import MarketSummary, CompetitorResponse, Provide
 router = APIRouter(prefix="/api/v1/market", tags=["market"])
 
 
+@router.get("/providers/search")
+async def search_providers(
+    q: str = Query(..., min_length=2, description="Search by name or CNPJ"),
+    state: str | None = Query(None, description="Filter by state abbreviation"),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
+):
+    """Search providers by name (ILIKE) or national_id prefix."""
+    where_parts = ["(p.name ILIKE :q OR p.national_id LIKE :q_prefix)"]
+    params: dict[str, Any] = {"q": f"%{q}%", "q_prefix": f"{q}%", "limit": limit}
+
+    if state:
+        where_parts.append("""
+            p.id IN (
+                SELECT DISTINCT bs.provider_id FROM broadband_subscribers bs
+                JOIN admin_level_2 a2 ON bs.l2_id = a2.id
+                JOIN admin_level_1 a1 ON a2.l1_id = a1.id
+                WHERE a1.abbrev = :state
+            )
+        """)
+        params["state"] = state.upper()
+
+    where_sql = " AND ".join(where_parts)
+    sql = text(f"""
+        SELECT
+            p.id, p.name, p.national_id,
+            COALESCE(s.total_subs, 0) AS subscribers,
+            COALESCE(s.muni_count, 0) AS municipalities
+        FROM providers p
+        LEFT JOIN LATERAL (
+            SELECT SUM(bs.subscribers) AS total_subs,
+                   COUNT(DISTINCT bs.l2_id) AS muni_count
+            FROM broadband_subscribers bs
+            WHERE bs.provider_id = p.id
+              AND bs.year_month = (SELECT MAX(year_month) FROM broadband_subscribers)
+        ) s ON TRUE
+        WHERE {where_sql}
+        ORDER BY COALESCE(s.total_subs, 0) DESC
+        LIMIT :limit
+    """)
+
+    result = await db.execute(sql, params)
+    rows = result.fetchall()
+
+    return {
+        "query": q,
+        "total": len(rows),
+        "providers": [
+            {
+                "id": r.id,
+                "name": r.name,
+                "national_id": r.national_id,
+                "subscribers": int(r.subscribers),
+                "municipalities": int(r.municipalities),
+            }
+            for r in rows
+        ],
+    }
+
+
 def _to_float(value: Any) -> float | None:
     """Convert Decimal or other numeric types to float, returning None for None."""
     if value is None:
@@ -90,7 +151,7 @@ async def market_history(
         SELECT
             bs.year_month,
             SUM(bs.subscribers) AS total_subscribers,
-            SUM(CASE WHEN LOWER(bs.technology) = 'fiber' THEN bs.subscribers ELSE 0 END) AS fiber_subscribers,
+            SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END) AS fiber_subscribers,
             COUNT(DISTINCT bs.provider_id) AS provider_count
         FROM broadband_subscribers bs
         WHERE bs.l2_id = :municipality_id

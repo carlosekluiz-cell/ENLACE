@@ -31,27 +31,44 @@ router = APIRouter(prefix="/api/v1/public", tags=["public"])
 # ---------------------------------------------------------------------------
 # Provider group mapping — corporate entities that belong to the same group
 # ---------------------------------------------------------------------------
-PROVIDER_GROUPS: dict[str, list[int]] = {
-    "CLARO": [3, 1771],        # CLARO S.A. + CLARO NXT TELECOMUNICACOES
-    "VIVO": [5],               # TELEFONICA BRASIL S.A.
-    "OI": [2],                 # Oi S.A.
-    "TIM": [14],               # TIM S A
+PROVIDER_GROUPS: dict[str, dict] = {
+    # Brazil
+    "CLARO": {"ids": [3, 1771], "country": "BR"},       # CLARO S.A. + CLARO NXT
+    "VIVO": {"ids": [5], "country": "BR"},               # TELEFONICA BRASIL S.A.
+    "OI": {"ids": [2], "country": "BR"},                 # Oi S.A.
+    "TIM": {"ids": [14], "country": "BR"},               # TIM S A
+    # Colombia
+    "CLARO CO": {"ids": [647086], "country": "CO"},      # TELMEX COLOMBIA S.A.
+    "MOVISTAR CO": {"ids": [647087], "country": "CO"},   # COLOMBIA TELECOMUNICACIONES S.A. E.S.P.
+    "TIGO": {"ids": [647084], "country": "CO"},          # EDATEL S.A. (Tigo/UNE)
+    "DIRECTV CO": {"ids": [647092], "country": "CO"},    # DIRECTV COLOMBIA LTDA
+    "EMCALI": {"ids": [647125], "country": "CO"},        # EMPRESAS MUNICIPALES DE CALI
+    "CELSIA": {"ids": [647502], "country": "CO"},        # CELSIA COLOMBIA S.A. E.S.P.
 }
 
 # Reverse lookup: provider_id → group name
 _PROVIDER_TO_GROUP: dict[int, str] = {}
-for _group_name, _ids in PROVIDER_GROUPS.items():
-    for _pid in _ids:
+for _group_name, _gdata in PROVIDER_GROUPS.items():
+    for _pid in _gdata["ids"]:
         _PROVIDER_TO_GROUP[_pid] = _group_name
 
 
-def _match_group(search_term: str) -> tuple[str, list[int]] | None:
+def _match_group(search_term: str, country: str | None = None) -> tuple[str, list[int]] | None:
     """Check if search term matches a provider group name."""
     term = search_term.strip().upper()
-    for group_name, ids in PROVIDER_GROUPS.items():
+    for group_name, gdata in PROVIDER_GROUPS.items():
+        if country and gdata["country"] != country:
+            continue
         if term == group_name or group_name.startswith(term):
-            if len(ids) > 1:
-                return group_name, ids
+            return group_name, gdata["ids"]
+    # Also match without " CO" suffix for Colombia searches
+    if country == "CO":
+        for group_name, gdata in PROVIDER_GROUPS.items():
+            if gdata["country"] != "CO":
+                continue
+            base_name = group_name.replace(" CO", "")
+            if term == base_name or base_name.startswith(term):
+                return group_name, gdata["ids"]
     return None
 
 # ---------------------------------------------------------------------------
@@ -205,6 +222,7 @@ async def mapa_brasil(
 @router.get("/raio-x")
 async def raio_x_provedor(
     q: str = Query(..., min_length=2, description="Provider name search term"),
+    country: str | None = Query(None, min_length=2, max_length=2, description="Country code filter (BR, CO)"),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -217,48 +235,74 @@ async def raio_x_provedor(
     If multiple providers match, returns a list of suggestions.
     If no match, returns an error message.
     """
+    country_upper = country.upper() if country else None
+
     # ---------------------------------------------------------------
     # Step 0: Check if search term matches a provider group
     # ---------------------------------------------------------------
-    group_match = _match_group(q)
+    group_match = _match_group(q, country=country_upper)
     is_group = False
     group_ids: list[int] = []
+    resolved = False  # True when we already know the provider/group
 
     if group_match:
         group_name, group_ids = group_match
-        is_group = True
-        provider_name = f"Grupo {group_name}"
         provider_id = group_ids[0]  # primary entity
+        resolved = True
+        if len(group_ids) > 1:
+            is_group = True
+            provider_name = f"Grupo {group_name}"
+        else:
+            is_group = False
+            provider_name = group_name  # will be overwritten with real DB name below
 
     # ---------------------------------------------------------------
     # Step 1: Find matching providers (only ACTIVE ones with subscribers)
     # ---------------------------------------------------------------
-    if not is_group:
-        search_sql = text("""
-            SELECT p.id, p.name, COALESCE(sub_totals.total_subscribers, 0) AS total_subscribers
-            FROM providers p
-            INNER JOIN (
-                SELECT provider_id, SUM(subscribers) AS total_subscribers
-                FROM broadband_subscribers
-                WHERE subscribers > 0
-                GROUP BY provider_id
-            ) sub_totals ON sub_totals.provider_id = p.id
-            WHERE p.name ILIKE :pattern
-            ORDER BY sub_totals.total_subscribers DESC
-            LIMIT 10
-        """)
-        result = await db.execute(search_sql, {"pattern": f"%{q}%"})
+    if not resolved:
+        if country_upper:
+            search_sql = text("""
+                SELECT p.id, p.name, COALESCE(sub_totals.total_subscribers, 0) AS total_subscribers
+                FROM providers p
+                INNER JOIN (
+                    SELECT provider_id, SUM(subscribers) AS total_subscribers
+                    FROM broadband_subscribers
+                    WHERE subscribers > 0
+                    GROUP BY provider_id
+                ) sub_totals ON sub_totals.provider_id = p.id
+                WHERE p.name ILIKE :pattern
+                  AND p.country_code = :cc
+                ORDER BY sub_totals.total_subscribers DESC
+                LIMIT 10
+            """)
+            result = await db.execute(search_sql, {"pattern": f"%{q}%", "cc": country_upper})
+        else:
+            search_sql = text("""
+                SELECT p.id, p.name, COALESCE(sub_totals.total_subscribers, 0) AS total_subscribers
+                FROM providers p
+                INNER JOIN (
+                    SELECT provider_id, SUM(subscribers) AS total_subscribers
+                    FROM broadband_subscribers
+                    WHERE subscribers > 0
+                    GROUP BY provider_id
+                ) sub_totals ON sub_totals.provider_id = p.id
+                WHERE p.name ILIKE :pattern
+                ORDER BY sub_totals.total_subscribers DESC
+                LIMIT 10
+            """)
+            result = await db.execute(search_sql, {"pattern": f"%{q}%"})
         matches = result.fetchall()
 
         if not matches:
-            return {"error": "Provedor não encontrado", "query": q}
+            msg = "Proveedor no encontrado" if country_upper == "CO" else "Provedor não encontrado"
+            return {"error": msg, "query": q}
 
         # Check if any match belongs to a group with multiple entities
         if len(matches) >= 1:
             first_id = matches[0].id
             if first_id in _PROVIDER_TO_GROUP:
                 gname = _PROVIDER_TO_GROUP[first_id]
-                gids = PROVIDER_GROUPS[gname]
+                gids = PROVIDER_GROUPS[gname]["ids"]
                 if len(gids) > 1:
                     # Auto-group: show combined result
                     is_group = True
@@ -274,6 +318,7 @@ async def raio_x_provedor(
                 if len(exact) == 1:
                     matches = exact
                 else:
+                    msg = "Múltiples proveedores encontrados. Seleccione uno." if country_upper == "CO" else "Múltiplos provedores encontrados. Selecione um."
                     return {
                         "matches": [
                             {
@@ -283,11 +328,19 @@ async def raio_x_provedor(
                             }
                             for m in matches
                         ],
-                        "message": "Múltiplos provedores encontrados. Selecione um.",
+                        "message": msg,
                     }
 
             provider_id = matches[0].id
             provider_name = matches[0].name.strip()
+
+    # Resolve real name for single-entity groups (e.g. "VIVO" → "TELEFONICA BRASIL S.A.")
+    if resolved and not is_group:
+        name_sql = text("SELECT name FROM providers WHERE id = :pid")
+        result = await db.execute(name_sql, {"pid": provider_id})
+        name_row = result.fetchone()
+        if name_row:
+            provider_name = name_row.name.strip()
 
     # Build provider ID filter for SQL
     pid_list = group_ids if is_group else [provider_id]
@@ -526,7 +579,7 @@ async def raio_x_historico(
     group_name = None
     if provider_id in _PROVIDER_TO_GROUP:
         gname = _PROVIDER_TO_GROUP[provider_id]
-        gids = PROVIDER_GROUPS[gname]
+        gids = PROVIDER_GROUPS[gname]["ids"]
         if len(gids) > 1:
             pid_list = gids
             group_name = gname
@@ -645,7 +698,7 @@ async def raio_x_posicao(
     pid_list = [provider_id]
     if provider_id in _PROVIDER_TO_GROUP:
         gname = _PROVIDER_TO_GROUP[provider_id]
-        gids = PROVIDER_GROUPS[gname]
+        gids = PROVIDER_GROUPS[gname]["ids"]
         if len(gids) > 1:
             pid_list = gids
 
@@ -826,7 +879,7 @@ async def raio_x_intel(
     pid_list = [provider_id]
     if provider_id in _PROVIDER_TO_GROUP:
         gname = _PROVIDER_TO_GROUP[provider_id]
-        gids = PROVIDER_GROUPS[gname]
+        gids = PROVIDER_GROUPS[gname]["ids"]
         if len(gids) > 1:
             pid_list = gids
 
@@ -1169,7 +1222,7 @@ async def raio_x_qualidade(
     """Anatel quality seals (ouro/prata/bronze) for a provider across municipalities."""
     group_name = _PROVIDER_TO_GROUP.get(provider_id)
     if group_name:
-        pids = PROVIDER_GROUPS[group_name]
+        pids = PROVIDER_GROUPS[group_name]["ids"]
     else:
         pids = [provider_id]
 
@@ -1461,7 +1514,7 @@ async def raio_x_dinamica(
     """
     group_name = _PROVIDER_TO_GROUP.get(provider_id)
     if group_name:
-        pids = PROVIDER_GROUPS[group_name]
+        pids = PROVIDER_GROUPS[group_name]["ids"]
     else:
         pids = [provider_id]
 
@@ -1599,4 +1652,44 @@ async def join_waitlist(req: WaitlistRequest, db: AsyncSession = Depends(get_db)
     # Get position
     result = await db.execute(text("SELECT COUNT(*) FROM waitlist WHERE id <= (SELECT id FROM waitlist WHERE email = :email)"), {"email": email})
     position = result.scalar() or 0
+    # Send confirmation email via Resend (fire-and-forget)
+    try:
+        import resend
+        resend.api_key = "re_A1Hgmzmg_7S12LtHjmB4tEzBpK4DRw4yn"
+        display_name = req.name or email.split("@")[0]
+        resend.Emails.send({
+            "from": "Pulso Network <onboarding@resend.dev>",
+            "to": [email],
+            "subject": "Bem-vindo à lista de espera — Pulso Network",
+            "html": f"""
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; color: #1a1a1a;">
+                <div style="padding: 32px 0; border-bottom: 2px solid #0a0a0a;">
+                    <strong style="font-size: 20px;">Pulso Network</strong>
+                </div>
+                <div style="padding: 32px 0;">
+                    <h1 style="font-size: 22px; margin: 0 0 16px;">Olá, {display_name}!</h1>
+                    <p style="font-size: 15px; line-height: 1.6; color: #444;">
+                        Você é o <strong>#{position}</strong> na lista de espera do Pulso Network.
+                    </p>
+                    <p style="font-size: 15px; line-height: 1.6; color: #444;">
+                        Estamos construindo a maior plataforma de inteligência de dados para o mercado
+                        ISP brasileiro — 13.534 provedores ativos, 38+ fontes públicas cruzadas,
+                        5.570 municípios mapeados.
+                    </p>
+                    <p style="font-size: 15px; line-height: 1.6; color: #444;">
+                        Vamos avisar por e-mail assim que sua conta estiver pronta.
+                    </p>
+                    <a href="https://pulso.network" style="display: inline-block; margin-top: 16px; padding: 12px 24px; background: #0a0a0a; color: #fff; text-decoration: none; font-size: 14px; font-weight: 600;">
+                        Conhecer a plataforma
+                    </a>
+                </div>
+                <div style="padding: 16px 0; border-top: 1px solid #e5e5e5; font-size: 12px; color: #999;">
+                    Pulso Network — Inteligência telecom para ISPs brasileiros
+                </div>
+            </div>
+            """,
+        })
+        logger.info("Waitlist confirmation email sent to %s", email)
+    except Exception:
+        logger.exception("Failed to send waitlist email to %s", email)
     return {"ok": True, "position": position}

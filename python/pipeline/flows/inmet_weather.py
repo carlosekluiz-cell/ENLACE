@@ -84,11 +84,11 @@ class INMETWeatherPipeline(BasePipeline):
         if latest_date:
             start_date = latest_date + timedelta(days=1)
         else:
-            start_date = datetime.utcnow() - timedelta(days=30)
+            start_date = (datetime.utcnow() - timedelta(days=30)).date()
 
-        end_date = datetime.utcnow()
+        end_date = datetime.utcnow().date()
 
-        if start_date.date() >= end_date.date():
+        if start_date >= end_date:
             logger.info("Weather data is already up to date")
             return {"observations": [], "stations_fetched": 0}
 

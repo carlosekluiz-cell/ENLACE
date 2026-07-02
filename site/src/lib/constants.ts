@@ -1,14 +1,17 @@
 export const SITE_NAME = 'Pulso Network';
-export const SITE_DESCRIPTION = 'Plataforma de inteligência telecom para provedores de internet brasileiros.';
+export const SITE_DESCRIPTION = 'Telecom tech para provedores de internet brasileiros. Inteligência de mercado, telemetria e planejamento de rede.';
 export const APP_URL = 'https://app.pulso.network';
 export const API_URL = 'https://api.pulso.network';
 
 export const NAV_LINKS = [
+  { label: 'Teste de Velocidade', href: '/teste-de-velocidade' },
   { label: 'Mercado', href: '/mercado' },
+  { label: 'Qualidade', href: '/qualidade' },
   { label: 'Raio-X', href: '/raio-x' },
   { label: 'Mapa', href: '/mapa-brasil' },
   { label: 'Produto', href: '/produto' },
   { label: 'Dados', href: '/dados' },
+  { label: 'Agente', href: '/agente' },
   { label: 'Lista de Espera', href: '/precos' },
   { label: 'Blog', href: '/blog' },
   { label: 'Recursos', href: '/recursos' },
@@ -17,10 +20,13 @@ export const NAV_LINKS = [
 
 export const FOOTER_LINKS = {
   product: [
+    { label: 'Teste de Velocidade', href: '/teste-de-velocidade' },
     { label: 'Mercado', href: '/mercado' },
+    { label: 'Qualidade', href: '/qualidade' },
     { label: 'Raio-X do Provedor', href: '/raio-x' },
     { label: 'Produto', href: '/produto' },
     { label: 'Dados', href: '/dados' },
+    { label: 'Agente', href: '/agente' },
     { label: 'Lista de Espera', href: '/precos' },
   ],
   company: [
@@ -33,6 +39,7 @@ export const FOOTER_LINKS = {
     { label: 'Calculadora de ROI', href: '/recursos/roi' },
     { label: 'Funcionalidades', href: '/recursos/funcionalidades' },
     { label: 'Confiança dos Dados', href: '/recursos/dados-confianca' },
+    { label: 'Estudo Huawei', href: '/parceiros/huawei' },
   ],
   legal: [
     { label: 'Termos de Uso', href: '/termos' },

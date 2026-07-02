@@ -9,11 +9,11 @@ export const metadata: Metadata = {
 };
 
 const tierOverview = [
-  { tier: 'Gratuito', price: 'R$0/mês', audience: 'Exploração', users: '1', contract: '-' },
-  { tier: 'Starter', price: 'R$99/mês', audience: 'Análises pontuais', users: '1', contract: 'Mensal' },
-  { tier: 'Provedor', price: 'R$1.500/mês', audience: 'ISPs 1K-10K subs', users: '5', contract: 'Mensal' },
-  { tier: 'Profissional', price: 'R$5.000/mês', audience: 'ISPs 10K-100K subs', users: '20', contract: 'Anual' },
-  { tier: 'Empresa', price: 'Sob consulta', audience: 'Operadoras, fundos', users: 'Ilimitado', contract: 'Anual' },
+  { tier: 'Gratuito', audience: 'Exploração', users: '1', contract: '-' },
+  { tier: 'Starter', audience: 'Análises pontuais', users: '1', contract: '—' },
+  { tier: 'Provedor', audience: 'ISPs 1K-10K subs', users: '5', contract: '—' },
+  { tier: 'Profissional', audience: 'ISPs 10K-100K subs', users: '20', contract: '—' },
+  { tier: 'Empresa', audience: 'Operadoras, fundos', users: 'Ilimitado', contract: '—' },
 ];
 
 type Feature = { name: string; free: string; starter: string; provider: string; pro: string; enterprise: string };
@@ -142,7 +142,7 @@ const modules: { title: string; number: string; features: Feature[] }[] = [
       { name: 'Diário Oficial (DOU + Querido Diário)', free: '—', starter: '✓', provider: '✓', pro: '✓', enterprise: '✓' },
       { name: 'Contratos BNDES/FUST', free: '—', starter: '✓', provider: '✓', pro: '✓', enterprise: '✓' },
       { name: 'Espectro licenciado (holdings)', free: '—', starter: '✓', provider: '✓', pro: '✓', enterprise: '✓' },
-      { name: 'Exportação PDF do relatório completo', free: '—', starter: 'R$49/avulso', provider: '✓', pro: '✓', enterprise: '✓' },
+      { name: 'Exportação PDF do relatório completo', free: '—', starter: 'Disponível', provider: '✓', pro: '✓', enterprise: '✓' },
     ],
   },
   {
@@ -297,7 +297,7 @@ const modules: { title: string; number: string; features: Feature[] }[] = [
       { name: 'Cobertura social (escolas, saúde)', free: '—', starter: '—', provider: '—', pro: '✓', enterprise: '✓' },
       { name: 'Correlações (clima, emprego, renda)', free: '—', starter: '—', provider: '—', pro: '✓', enterprise: '✓' },
       { name: 'Prioridade de investimento (composite)', free: '—', starter: '—', provider: '—', pro: '✓', enterprise: '✓' },
-      { name: 'Detecção de anomalias (pyod)', free: '—', starter: '—', provider: '—', pro: '—', enterprise: '✓' },
+      { name: 'Detecção de anomalias estatísticas', free: '—', starter: '—', provider: '—', pro: '—', enterprise: '✓' },
     ],
   },
 ];
@@ -387,7 +387,6 @@ export default function FuncionalidadesPage() {
             <thead>
               <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
                 <th className="px-4 py-3 text-left font-medium" style={{ color: 'var(--text-primary)' }}>Tier</th>
-                <th className="px-4 py-3 text-left font-mono font-medium" style={{ color: 'var(--text-primary)' }}>Preço</th>
                 <th className="px-4 py-3 text-left font-medium" style={{ color: 'var(--text-primary)' }}>Público</th>
                 <th className="px-4 py-3 text-center font-medium" style={{ color: 'var(--text-primary)' }}>Usuários</th>
                 <th className="px-4 py-3 text-left font-medium" style={{ color: 'var(--text-primary)' }}>Contrato</th>
@@ -397,7 +396,6 @@ export default function FuncionalidadesPage() {
               {tierOverview.map((t) => (
                 <tr key={t.tier} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{t.tier}</td>
-                  <td className="px-4 py-3 font-mono" style={{ color: 'var(--accent)' }}>{t.price}</td>
                   <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{t.audience}</td>
                   <td className="px-4 py-3 text-center font-mono" style={{ color: 'var(--text-primary)' }}>{t.users}</td>
                   <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{t.contract}</td>
@@ -434,9 +432,9 @@ export default function FuncionalidadesPage() {
       <Section background="subtle">
         <div className="max-w-3xl space-y-3">
           {[
-            'Todos os tiers incluem autenticação JWT e dados atualizados pelos 38 pipelines.',
+            'Todos os tiers incluem autenticação segura e dados atualizados automaticamente.',
             'O tier Gratuito é projetado para demonstrar valor e converter para tiers pagos.',
-            'Preços em BRL. Provedor: cobrança mensal. Profissional e Empresa: anual com desconto de 15%.',
+            'Preços serão divulgados no lançamento. Entre na lista de espera para receber informações.',
             'API rate limits: Profissional = 100 req/min, Empresa = sem limite.',
             'Todos os tiers acessam os mesmos dados reais (28M+ registros).',
           ].map((note, i) => (
@@ -460,7 +458,7 @@ export default function FuncionalidadesPage() {
           </h2>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <Link href="/precos" className="pulso-btn-dark">
-              Ver preços
+              Entrar na lista de espera
             </Link>
             <Link href="/recursos" className="pulso-btn-ghost">
               Voltar a recursos

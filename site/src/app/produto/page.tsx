@@ -4,12 +4,12 @@ import Link from 'next/link';
 import {
   Map, BarChart3, Radio, Shield, CloudRain, TreePine,
   Satellite, Building2, Brain, Layers, Wifi, Globe, Award, GitCompareArrows,
-  Cable, Gauge, ShieldCheck, Radiation, CreditCard, TowerControl, FileSearch, Hexagon, History,
+  Cable, Gauge, ShieldCheck, Radiation, CreditCard, TowerControl, FileSearch, Hexagon, History, Terminal, ShieldAlert,
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Produto — Pulso Network',
-  description: '25 módulos de inteligência telecom para provedores de internet brasileiros. Expansão, M&A, RF, conformidade, análise espacial e mais.',
+  title: 'Produto',
+  description: '26 módulos de telecom tech e inteligência de mercado para provedores de internet brasileiros. Expansão, M&A, RF, conformidade, análise espacial, agente de telemetria e mais.',
   alternates: { canonical: 'https://pulso.network/produto' },
 };
 
@@ -30,10 +30,10 @@ const modules = [
   },
   {
     icon: Radio,
-    title: 'Projeto RF',
-    description: 'Planejamento de enlaces wireless com dados de elevação reais. Link budget, perfil de terreno e conformidade com limites de potência.',
-    metric: 'Resolução de 30m (SRTM/NASA)',
-    highlights: ['Perfil de terreno entre pontos', 'Clearance de zona de Fresnel', 'Conformidade EIRP automática'],
+    title: 'Projeto de Rede',
+    description: 'Projeto FTTH com orçamento óptico, dimensionamento de OLT e BOM. Planejamento wireless com dados de elevação reais. Viabilidade econômica com NPV, IRR e payback.',
+    metric: 'Fibra + Wireless + Viabilidade',
+    highlights: ['Projeto FTTH (GPON/XGS-PON)', 'Cobertura wireless com terreno SRTM', 'Viabilidade econômica (3 cenários)'],
   },
   {
     icon: Shield,
@@ -65,10 +65,17 @@ const modules = [
   },
   {
     icon: Building2,
-    title: 'M&A',
-    description: 'Valuation de provedores com due diligence automatizada: dívidas PGFN, grafo societário (Receita Federal), sanções e reclamações. Simulação de aquisições e projeções.',
-    metric: '13.534 ISPs avaliados',
-    highlights: ['Due diligence: dívidas, sócios, sanções', 'Grafo de propriedade cruzada (783K vínculos)', 'Valuation + projeções financeiras 5 anos'],
+    title: 'M&A Intelligence',
+    description: 'Análise de mercado para consolidadores e fundos de investimento. Concentração por município, oportunidades de expansão e benchmarks setoriais.',
+    metric: 'Sob contrato',
+    highlights: ['Análise de concentração (HHI)', 'Oportunidades por município', 'Benchmarks setoriais'],
+  },
+  {
+    icon: ShieldAlert,
+    title: 'Pulso Due Diligence',
+    description: 'Produto separado, sob contrato com NDA e termos específicos. Disponível para fundos e consolidadores.',
+    metric: 'Sob contrato',
+    highlights: ['Contrato dedicado', 'NDA obrigatório', 'Audit trail completo'],
   },
   {
     icon: Brain,
@@ -115,9 +122,9 @@ const modules = [
   {
     icon: GitCompareArrows,
     title: 'Análise Cruzada',
-    description: 'Correlações multi-dimensionais entre competição, cobertura, emprego e clima. Detecção de anomalias com pyod e scoring de investimento.',
-    metric: '10 endpoints analíticos',
-    highlights: ['HHI e gaps de cobertura', 'Detecção de anomalias (pyod)', 'Score de prioridade de investimento'],
+    description: 'Correlações multi-dimensionais entre competição, cobertura, emprego e clima. Detecção de anomalias e scoring de investimento.',
+    metric: 'Análise multi-dimensional',
+    highlights: ['HHI e gaps de cobertura', 'Detecção de anomalias estatísticas', 'Score de prioridade de investimento'],
   },
   {
     icon: Cable,
@@ -164,9 +171,9 @@ const modules = [
   {
     icon: FileSearch,
     title: 'Raio-X do Provedor',
-    description: 'Relatório completo por provedor com posição competitiva, dívidas fiscais, selos Anatel, publicações em diário oficial, BNDES e espectro. Gratuito + premium.',
+    description: 'Relatório completo por provedor com posição competitiva, selos Anatel, publicações em diário oficial, BNDES e espectro. Gratuito + premium.',
     metric: 'Relatório gratuito + premium',
-    highlights: ['Posição competitiva nacional + dívidas PGFN', 'Selos de qualidade Anatel + diário oficial', 'BNDES, espectro e reclamações'],
+    highlights: ['Posição competitiva nacional', 'Selos de qualidade Anatel + diário oficial', 'BNDES, espectro e reclamações'],
   },
   {
     icon: Hexagon,
@@ -181,6 +188,13 @@ const modules = [
     description: 'Evolução de 37 meses de dados por provedor e município. Tendências de crescimento, sazonalidade e análise temporal de market share e assinantes.',
     metric: '37 meses de evolução',
     highlights: ['Evolução por provedor e município', 'Tendências de crescimento', 'Análise de sazonalidade'],
+  },
+  {
+    icon: Terminal,
+    title: 'Pulso Agent',
+    description: 'Agente open-source (Rust, 6.3 MB) que coleta telemetria de OLTs, MikroTik e RADIUS a cada 60 segundos. Diagnósticos locais, previsão de degradação de sinal e scoring de churn.',
+    metric: 'Open-source Apache-2.0',
+    highlights: ['Huawei, ZTE, FiberHome, Intelbras e mais', 'Diagnósticos por ONT com health scoring', 'Open-source Apache-2.0'],
   },
 ];
 
@@ -197,7 +211,7 @@ export default function ProdutoPage() {
             className="font-serif text-3xl font-bold tracking-tight md:text-5xl"
             style={{ color: 'var(--text-on-dark)', lineHeight: 1.1 }}
           >
-            25 módulos.{' '}
+            26 módulos.{' '}
             <span style={{ color: 'var(--text-on-dark-muted)' }}>Uma plataforma.</span>
           </h1>
           <p className="mt-5 text-base leading-relaxed max-w-2xl" style={{ color: 'var(--text-on-dark-secondary)' }}>
@@ -293,8 +307,8 @@ export default function ProdutoPage() {
             <Link href="/precos" className="pulso-btn-dark">
               Entrar na lista de espera
             </Link>
-            <Link href="/precos" className="pulso-btn-ghost">
-              Ver planos
+            <Link href="/recursos/funcionalidades" className="pulso-btn-ghost">
+              Ver funcionalidades
             </Link>
           </div>
         </div>

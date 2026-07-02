@@ -1,0 +1,128 @@
+# EXCERPT: snmpwalk pasted by jozefrebjak on LibreNMS community forum, topic 6801 'Help with dbm sensors discovery'
+# Device: Huawei SmartAX MA5680T GPON OLT (same operator as PR #9023), real device
+# Source: https://community.librenms.org/t/help-with-dbm-sensors-discovery/6801 (raw: https://community.librenms.org/raw/6801, fetched 2026-07-02)
+# Covers: hwGponOntOpticalDdmRxPower .1.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.<ifIndex>.<ontId>
+#         units 0.01 dBm (divisor 100); INVALID marker = 2147483647 (0x7FFFFFFF) when ONT offline
+#         index: ifIndex 4194312192=0/1/0, 4194312448=0/1/1, ... (+256 per port)
+# License: unclear (public forum post)
+#
+jozefrebjak | 2019-01-15 08:27:28 UTC | #1
+
+I am trying to add dbm sensors of the onts connected to olt.
+
+here is the snmpwalk of my onts dbm
+
+snmpwalk -v 2c -c citajGeCom OLT_IP .1.3.6.1.4.1.2011.6.128.1.1.2.51.1.4
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312192.0 = INTEGER: -1583
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312192.1 = INTEGER: -1488
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312192.2 = INTEGER: -2431
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312192.3 = INTEGER: -1525
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312192.4 = INTEGER: -1671
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312192.5 = INTEGER: -2602
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312192.6 = INTEGER: -2553
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.0 = INTEGER: -2292
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.1 = INTEGER: -3030
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.2 = INTEGER: -2536
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.3 = INTEGER: -2230
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.4 = INTEGER: -2205
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.5 = INTEGER: -2726
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.6 = INTEGER: -2863
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.7 = INTEGER: -2267
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.8 = INTEGER: -2958
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.9 = INTEGER: -2796
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.10 = INTEGER: 2147483647
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.11 = INTEGER: -2699
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.12 = INTEGER: -2004
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.13 = INTEGER: -2337
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.14 = INTEGER: -2356
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.15 = INTEGER: -2677
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.16 = INTEGER: -2409
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.17 = INTEGER: -2229
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.18 = INTEGER: -2356
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.19 = INTEGER: -2657
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.20 = INTEGER: -2744
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.21 = INTEGER: -2796
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.22 = INTEGER: -1869
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.23 = INTEGER: -2769
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.24 = INTEGER: -2259
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.25 = INTEGER: -2553
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.26 = INTEGER: -1970
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312448.27 = INTEGER: -1581
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312704.0 = INTEGER: -2409
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312704.1 = INTEGER: -2602
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312704.2 = INTEGER: -2443
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312704.3 = INTEGER: -2443
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312704.4 = INTEGER: -2318
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312704.5 = INTEGER: -2638
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312960.0 = INTEGER: 2147483647
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194312960.1 = INTEGER: 2147483647
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194313216.0 = INTEGER: -2075
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194313216.1 = INTEGER: -2070
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194313216.2 = INTEGER: -2008
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194313216.3 = INTEGER: -2328
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194313472.0 = INTEGER: -2431
+> iso.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.4194313472.1 = INTEGER: -2119
+
+when i ran snmpwalk from librenms install  I got all of that data, so i added in yaml 
+
+    dbm
+    -
+              oid: hwGponOntOpticalDdmRxPower
+              num_oid: '.1.3.6.1.4.1.2011.6.128.1.1.2.51.1.4.{{ $index }}'
+              divisor: 100
+              descr: "{{ $hwGponDeviceOntDespt }}"
+              skip_value_gt: 999999
+
+i used fo description oid for description of the ont
+
+here is the output in librenms discovery debug
+
+SNMP['/usr/bin/snmpbulkwalk' '-v2c' '-c' 'COMMUNITY '-OteQUs' '-Ih' '-m' 'HUAWEI-DEVICE-MIB:HUAWEI-POWER-MIB:HWMUSA-DEV-MIB:HUAWEI-XPON-MIB:IF-MIB' '-M' '/opt/librenms/mibs:/opt/librenms/mibs/huawei' 'udp:HOSTNAME:161' 'hwGponDeviceOntDespt']
+
+    hwGponDeviceOntDespt.4194312192.0 = "name1"
+    hwGponDeviceOntDespt.4194312192.1 = "name2"
+    hwGponDeviceOntDespt.4194312192.2 = "name3"
+    hwGponDeviceOntDespt.4194312192.3 = "R"
+    hwGponDeviceOntDespt.4194312192.4 = "Zdr"
+    hwGponDeviceOntDespt.4194312192.5 = "Mich"
+    hwGponDeviceOntDespt.4194312192.6 = "Ham"
+    hwGponDeviceOntDespt.4194312448.0 = "O"
+    hwGponDeviceOntDespt.4194312448.1 = "Zu"
+    hwGponDeviceOntDespt.4194312448.2 = "Lajc"
+    etc
+    etc
+    hwGponDeviceOntDespt.4194313472.0 = "Wik"
+    hwGponDeviceOntDespt.4194313472.1 = "Jal"
+
+so i can get description for ont dbm, 
+
+here is the output of the librenms discovery debug
+
+    SNMP['/usr/bin/snmpbulkwalk' '-v2c' '-c' 'COMMUNITY '-OteQUs' '-Ih' '-m' 'HUAWEI-DEVICE-MIB:HUAWEI-POWER-MIB:HWMUSA-DEV-MIB:HUAWEI-XPON-MIB:IF-MIB' '-M' '/opt/librenms/mibs:/opt/librenms/mibs/huawei' 'udp:HOSTNAME:161' 'hwGponOntOpticalDdmRxPower']
+
+    hwGponOntOpticalDdmRxPower.4194312192.0 = -1586
+    hwGponOntOpticalDdmRxPower.4194312192.1 = -1488
+    hwGponOntOpticalDdmRxPower.4194312192.2 = -2431
+    hwGponOntOpticalDdmRxPower.4194312192.3 = -1527
+    hwGponOntOpticalDdmRxPower.4194312192.4 = -1669
+    hwGponOntOpticalDdmRxPower.4194312192.5 = -2602
+    hwGponOntOpticalDdmRxPower.4194312192.6 = -2553
+    hwGponOntOpticalDdmRxPower.4194312448.0 = -2301
+    hwGponOntOpticalDdmRxPower.4194312448.1 = -3030
+    hwGponOntOpticalDdmRxPower.4194312448.2 = -2536
+
+    Timeout: No Response from udp:OLT_IP:161
+
+Is there possibility for not running snmpbulkwalk for that sensor ?
+
+here is the pr for olt improvements
+
+https://github.com/librenms/librenms/pull/9594
+
+-------------------------
+
+jozefrebjak | 2019-01-15 10:04:06 UTC | #2
+
+So i solved it with option in os nobulk:true .. but when is device polled i still getting timeout for onts dbms with snmpget
+
+-------------------------

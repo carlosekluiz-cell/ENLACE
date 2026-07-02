@@ -1,13 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
-// Parks OLT Collector (Fiberlink 200xx series)
+// Parks OLT Collector (Fiberlink 200xx / 100xx series)
 //
-// Enterprise OID: 1.3.6.1.4.1.6771
+// Enterprise OIDs seen in the wild: 6771 (classic) and 50224 (newer gear —
+// a real PK-700 reports sysObjectID 1.3.6.1.4.1.50224.3.1.1, see
+// data/external/snmp-dumps/parks/librenms_parks-switch.snmprec).
+//
 // Parks Fiberlink OLTs use Chinese GPON chipsets that implement the
-// NSCRTV-FTTX-GPON-MIB (enterprise .17409).
+// NSCRTV-FTTX-GPON-MIB (enterprise .17409.2.8):
+//   - gponOnuInfoTable (…2.8.4.1.1): single packed GponDeviceIndex
+//     (device<<24 | slot<<16 | pon<<8 | onuId), onuOperationStatus up(1)/down(2),
+//     onuTestDistance in meters
+//   - optical table (…2.8.4.4.1): columns in centi-dBm → dBm = value/100
+// Source: https://github.com/librenms/librenms/blob/master/mibs/cdata/NSCRTV-FTTX-GPON-MIB
+// Index decode + assembly shared with the VSOL collector (vsol.rs).
 //
-// Collects via SNMP v2c:
-//   - ONT serial, status, RX/TX power, distance (NSCRTV OIDs)
-//   - Interface data (standard IF-MIB)
+// NOT yet verified against a live Parks OLT — the only real Parks capture
+// available is an ethernet switch with no PON tables. Optical values are
+// gated by the plausibility window either way.
 
 use async_trait::async_trait;
 use crate::config::OltConfig;
@@ -36,90 +45,38 @@ impl ParksCollector {
         let snmp = self.snmp.as_ref()
             .ok_or_else(|| anyhow::anyhow!("SNMP not configured"))?;
 
-        // NSCRTV-FTTX-GPON-MIB ONT tables (same as VSOL)
-        let serials = snmp.walk_table(oids::nscrtv::ONT_SERIAL).await.unwrap_or_default();
-        let statuses = snmp.walk_table(oids::nscrtv::ONT_STATUS).await.unwrap_or_default();
-        let rx_powers = snmp.walk_table(oids::nscrtv::ONT_RX_POWER).await.unwrap_or_default();
-        let tx_powers = snmp.walk_table(oids::nscrtv::ONT_TX_POWER).await.unwrap_or_default();
-        let distances = snmp.walk_table(oids::nscrtv::ONT_DISTANCE).await.unwrap_or_default();
-
-        if serials.is_empty() && statuses.is_empty() {
+        // Walk errors (incl. partial walks) propagate — never a silent 0.
+        let statuses = snmp.walk_table(oids::nscrtv::ONT_STATUS).await?;
+        let serials = snmp.walk_table(oids::nscrtv::ONT_SERIAL).await?;
+        if statuses.is_empty() && serials.is_empty() {
+            tracing::warn!(
+                olt = %self.olt_id,
+                "Parks OLT returned no rows from the NSCRTV gponOnuInfoTable \
+                 (17409.2.8.4.1) — no ONT data collected; this device may be \
+                 an ethernet switch or use a different firmware MIB"
+            );
             return Ok(Vec::new());
         }
+        let rx_powers = snmp.walk_table(oids::nscrtv::ONT_RX_POWER).await?;
+        let tx_powers = snmp.walk_table(oids::nscrtv::ONT_TX_POWER).await?;
+        let distances = snmp.walk_table(oids::nscrtv::ONT_DISTANCE).await?;
 
-        let primary = if !serials.is_empty() { &serials } else { &statuses };
-
-        let mut onts = Vec::new();
-        for (idx, entry) in primary.iter().enumerate() {
-            let index = super::snmp_helper::extract_oid_suffix(&entry.oid, 1);
-
-            let serial = if !serials.is_empty() {
-                match &entry.value {
-                    crate::snmp::SnmpData::OctetString(s) if !s.is_empty() => s.clone(),
-                    _ => format!("parks-{}", index),
-                }
-            } else {
-                format!("parks-{}", index)
-            };
-
-            let status = super::snmp_helper::find_by_suffix(&statuses, &index)
-                .map(|v| match v {
-                    crate::snmp::SnmpData::Integer(1) => OntStatus::Online,
-                    crate::snmp::SnmpData::Integer(2) => OntStatus::Offline,
-                    crate::snmp::SnmpData::Integer(3) => OntStatus::PowerFail,
-                    _ => OntStatus::Offline,
-                })
-                .unwrap_or(OntStatus::Unknown);
-
-            let rx_power = super::snmp_helper::find_by_suffix(&rx_powers, &index)
-                .and_then(|v| match v {
-                    crate::snmp::SnmpData::Integer(i) => Some(*i as f64 / 100.0),
-                    _ => None,
-                });
-
-            let tx_power = super::snmp_helper::find_by_suffix(&tx_powers, &index)
-                .and_then(|v| match v {
-                    crate::snmp::SnmpData::Integer(i) => Some(*i as f64 / 100.0),
-                    _ => None,
-                });
-
-            let distance = super::snmp_helper::find_by_suffix(&distances, &index)
-                .and_then(|v| match v {
-                    crate::snmp::SnmpData::Integer(i) => Some(*i as u32),
-                    _ => None,
-                });
-
-            let refined_status = match (&status, rx_power) {
-                (OntStatus::Online, Some(rx)) if rx < -27.0 => OntStatus::LowSignal,
-                _ => status,
-            };
-
-            onts.push(OntData {
-                serial_number: serial,
-                pon_port: format!("pon-{}", idx / 64),
-                ont_index: (idx % 64) as u32,
-                status: refined_status,
-                last_down_cause: None, uptime_seconds: None,
-                rx_power_dbm: rx_power, tx_power_dbm: tx_power,
-                distance_meters: distance,
-                vendor_id: None, equipment_id: None, firmware_version: None,
-                in_octets: None, out_octets: None,
-                eth_speed_mbps: None,
-            });
-        }
-        Ok(onts)
+        Ok(super::vsol::assemble_nscrtv(
+            &self.olt_id, "parks",
+            &statuses, &serials, &rx_powers, &tx_powers, &distances,
+        ))
     }
 
-    async fn collect_uplinks(&self) -> Vec<UplinkPortData> {
+    async fn collect_uplinks(&self) -> anyhow::Result<Vec<UplinkPortData>> {
         let snmp = match self.snmp.as_ref() {
             Some(s) => s,
-            None => return Vec::new(),
+            None => return Ok(Vec::new()),
         };
 
-        let if_descrs = snmp.walk_table(oids::IF_DESCR).await.unwrap_or_default();
-        let if_statuses = snmp.walk_table(oids::IF_OPER_STATUS).await.unwrap_or_default();
-        let if_in = snmp.walk_table(oids::IF_HC_IN_OCTETS).await.unwrap_or_default();
-        let if_out = snmp.walk_table(oids::IF_HC_OUT_OCTETS).await.unwrap_or_default();
+        let if_descrs = snmp.walk_table(oids::IF_DESCR).await?;
+        let if_statuses = snmp.walk_table(oids::IF_OPER_STATUS).await?;
+        let if_in = snmp.walk_table(oids::IF_HC_IN_OCTETS).await?;
+        let if_out = snmp.walk_table(oids::IF_HC_OUT_OCTETS).await?;
 
         let mut uplinks = Vec::new();
         for entry in &if_descrs {
@@ -145,7 +102,7 @@ impl ParksCollector {
                 in_octets, out_octets, in_errors: 0, out_errors: 0,
             });
         }
-        uplinks
+        Ok(uplinks)
     }
 }
 
@@ -161,8 +118,8 @@ impl OltCollector for ParksCollector {
         let sys_descr = snmp.get(oids::SYS_DESCR).await.ok();
         let sys_uptime = snmp.get(oids::SYS_UPTIME).await.ok();
 
-        let onts = self.collect_onts_nscrtv().await.unwrap_or_default();
-        let uplinks = self.collect_uplinks().await;
+        let onts = self.collect_onts_nscrtv().await?;
+        let uplinks = self.collect_uplinks().await?;
 
         let mut pon_ports = std::collections::HashMap::new();
         for ont in &onts {
@@ -198,5 +155,22 @@ impl OltCollector for ParksCollector {
         } else {
             Ok(false)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parks_uses_shared_nscrtv_decode() {
+        // Same packed-index semantics as VSOL: device 1 slot 3 pon 2 onu 9
+        assert_eq!(
+            super::super::vsol::decode_nscrtv_index(0x0103_0209),
+            Some(("3/2".into(), 9))
+        );
+        // The OLD code fabricated pon_port from walk order ("pon-{idx/64}")
+        // — verify the shared path rejects port-level (onu=0) rows instead
+        assert_eq!(super::super::vsol::decode_nscrtv_index(0x0103_0200), None);
     }
 }

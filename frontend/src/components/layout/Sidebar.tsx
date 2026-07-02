@@ -20,6 +20,7 @@ import { clsx } from 'clsx';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { navSections, findSectionForPath, type NavSection, type NavItem } from '@/lib/navigation';
+import { t } from '@/i18n';
 
 // ── SidebarNavLink ───────────────────────────────────────────────────────
 
@@ -56,7 +57,7 @@ function SidebarNavLink({
       <span style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}>
         <Icon size={15} />
       </span>
-      <span className="flex-1">{item.label}</span>
+      <span className="flex-1">{item.labelKey ? t(item.labelKey) : item.label}</span>
       {item.badge && (
         <span
           className="rounded px-1.5 py-0.5 text-[9px] font-bold leading-none"

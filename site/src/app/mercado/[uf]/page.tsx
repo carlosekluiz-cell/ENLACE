@@ -9,6 +9,7 @@ import {
   formatNumber,
   getStateName,
 } from '@/lib/market-data';
+import MunicipalityTable from './MunicipalityTable';
 
 interface PageProps {
   params: { uf: string };
@@ -23,7 +24,6 @@ export function generateMetadata({ params }: PageProps): Metadata {
   const state = getStateData(params.uf);
   if (!state) return {};
 
-  // Enhanced meta description with growth %
   const ts = state.timeseries;
   let growthNote = '';
   if (ts.length >= 2) {
@@ -34,7 +34,7 @@ export function generateMetadata({ params }: PageProps): Metadata {
   }
 
   return {
-    title: `Internet em ${state.name} — ${state.municipalities} Municípios, ${formatSubscribers(state.subscribers)} Assinantes`,
+    title: `Provedores de Internet em ${state.name} — ${state.municipalities} Cidades, ${formatSubscribers(state.subscribers)} Assinantes`,
     description: `Mercado de banda larga em ${state.name}: ${state.municipalities} municípios, ${state.fiber_pct}% fibra, HHI ${state.avg_hhi}.${growthNote} Dados Anatel + reclamações + emprego telecom.`,
     alternates: { canonical: `https://pulso.network/mercado/${params.uf}` },
   };
@@ -44,18 +44,15 @@ export default function StatePage({ params }: PageProps) {
   const state = getStateData(params.uf);
   if (!state) notFound();
 
-  const top20 = state.cities.slice(0, 20);
   const coverageGaps = state.cities.filter((c) => c.isp_count <= 2);
   const monopolies = state.cities.filter((c) => c.isp_count <= 1);
 
   const totalQuality =
     state.quality.ouro + state.quality.prata + state.quality.bronze + state.quality.sem_selo || 1;
 
-  // Timeseries chart data
   const ts = state.timeseries;
   const maxSubs = ts.length > 0 ? Math.max(...ts.map((t) => t.subscribers)) : 1;
 
-  // Growth data
   let stateGrowthPct = 0;
   if (ts.length >= 2) {
     const first = ts[0].subscribers;
@@ -63,17 +60,14 @@ export default function StatePage({ params }: PageProps) {
     stateGrowthPct = first > 0 ? Math.round((last - first) / first * 100) : 0;
   }
 
-  // Top 5 fastest growing cities (exclude 999.9 = new markets, require > 50 subs)
   const topGrowth = state.cities
     .filter((c) => c.growth_pct < 500 && c.growth_pct > 0 && c.subscribers >= 100)
     .sort((a, b) => b.growth_pct - a.growth_pct)
     .slice(0, 5);
 
-  // Tech evolution
   const techBefore = state.tech_evolution?.before;
   const techAfter = state.tech_evolution?.after;
 
-  // Complaints summary
   const complaints = state.complaints || [];
   const totalComplaints = complaints.reduce((s, c) => s + c.count, 0);
   const avgResponse = complaints.filter((c) => c.avg_response_days != null);
@@ -85,20 +79,19 @@ export default function StatePage({ params }: PageProps) {
     ? (avgSat.reduce((s, c) => s + (c.avg_satisfaction || 0), 0) / avgSat.length).toFixed(1)
     : null;
 
-  // Employment
   const employment = state.employment || [];
   const latestEmployment = employment.length > 0 ? employment[employment.length - 1] : null;
-
-  // Economy
   const economy = state.economy && 'year' in state.economy ? state.economy : null;
 
-  // JSON-LD temporal coverage
+  const agg = state.aggregates;
+  const hasAggregates = agg && (agg.schools_no_internet > 0 || agg.digital_governance_count > 0 || agg.avg_water_pct > 0);
+  const topOpps = agg?.top_opportunities || [];
+
   const temporalStart = ts.length > 0 ? ts[0].quarter.replace('-Q', '-0').replace('Q1', '01').replace('Q2', '04').replace('Q3', '07').replace('Q4', '10') : state.period;
-  const temporalEnd = state.period;
 
   return (
     <>
-      {/* JSON-LD: Breadcrumb + Dataset */}
+      {/* JSON-LD */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -125,7 +118,7 @@ export default function StatePage({ params }: PageProps) {
               url: `https://pulso.network/mercado/${params.uf}`,
               license: 'https://creativecommons.org/licenses/by/4.0/',
               creator: { '@type': 'Organization', name: 'Pulso Network' },
-              temporalCoverage: `2023-01/${temporalEnd}`,
+              temporalCoverage: `2023-01/${state.period}`,
               spatialCoverage: { '@type': 'Place', name: `${state.name}, Brasil` },
             },
           ]),
@@ -150,7 +143,7 @@ export default function StatePage({ params }: PageProps) {
             className="font-serif text-3xl font-bold tracking-tight md:text-5xl"
             style={{ color: 'var(--text-on-dark)', lineHeight: 1.1 }}
           >
-            Internet em {state.name}
+            Provedores de Internet em {state.name}
           </h1>
           <p className="mt-5 text-base leading-relaxed max-w-2xl" style={{ color: 'var(--text-on-dark-secondary)' }}>
             Dados de banda larga para todos os {state.municipalities} municípios de {state.name}:
@@ -158,7 +151,6 @@ export default function StatePage({ params }: PageProps) {
           </p>
         </div>
 
-        {/* Stats */}
         <div
           className="mt-12 grid grid-cols-2 gap-0 md:grid-cols-4"
           style={{ borderTop: '1px solid var(--border-dark-strong)' }}
@@ -181,7 +173,7 @@ export default function StatePage({ params }: PageProps) {
         </div>
       </Section>
 
-      {/* Narrative — unique prose per state */}
+      {/* Narrative */}
       {state.insights?.narrative && (
         <Section background="primary">
           <div className="max-w-3xl">
@@ -198,9 +190,116 @@ export default function StatePage({ params }: PageProps) {
         </Section>
       )}
 
-      {/* Market Evolution — quarterly bar chart */}
-      {ts.length > 2 && (
+      {/* NEW: Infraestrutura Digital aggregate */}
+      {hasAggregates && (
         <Section background="subtle">
+          <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
+            Infraestrutura digital
+          </div>
+          <h2 className="font-serif text-xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>
+            Indicadores estaduais
+          </h2>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {agg.schools_no_internet > 0 && (
+              <div className="p-4" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <div className="font-mono text-2xl font-bold tabular-nums" style={{ color: 'var(--error, #ef4444)' }}>
+                  {agg.schools_no_internet.toLocaleString('pt-BR')}
+                </div>
+                <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>Escolas sem internet</div>
+                <div className="mt-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>Fonte: INEP</div>
+              </div>
+            )}
+            {agg.avg_water_pct > 0 && (
+              <div className="p-4" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <div className="font-mono text-2xl font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+                  {agg.avg_water_pct}%
+                </div>
+                <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>Cobertura média de água</div>
+                <div className="mt-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>Fonte: SNIS</div>
+              </div>
+            )}
+            {agg.avg_sewage_pct > 0 && (
+              <div className="p-4" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <div className="font-mono text-2xl font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+                  {agg.avg_sewage_pct}%
+                </div>
+                <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>Cobertura média de esgoto</div>
+                <div className="mt-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>Fonte: SNIS</div>
+              </div>
+            )}
+            {agg.digital_governance_count > 0 && (
+              <div className="p-4" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <div className="font-mono text-2xl font-bold tabular-nums" style={{ color: 'var(--accent)' }}>
+                  {agg.digital_governance_count}
+                </div>
+                <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>Municípios com governança digital</div>
+                <div className="mt-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>Fonte: IBGE MUNIC</div>
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {/* NEW: Top 10 Oportunidades */}
+      {topOpps.length > 0 && (
+        <Section background="surface">
+          <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
+            Oportunidades
+          </div>
+          <h2 className="font-serif text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+            Municípios com alto potencial
+          </h2>
+          <p className="mb-6 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            Classificação baseada em demanda, competição, infraestrutura e crescimento.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {topOpps.map((opp, i) => (
+              <Link
+                key={opp.slug}
+                href={`/mercado/${params.uf}/${opp.slug}`}
+                className="flex items-center gap-4 p-4 transition-colors"
+                style={{
+                  background: 'var(--bg-primary)',
+                  border: '1px solid var(--border)',
+                  textDecoration: 'none',
+                }}
+              >
+                <span
+                  className="font-mono text-xs font-bold px-2 py-1 shrink-0"
+                  style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}
+                >
+                  #{i + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                    {opp.name}
+                  </div>
+                  <div className="mt-0.5 font-mono text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
+                    {formatSubscribers(opp.subscribers)} assin. · {opp.isp_count} ISPs
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span
+                    className="inline-block px-2 py-1 text-xs font-semibold rounded-sm capitalize"
+                    style={{
+                      background: opp.level === 'alto' ? 'var(--success, #22c55e)' : 'var(--warning, #f59e0b)',
+                      color: '#fff',
+                    }}
+                  >
+                    {opp.level}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Market Evolution */}
+      {ts.length > 2 && (
+        <Section background="primary">
           <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
             Evolução
           </div>
@@ -212,7 +311,6 @@ export default function StatePage({ params }: PageProps) {
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Bar chart */}
             <div className="md:col-span-2">
               <div className="bar-chart">
                 {ts.map((t) => (
@@ -234,7 +332,6 @@ export default function StatePage({ params }: PageProps) {
               </div>
             </div>
 
-            {/* Fiber + ISP trend */}
             <div className="space-y-4">
               <div className="p-4" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                 <div className="font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
@@ -286,10 +383,9 @@ export default function StatePage({ params }: PageProps) {
         </Section>
       )}
 
-      {/* Technology + Quality + Tech Evolution */}
-      <Section background="primary">
+      {/* Technology + Quality */}
+      <Section background="subtle">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Technology breakdown with before/after */}
           <div>
             <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
               Tecnologia
@@ -326,7 +422,6 @@ export default function StatePage({ params }: PageProps) {
               ))}
             </div>
 
-            {/* Tech evolution comparison */}
             {techBefore && techAfter && (
               <div className="mt-6 space-y-3">
                 <div className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
@@ -364,7 +459,6 @@ export default function StatePage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Quality seals */}
           <div>
             <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
               Qualidade Anatel
@@ -408,7 +502,7 @@ export default function StatePage({ params }: PageProps) {
 
       {/* Coverage insights */}
       {(monopolies.length > 0 || coverageGaps.length > 0) && (
-        <Section background="subtle">
+        <Section background="primary">
           <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
             Cobertura
           </div>
@@ -443,7 +537,7 @@ export default function StatePage({ params }: PageProps) {
         </Section>
       )}
 
-      {/* Growth highlights — top 5 fastest-growing cities */}
+      {/* Growth highlights */}
       {topGrowth.length > 0 && (
         <Section background="surface">
           <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
@@ -491,109 +585,9 @@ export default function StatePage({ params }: PageProps) {
         </Section>
       )}
 
-      {/* Top municipalities table — with growth column */}
-      <Section background={topGrowth.length > 0 ? 'primary' : 'surface'}>
-        <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
-          Maiores mercados
-        </div>
-        <h2 className="font-serif text-2xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
-          Top {Math.min(20, state.cities.length)} municípios por assinantes
-        </h2>
-        <p className="mb-8 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Clique em um município para ver detalhes. Dados referência {state.period}.
-        </p>
-
-        <div style={{ border: '1px solid var(--border)', overflow: 'hidden' }}>
-          {/* Header */}
-          <div
-            className="hidden md:grid font-mono text-[11px] uppercase tracking-wider"
-            style={{
-              gridTemplateColumns: '1fr 110px 80px 80px 80px 90px 80px',
-              background: 'var(--bg-subtle)',
-              color: 'var(--text-muted)',
-              borderBottom: '1px solid var(--border)',
-              padding: '10px 16px',
-            }}
-          >
-            <span>Município</span>
-            <span className="text-right">Assinantes</span>
-            <span className="text-right">ISPs</span>
-            <span className="text-right">Penetração</span>
-            <span className="text-right">HHI</span>
-            <span className="text-right">Fibra %</span>
-            <span className="text-right">Cresc.</span>
-          </div>
-
-          {top20.map((city, i) => (
-            <Link
-              key={city.code}
-              href={`/mercado/${params.uf}/${city.slug}`}
-              className="block md:grid transition-colors"
-              style={{
-                gridTemplateColumns: '1fr 110px 80px 80px 80px 90px 80px',
-                background: 'var(--bg-surface)',
-                borderTop: i > 0 ? '1px solid var(--border)' : 'none',
-                padding: '12px 16px',
-                textDecoration: 'none',
-              }}
-            >
-              <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
-                {city.name}
-              </span>
-              <span
-                className="block md:text-right font-mono text-sm tabular-nums"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                {formatSubscribers(city.subscribers)}
-              </span>
-              <span
-                className="block md:text-right font-mono text-sm tabular-nums"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                {city.isp_count}
-              </span>
-              <span
-                className="block md:text-right font-mono text-sm tabular-nums"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                {city.penetration}%
-              </span>
-              <span
-                className="block md:text-right font-mono text-sm tabular-nums"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                {city.hhi}
-              </span>
-              <span
-                className="block md:text-right font-mono text-sm tabular-nums"
-                style={{ color: 'var(--accent)' }}
-              >
-                {city.fiber_pct}%
-              </span>
-              <span
-                className="block md:text-right font-mono text-sm tabular-nums"
-                style={{ color: city.growth_pct > 0 ? 'var(--success)' : city.growth_pct < 0 ? 'var(--danger)' : 'var(--text-muted)' }}
-              >
-                {city.growth_pct > 0 ? '+' : ''}{city.growth_pct}%
-              </span>
-            </Link>
-          ))}
-        </div>
-
-        {state.cities.length > 20 && (
-          <p className="mt-4 text-sm" style={{ color: 'var(--text-muted)' }}>
-            Mostrando os 20 maiores de {state.cities.length} municípios.{' '}
-            <Link href="/precos" style={{ color: 'var(--accent)' }}>
-              Acesse a plataforma
-            </Link>{' '}
-            para dados completos.
-          </p>
-        )}
-      </Section>
-
       {/* Consumer satisfaction */}
       {totalComplaints > 0 && (
-        <Section background="subtle">
+        <Section background="primary">
           <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
             Satisfação do consumidor
           </div>
@@ -635,7 +629,6 @@ export default function StatePage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Quarterly complaints trend */}
           {complaints.length > 2 && (
             <div>
               <div className="font-mono text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>
@@ -719,7 +712,6 @@ export default function StatePage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Employment trend */}
           {employment.length > 1 && (
             <div className="mt-6">
               <div className="font-mono text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>
@@ -751,8 +743,8 @@ export default function StatePage({ params }: PageProps) {
         </Section>
       )}
 
-      {/* All municipalities list */}
-      <Section background="primary">
+      {/* All municipalities — searchable table */}
+      <Section background="subtle">
         <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
           Todos os municípios
         </div>
@@ -760,29 +752,18 @@ export default function StatePage({ params }: PageProps) {
           {state.municipalities} municípios em {state.name}
         </h2>
 
-        <div className="columns-2 md:columns-3 lg:columns-4 gap-4">
-          {state.cities.map((city) => (
-            <Link
-              key={city.code}
-              href={`/mercado/${params.uf}/${city.slug}`}
-              className="block text-sm py-0.5 break-inside-avoid"
-              style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}
-            >
-              {city.name}
-            </Link>
-          ))}
-        </div>
+        <MunicipalityTable cities={state.cities} uf={params.uf} />
       </Section>
 
       {/* CTA */}
       <Section background="dark" grain>
         <div className="text-center max-w-2xl mx-auto">
           <h2 className="font-serif text-2xl font-bold" style={{ color: 'var(--text-on-dark)', lineHeight: 1.15 }}>
-            Acesse detalhes por provedor.{' '}
+            Inteligência completa por município.{' '}
             <span style={{ color: 'var(--text-on-dark-muted)' }}>Dados que a Anatel não mostra assim.</span>
           </h2>
           <p className="mt-3 text-sm" style={{ color: 'var(--text-on-dark-secondary)' }}>
-            Market share, due diligence, sócios, dívida ativa e mais — para cada provedor em {state.name}.
+            Market share, concorrência, qualidade, compliance e 25+ módulos de análise para {state.name}.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <Link href="/precos" className="pulso-btn-dark">

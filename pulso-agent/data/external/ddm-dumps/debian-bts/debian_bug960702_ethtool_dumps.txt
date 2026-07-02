@@ -1,0 +1,239 @@
+# Source: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=960702 (mbox: https://bugs.debian.org/cgi-bin/bugreport.cgi?mbox=yes;bug=960702)
+# Debian bug #960702: 'ethtool -m values change when output is redirected'
+# Reporter: Yannis Aribaud; modules: Pureoptics EX-SFP-10GE-SR and FiberStore SFP-10GSR-85 (10GBASE-SR) on mlx4_en NIC
+# IMPORTANT: some DDM readings are CORRUPTED (mlx4 kernel bug leaked uninitialized memory when read failed).
+# Useful as a real-world NEGATIVE test case for DDM plausibility checks.
+# Retrieved: 2026-07-02
+# License: user-posted content on Debian BTS, unclear
+
+ Identifier : 0x03 (SFP)
+ Extended identifier : 0x04 (GBIC/SFP defined by 2-wire interface ID)
+ Connector : 0x07 (LC)
+ Transceiver codes : 0x10 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+ Transceiver type : 10G Ethernet: 10G Base-SR
+ Encoding : 0x06 (64B/66B)
+ BR, Nominal : 10300MBd
+ Rate identifier : 0x00 (unspecified)
+ Length (SMF,km) : 0km
+ Length (SMF) : 0m
+ Length (50um) : 80m
+ Length (62.5um) : 20m
+ Length (Copper) : 0m
+ Length (OM3) : 300m
+ Laser wavelength : 850nm
+ Vendor name : Pureoptics
+ Vendor OUI : 00:00:00
+ Vendor PN : EX-SFP-10GE-SR
+ Vendor rev : B4
+ Option values : 0x00 0x1a
+ Option : RX_LOS implemented
+ Option : TX_FAULT implemented
+ Option : TX_DISABLE implemented
+ BR margin, max : 0%
+ BR margin, min : 0%
+ Vendor SN : M4351243
+ Date code : 190515
+ Optical diagnostics support : Yes
+ Laser bias current : 16.480 mA
+ Laser output power : 3.0768 mW / 4.88 dBm
+ Receiver signal average optical power : 1.2298 mW / 0.90 dBm
+ Module temperature : 48.47 degrees C / 119.24 degrees F
+ Module voltage : 1.2336 V
+ Alarm/warning flags implemented : Yes
+ Laser bias current high alarm : Off
+ Laser bias current low alarm : Off
+ Laser bias current high warning : Off
+ Laser bias current low warning : Off
+ Laser output power high alarm : Off
+ Laser output power low alarm : Off
+ Laser output power high warning : Off
+ Laser output power low warning : Off
+ Module temperature high alarm : Off
+ Module temperature low alarm : Off
+ Module temperature high warning : Off
+ Module temperature low warning : Off
+ Module voltage high alarm : Off
+ Module voltage low alarm : Off
+ Module voltage high warning : Off
+ Module voltage low warning : Off
+ Laser rx power high alarm : Off
+ Laser rx power low alarm : Off
+ Laser rx power high warning : Off
+ Laser rx power low warning : Off
+ Laser bias current high alarm threshold : 4.744 mA
+ Laser bias current low alarm threshold : 49.896 mA
+ Laser bias current high warning threshold : 51.776 mA
+ Laser bias current low warning threshold : 50.910 mA
+ Laser output power high alarm threshold : 2.5701 mW / 4.10 dBm
+ Laser output power low alarm threshold : 0.8224 mW / -0.85 dBm
+ Laser output power high warning threshold : 0.8224 mW / -0.85 dBm
+ Laser output power low warning threshold : 0.8224 mW / -0.85 dBm
+ Module temperature high alarm threshold : 0.00 degrees C / 32.00 degrees F
+ Module temperature low alarm threshold : 0.00 degrees C / 32.00 degrees F
+ Module temperature high warning threshold : 0.00 degrees C / 32.00 degrees F
+ Module temperature low warning threshold : 0.00 degrees C / 32.00 degrees F
+ Module voltage high alarm threshold : 0.4356 V
+ Module voltage low alarm threshold : 0.0000 V
+ Module voltage high warning threshold : 0.0000 V
+ Module voltage low warning threshold : 0.0000 V
+ Laser rx power high alarm threshold : 0.8224 mW / -0.85 dBm
+ Laser rx power low alarm threshold : 0.8224 mW / -0.85 dBm
+ Laser rx power high warning threshold : 0.8224 mW / -0.85 dBm
+ Laser rx power low warning threshold : 0.8224 mW / -0.85 dBm
+ Identifier : 0x03 (SFP)
+ Extended identifier : 0x04 (GBIC/SFP defined by 2-wire interface ID)
+ Connector : 0x07 (LC)
+ Transceiver codes : 0x10 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+ Transceiver type : 10G Ethernet: 10G Base-SR
+ Encoding : 0x06 (64B/66B)
+ BR, Nominal : 10300MBd
+ Rate identifier : 0x00 (unspecified)
+ Length (SMF,km) : 0km
+ Length (SMF) : 0m
+ Length (50um) : 80m
+ Length (62.5um) : 20m
+ Length (Copper) : 0m
+ Length (OM3) : 300m
+ Laser wavelength : 850nm
+ Vendor name : Pureoptics
+ Vendor OUI : 00:00:00
+ Vendor PN : EX-SFP-10GE-SR
+ Vendor rev : B4
+ Option values : 0x00 0x1a
+ Option : RX_LOS implemented
+ Option : TX_FAULT implemented
+ Option : TX_DISABLE implemented
+ BR margin, max : 0%
+ BR margin, min : 0%
+ Vendor SN : M4351243
+ Date code : 190515
+ Optical diagnostics support : Yes
+ Laser bias current : 16.448 mA
+ Laser output power : 0.8224 mW / -0.85 dBm
+ Receiver signal average optical power : 0.8224 mW / -0.85 dBm
+ Module temperature : 32.12 degrees C / 89.83 degrees F
+ Module voltage : 0.8224 V
+ Alarm/warning flags implemented : Yes
+ Laser bias current high alarm : Off
+ Laser bias current low alarm : Off
+ Laser bias current high warning : Off
+ Laser bias current low warning : Off
+ Laser output power high alarm : Off
+ Laser output power low alarm : Off
+ Laser output power high warning : Off
+ Laser output power low warning : Off
+ Module temperature high alarm : Off
+ Module temperature low alarm : Off
+ Module temperature high warning : Off
+ Module temperature low warning : Off
+ Module voltage high alarm : On
+ Module voltage low alarm : Off
+ Module voltage high warning : On
+ Module voltage low warning : Off
+ Laser rx power high alarm : Off
+ Laser rx power low alarm : Off
+ Laser rx power high warning : Off
+ Laser rx power low warning : Off
+ Laser bias current high alarm threshold : 4.754 mA
+ Laser bias current low alarm threshold : 51.402 mA
+ Laser bias current high warning threshold : 56.552 mA
+ Laser bias current low warning threshold : 53.964 mA
+ Laser output power high alarm threshold : 2.6981 mW / 4.31 dBm
+ Laser output power low alarm threshold : 2.9216 mW / 4.66 dBm
+ Laser output power high warning threshold : 0.8224 mW / -0.85 dBm
+ Laser output power low warning threshold : 0.8224 mW / -0.85 dBm
+ Module temperature high alarm threshold : 0.00 degrees C / 32.00 degrees F
+ Module temperature low alarm threshold : 0.00 degrees C / 32.00 degrees F
+ Module temperature high warning threshold : 0.00 degrees C / 32.00 degrees F
+ Module temperature low warning threshold : 0.00 degrees C / 32.00 degrees F
+ Module voltage high alarm threshold : 0.4368 V
+ Module voltage low alarm threshold : 0.0000 V
+ Module voltage high warning threshold : 0.0000 V
+ Module voltage low warning threshold : 0.0000 V
+ Laser rx power high alarm threshold : 0.8224 mW / -0.85 dBm
+ Laser rx power low alarm threshold : 0.8224 mW / -0.85 dBm
+ Laser rx power high warning threshold : 0.8224 mW / -0.85 dBm
+ Laser rx power low warning threshold : 0.8224 mW / -0.85 dBm
+
+============================================================
+
+	Identifier                                : 0x03 (SFP)
+	Extended identifier                       : 0x04 (GBIC/SFP defined by 2-wire interface ID)
+	Connector                                 : 0x07 (LC)
+	Transceiver codes                         : 0x10 0x00 0x00 0x00 0x40 0x00 0x0c 0x00 0x00
+	Transceiver type                          : 10G Ethernet: 10G Base-SR
+	Transceiver type                          : FC: short distance (S)
+	Transceiver type                          : FC: Multimode, 62.5um (M6)
+	Transceiver type                          : FC: Multimode, 50um (M5)
+	Encoding                                  : 0x06 (64B/66B)
+	BR, Nominal                               : 10300MBd
+	Rate identifier                           : 0x00 (unspecified)
+	Length (SMF,km)                           : 0km
+	Length (SMF)                              : 0m
+	Length (50um)                             : 300m
+	Length (62.5um)                           : 150m
+	Length (Copper)                           : 0m
+	Length (OM3)                              : 0m
+	Laser wavelength                          : 850nm
+	Vendor name                               : FiberStore
+	Vendor OUI                                : 00:90:65
+	Vendor PN                                 : SFP-10GSR-85
+	Vendor rev                                : A
+	Option values                             : 0x00 0x1a
+	Option                                    : RX_LOS implemented
+	Option                                    : TX_FAULT implemented
+	Option                                    : TX_DISABLE implemented
+	BR margin, max                            : 0%
+	BR margin, min                            : 0%
+	Vendor SN                                 : N3612030002
+	Date code                                 : 161203
+	Optical diagnostics support               : Yes
+	Laser bias current                        : 16.480 mA
+	Laser output power                        : 3.0768 mW / 4.88 dBm
+	Receiver signal average optical power     : 1.2298 mW / 0.90 dBm
+	Module temperature                        : 48.47 degrees C / 119.24 degrees F
+	Module voltage                            : 1.2336 V
+	Alarm/warning flags implemented           : Yes
+	Laser bias current high alarm             : Off
+	Laser bias current low alarm              : Off
+	Laser bias current high warning           : Off
+	Laser bias current low warning            : Off
+	Laser output power high alarm             : Off
+	Laser output power low alarm              : Off
+	Laser output power high warning           : Off
+	Laser output power low warning            : Off
+	Module temperature high alarm             : Off
+	Module temperature low alarm              : Off
+	Module temperature high warning           : Off
+	Module temperature low warning            : Off
+	Module voltage high alarm                 : Off
+	Module voltage low alarm                  : Off
+	Module voltage high warning               : Off
+	Module voltage low warning                : Off
+	Laser rx power high alarm                 : Off
+	Laser rx power low alarm                  : Off
+	Laser rx power high warning               : Off
+	Laser rx power low warning                : Off
+	Laser bias current high alarm threshold   : 4.744 mA
+	Laser bias current low alarm threshold    : 49.896 mA
+	Laser bias current high warning threshold : 51.776 mA
+	Laser bias current low warning threshold  : 50.910 mA
+	Laser output power high alarm threshold   : 2.5701 mW / 4.10 dBm
+	Laser output power low alarm threshold    : 0.8224 mW / -0.85 dBm
+	Laser output power high warning threshold : 0.8224 mW / -0.85 dBm
+	Laser output power low warning threshold  : 0.8224 mW / -0.85 dBm
+	Module temperature high alarm threshold   : 0.00 degrees C / 32.00 degrees F
+	Module temperature low alarm threshold    : 0.00 degrees C / 32.00 degrees F
+	Module temperature high warning threshold : 0.00 degrees C / 32.00 degrees F
+	Module temperature low warning threshold  : 0.00 degrees C / 32.00 degrees F
+	Module voltage high alarm threshold       : 0.4356 V
+	Module voltage low alarm threshold        : 0.0000 V
+	Module voltage high warning threshold     : 0.0000 V
+	Module voltage low warning threshold      : 0.0000 V
+	Laser rx power high alarm threshold       : 0.8224 mW / -0.85 dBm
+	Laser rx power low alarm threshold        : 0.8224 mW / -0.85 dBm
+	Laser rx power high warning threshold     : 0.8224 mW / -0.85 dBm
+	Laser rx power low warning threshold      : 0.8224 mW / -0.85 dBm
+
+============================================================
+

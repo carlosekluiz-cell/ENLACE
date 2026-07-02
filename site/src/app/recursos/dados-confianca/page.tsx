@@ -117,7 +117,6 @@ function SourceTable({ entries }: { entries: SourceEntry[] }) {
         <thead>
           <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
             <th className="px-4 py-3 text-left font-medium" style={{ color: 'var(--text-primary)' }}>Dataset</th>
-            <th className="px-4 py-3 text-left font-mono font-medium text-xs" style={{ color: 'var(--text-primary)' }}>Tabela</th>
             <th className="px-4 py-3 text-right font-mono font-medium" style={{ color: 'var(--text-primary)' }}>Registros</th>
             <th className="px-3 py-3 text-center font-mono font-medium" style={{ color: 'var(--accent)' }}>Nível</th>
           </tr>
@@ -126,7 +125,6 @@ function SourceTable({ entries }: { entries: SourceEntry[] }) {
           {entries.map((e) => (
             <tr key={e.dataset + e.table} style={{ borderBottom: '1px solid var(--border)' }}>
               <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{e.dataset}</td>
-              <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{e.table}</td>
               <td className="px-4 py-3 text-right font-mono" style={{ color: 'var(--text-primary)' }}>{e.records}</td>
               <td className="px-3 py-3 text-center font-mono font-bold" style={{ color: 'var(--accent)' }}>{e.level}</td>
             </tr>
@@ -271,17 +269,17 @@ export default function DadosConfiancaPage() {
         </h2>
         <p className="text-sm leading-relaxed mb-8 max-w-3xl" style={{ color: 'var(--text-secondary)' }}>
           Dados derivados por algoritmos proprietários da plataforma. Fórmula documentada, inputs exclusivamente
-          de fontes nível A, atualização automática via pipelines.
+          de fontes nível A, atualização automática.
         </p>
         <SourceTable entries={b1Sources} />
         <div className="mt-6 p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
           <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-            Fórmula de scoring de oportunidade
+            Scoring de oportunidade
           </h4>
-          <div className="font-mono text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-            <p>composite = demand * 0.25 + competition * 0.20 + infrastructure * 0.20 + growth * 0.15 + social * 0.20</p>
+          <div className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            <p>Score composto baseado em 5 dimensões: demanda, competição, infraestrutura, crescimento e impacto social.</p>
             <p className="mt-2" style={{ color: 'var(--text-muted)' }}>
-              8 fatores de enriquecimento: backhaul, escolas, saúde, emprego, qualidade, segurança, densidade, planejamento
+              Enriquecido com 8 fatores adicionais: backhaul, escolas, saúde, emprego, qualidade, segurança, densidade e planejamento.
             </p>
           </div>
         </div>
@@ -297,10 +295,10 @@ export default function DadosConfiancaPage() {
         </h2>
         <div className="max-w-3xl space-y-6">
           {[
-            { step: 'Contagem de registros', detail: 'Compara com a última ingestão. Alertas se variação > 20%.' },
-            { step: 'Integridade referencial', detail: 'Foreign keys verificadas (l2_id, provider_id).' },
-            { step: 'Limites físicos', detail: 'Coordenadas dentro do Brasil. Temperaturas -50 a +60C. Scores 0-100.' },
-            { step: 'Duplicatas', detail: 'Detecção via UPSERT (ON CONFLICT DO UPDATE).' },
+            { step: 'Contagem de registros', detail: 'Comparação automática com a última atualização. Alertas se variação significativa.' },
+            { step: 'Integridade referencial', detail: 'Verificação de consistência entre datasets relacionados.' },
+            { step: 'Limites físicos', detail: 'Coordenadas dentro do Brasil. Valores dentro de faixas plausíveis.' },
+            { step: 'Duplicatas', detail: 'Detecção e remoção automática de registros duplicados.' },
             { step: 'Freshness', detail: 'Alertas se a fonte não atualizar dentro do prazo esperado.' },
           ].map((item, i) => (
             <div key={item.step} className="flex gap-4">

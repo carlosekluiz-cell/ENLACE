@@ -224,12 +224,12 @@ def detect_threats(municipality_id: int, conn=None) -> list[dict]:
                 latest_ym AS (SELECT year_month FROM months LIMIT 1),
                 six_ago AS (SELECT year_month FROM months OFFSET 6 LIMIT 1),
                 has_fiber_now AS (
-                    SELECT BOOL_OR(technology = 'fiber') AS has_fiber
+                    SELECT BOOL_OR(LOWER(technology) IN ('fiber', 'ftth', 'fttb')) AS has_fiber
                     FROM broadband_subscribers bs, latest_ym ly
                     WHERE bs.year_month = ly.year_month AND bs.l2_id = %s
                 ),
                 had_fiber_before AS (
-                    SELECT BOOL_OR(technology = 'fiber') AS had_fiber
+                    SELECT BOOL_OR(LOWER(technology) IN ('fiber', 'ftth', 'fttb')) AS had_fiber
                     FROM broadband_subscribers bs, six_ago sa
                     WHERE bs.year_month = sa.year_month AND bs.l2_id = %s
                 )

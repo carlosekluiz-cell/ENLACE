@@ -79,7 +79,7 @@ async def get_subscriber_timeseries(
         SELECT
             {time_bucket} AS period,
             SUM(bs.subscribers) AS total_subscribers,
-            SUM(CASE WHEN LOWER(bs.technology) = 'fiber' THEN bs.subscribers ELSE 0 END)
+            SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END)
                 AS fiber_subscribers,
             COUNT(DISTINCT bs.provider_id) AS provider_count,
             COUNT(DISTINCT bs.technology) AS technology_count
@@ -129,7 +129,7 @@ async def get_growth_metrics(
         SELECT
             TRIM(bs.year_month) AS year_month,
             SUM(bs.subscribers) AS total_subscribers,
-            SUM(CASE WHEN LOWER(bs.technology) = 'fiber' THEN bs.subscribers ELSE 0 END)
+            SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END)
                 AS fiber_subscribers
         FROM broadband_subscribers bs
         WHERE bs.l2_id = :municipality_id
@@ -249,7 +249,7 @@ async def backfill_timeseries(
             bs.provider_id,
             TRIM(bs.year_month) AS year_month,
             SUM(bs.subscribers) AS subscribers,
-            SUM(CASE WHEN LOWER(bs.technology) = 'fiber' THEN bs.subscribers ELSE 0 END)
+            SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END)
                 AS fiber_subscribers
         FROM broadband_subscribers bs
         WHERE bs.l2_id = :municipality_id

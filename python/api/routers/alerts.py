@@ -22,6 +22,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
 
+def _int_user_id(user: dict) -> int:
+    """Convert user_id to int, raising 401 if it's not numeric (e.g. anonymous)."""
+    try:
+        return int(user["user_id"])
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Authentication required for alerts")
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Pydantic models
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -134,7 +142,7 @@ async def list_rules(
     Supports optional filtering by active status and rule type.
     """
     clauses = ["user_id = :user_id"]
-    params: dict[str, Any] = {"user_id": user["user_id"]}
+    params: dict[str, Any] = {"user_id": _int_user_id(user)}
 
     if is_active is not None:
         clauses.append("is_active = :is_active")
@@ -344,7 +352,7 @@ async def list_events(
     """
     clauses = ["ae.user_id = :user_id"]
     params: dict[str, Any] = {
-        "user_id": user["user_id"],
+        "user_id": _int_user_id(user),
         "limit": limit,
         "offset": offset,
     }

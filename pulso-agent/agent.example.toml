@@ -1,0 +1,92 @@
+# Pulso Agent configuration — https://enlace.network/docs/agent
+# Credentials in this file stay on this machine and are NEVER sent to the
+# cloud. Keep it non-world-readable (chmod 640).
+
+# Leave empty to auto-generate on first run (the installer fills this in).
+agent_id = ""
+data_dir = "/var/lib/pulso-agent"
+
+# Polling interval in seconds (minimum 10).
+poll_interval_secs = 60
+
+# How many OLTs to poll concurrently per cycle.
+poll_concurrency = 4
+
+# Per-OLT collection timeout: base + per-ONT allowance, floored at 60s.
+olt_timeout_base_secs = 60
+olt_timeout_per_ont_ms = 100
+
+# Operator UTC offset in hours (0 = UK winter, 1 = BST, -3 = Brazil) for
+# day/night and business-hours aware analyses.
+utc_offset_hours = 0
+
+# Optional: NETCONF trust-on-first-use host-key store location.
+# known_hosts_path = "/var/lib/pulso-agent/netconf_known_hosts"
+
+[cloud]
+endpoint = "https://api.enlace.network/v1/telemetry"
+api_key = "YOUR_API_KEY"
+send_interval_secs = 300
+verify_tls = true
+
+# Self-observability: /healthz and /metrics (Prometheus text format).
+# Enabled by default on loopback even without this section.
+[metrics]
+enabled = true
+bind = "127.0.0.1:9464"
+
+# Age-based retention for local history (days).
+[retention]
+signal_history_days = 30
+utilization_history_days = 30
+radius_closed_session_days = 30
+radius_stale_open_days = 30
+dead_letter_days = 30
+
+[[olts]]
+name = "OLT-Principal"
+ip = "10.0.0.1"
+# Supported: huawei, zte, fiberhome, intelbras, datacom, parks, bdcom, vsol,
+# cdata, ubiquiti, nokia, adtran, generic — or "auto" to probe via SNMP.
+vendor = "auto"
+model = ""
+
+[olts.snmp]
+# Only v2c is implemented; configuring v3 fails at startup instead of
+# silently falling back.
+version = "v2c"
+community = "public"
+port = 161
+timeout_ms = 5000
+max_repetitions = 50
+
+[olts.ssh]
+username = "admin"
+password = "admin"
+port = 22
+enabled = true
+
+[[mikrotiks]]
+name = "MK-Core"
+ip = "10.0.0.254"
+port = 8728
+username = "pulso"
+password = "CHANGE_ME"
+collect_pppoe = true
+collect_bgp = true
+collect_interfaces = true
+collect_queues = true
+
+# Optional: fibre topology for fault location.
+# [topology]
+# mode = "csv"
+# import_path = "/etc/pulso-agent/topology/global"
+#
+# Per-(OLT, PON-port) topology CSV directories; ports without an entry use
+# distance-only fault location.
+# [topology.ports]
+# "OLT-Principal:1/1/1" = "/etc/pulso-agent/topology/olt1-p1"
+#
+# Configured splitter ratios per port (from plant records, not inference).
+# [topology.splitter_ratios]
+# "1/1/1" = 32

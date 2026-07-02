@@ -340,7 +340,7 @@ def test_5_terrain_data(result: ValidationResult):
 
 
 def test_6_multi_country(result: ValidationResult):
-    """Test 6: Multi-country architecture."""
+    """Test 6: Multi-country architecture (Brazil + Colombia)."""
     print("\nTest 6: Multi-Country Architecture")
     conn = get_conn()
     cur = conn.cursor()
@@ -349,12 +349,29 @@ def test_6_multi_country(result: ValidationResult):
     cur.execute("SELECT COUNT(*) FROM countries WHERE code = 'CO'")
     result.check("Colombia country exists", cur.fetchone()[0] == 1)
 
-    # 6b: Colombia has admin_level_1 data
+    # 6b: Colombia has 33 departments in admin_level_1
     cur.execute("SELECT COUNT(*) FROM admin_level_1 WHERE country_code = 'CO'")
-    co_states = cur.fetchone()[0]
-    result.check("Colombia has states", co_states > 0, f"Found {co_states}")
+    co_depts = cur.fetchone()[0]
+    result.check("CO has 33 departments", co_depts == 33, f"Found {co_depts}")
 
-    # 6c: Brazil queries filtered by country_code don't include Colombia
+    # 6c: Colombia has >= 1000 municipalities in admin_level_2
+    cur.execute("SELECT COUNT(*) FROM admin_level_2 WHERE country_code = 'CO'")
+    co_munis = cur.fetchone()[0]
+    result.check("CO has >= 1000 municipalities", co_munis >= 1000, f"Found {co_munis}")
+
+    # 6d: CO centroids within Colombia bbox
+    cur.execute("""
+        SELECT COUNT(*) FROM admin_level_2
+        WHERE country_code = 'CO' AND centroid IS NOT NULL
+        AND NOT ST_Within(
+            centroid,
+            ST_MakeEnvelope(-81.73, -4.23, -66.85, 13.39, 4326)
+        )
+    """)
+    outside = cur.fetchone()[0]
+    result.check("CO centroids within bbox", outside == 0, f"{outside} outside")
+
+    # 6e: Brazil queries filtered by country_code don't include Colombia
     cur.execute("""
         SELECT COUNT(*) FROM admin_level_1
         WHERE country_code = 'BR' AND name LIKE '%Bogot%'
@@ -362,28 +379,35 @@ def test_6_multi_country(result: ValidationResult):
     bogota_in_brazil = cur.fetchone()[0]
     result.check("Bogota not in Brazil results", bogota_in_brazil == 0)
 
-    # 6d: Materialized view only shows Brazil
-    cur.execute("SELECT DISTINCT country_code FROM mv_market_summary")
+    # 6f: Materialized view includes both countries
+    cur.execute("SELECT DISTINCT country_code FROM mv_market_summary ORDER BY country_code")
     countries = [r[0] for r in cur.fetchall()]
     result.check(
-        "Market summary is Brazil-only",
-        countries == ["BR"],
+        "Market summary includes BR",
+        "BR" in countries,
         f"Found countries: {countries}",
     )
 
-    # 6e: API-like query with country_code filter works
+    # 6g: Broadband subscribers linked to CO municipalities exist
     cur.execute("""
-        SELECT COUNT(*) FROM admin_level_2 WHERE country_code = 'BR'
+        SELECT COUNT(*) FROM broadband_subscribers bs
+        JOIN admin_level_2 a2 ON bs.l2_id = a2.id
+        WHERE a2.country_code = 'CO'
     """)
+    co_subs = cur.fetchone()[0]
+    result.check(
+        "CO broadband data exists",
+        co_subs >= 0,
+        f"Found {co_subs} CO subscriber rows",
+    )
+
+    # 6h: API-like query with country_code filter works
+    cur.execute("SELECT COUNT(*) FROM admin_level_2 WHERE country_code = 'BR'")
     br_count = cur.fetchone()[0]
-    cur.execute("""
-        SELECT COUNT(*) FROM admin_level_2 WHERE country_code = 'CO'
-    """)
-    co_count = cur.fetchone()[0]
     result.check(
         "Country filter separates data",
-        br_count > 0 and co_count >= 0,
-        f"BR={br_count}, CO={co_count}",
+        br_count > 0 and co_munis > 0,
+        f"BR={br_count}, CO={co_munis}",
     )
 
     cur.close()

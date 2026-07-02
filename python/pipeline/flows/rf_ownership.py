@@ -118,6 +118,7 @@ class RFOwnershipPipeline(BasePipeline):
         self._isp_partners: dict = {}                # partner_doc -> {name, role, roots:[]}
         self._partner_companies: dict = {}           # partner_doc -> set of cnpj_roots
         self._company_names: dict = {}               # cnpj_root -> razao_social
+        self._company_nj: dict = {}                  # cnpj_root -> natureza_juridica code
         self._base_url: str = ""
         self._date_folder: str = DEFAULT_DATE_FOLDER
 
@@ -454,6 +455,11 @@ class RFOwnershipPipeline(BasePipeline):
                     if name:
                         self._company_names[root] = name
                         names_found += 1
+                # Store natureza_juridica for ISP roots
+                if root in self._isp_roots and root not in self._company_nj:
+                    nj = row.get("natureza_juridica", "")
+                    if nj and str(nj).strip().isdigit():
+                        self._company_nj[root] = int(str(nj).strip())
 
             if chunks_processed % 20 == 0:
                 logger.info(
@@ -646,10 +652,36 @@ class RFOwnershipPipeline(BasePipeline):
         logger.info(f"Loaded {loaded:,} ownership graph rows total")
 
     def post_load(self) -> None:
-        """Log summary statistics."""
+        """Log summary statistics and backfill LGPD natureza_juridica data."""
         conn = self._get_connection()
         cur = conn.cursor()
 
+        # --- Backfill natureza_juridica and is_pessoa_natural ---
+        # Pessoa natural codes (Receita Federal):
+        #   2135 = MEI, 2305 = Empresário Individual, 2313 = EIRELI
+        PESSOA_NATURAL_CODES = {2135, 2305, 2313}
+        nj_updated = 0
+        for root, nj_code in self._company_nj.items():
+            provider_id = self._isp_root_to_provider.get(root)
+            if not provider_id:
+                continue
+            is_pn = nj_code in PESSOA_NATURAL_CODES
+            try:
+                cur.execute(
+                    """UPDATE provider_details
+                       SET natureza_juridica_codigo = %s,
+                           is_pessoa_natural = %s
+                       WHERE provider_id = %s""",
+                    (nj_code, is_pn, provider_id),
+                )
+                nj_updated += cur.rowcount
+            except Exception as e:
+                logger.warning(f"Failed to update NJ for provider {provider_id}: {e}")
+
+        conn.commit()
+        logger.info(f"Updated {nj_updated} provider_details with natureza_juridica")
+
+        # --- Summary stats ---
         cur.execute("SELECT COUNT(*) FROM ownership_graph")
         total = cur.fetchone()[0]
 
@@ -667,6 +699,13 @@ class RFOwnershipPipeline(BasePipeline):
             "WHERE related_cnpj_root IS NOT NULL"
         )
         related = cur.fetchone()[0]
+
+        cur.execute(
+            "SELECT COUNT(*) FILTER (WHERE is_pessoa_natural) AS pn, "
+            "COUNT(*) FILTER (WHERE natureza_juridica_codigo IS NOT NULL) AS with_nj "
+            "FROM provider_details"
+        )
+        nj_stats = cur.fetchone()
 
         # Cross-ownership: partners appearing in multiple ISPs
         cur.execute("""
@@ -689,6 +728,11 @@ class RFOwnershipPipeline(BasePipeline):
         logger.info(f"ISP providers covered: {providers:,}")
         logger.info(f"Unique partners: {partners:,}")
         logger.info(f"Related companies: {related:,}")
+        if nj_stats:
+            logger.info(
+                f"LGPD: {nj_stats[1]} providers with natureza_juridica, "
+                f"{nj_stats[0]} flagged as pessoa natural (MEI/EI)"
+            )
 
         if cross_owners:
             logger.info(

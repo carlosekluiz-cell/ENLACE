@@ -155,7 +155,7 @@ def find_existing_fiber_corridors(
                 SELECT COUNT(*)
                 FROM broadband_subscribers bs
                 WHERE bs.l2_id = %s
-                  AND bs.technology = 'fiber'
+                  AND LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb')
                   AND bs.year_month = (SELECT MAX(year_month) FROM broadband_subscribers)
                   AND bs.subscribers > 0
                 """,

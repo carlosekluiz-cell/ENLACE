@@ -21,6 +21,15 @@ async def get_threat_index(
     return await starlink_threat.compute_threat_index(db, state=state, limit=limit)
 
 
+@router.get("/threat/summary")
+async def get_threat_summary(
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
+):
+    """National summary of Starlink threat distribution."""
+    return await starlink_threat.threat_summary(db)
+
+
 @router.get("/threat/{l2_id}")
 async def get_threat_detail(
     l2_id: int,
@@ -29,12 +38,3 @@ async def get_threat_detail(
 ):
     """Get detailed Starlink threat for a municipality."""
     return await starlink_threat.get_threat_detail(db, l2_id=l2_id)
-
-
-@router.get("/threat/summary")
-async def get_threat_summary(
-    db: AsyncSession = Depends(get_db),
-    user: dict = Depends(require_auth),
-):
-    """National summary of Starlink threat distribution."""
-    return await starlink_threat.threat_summary(db)

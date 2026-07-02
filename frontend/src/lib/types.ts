@@ -272,6 +272,7 @@ export interface RegisterRequest {
   name: string;
   organization: string;
   state_code?: string;
+  country_code?: string;
 }
 
 export interface RegisterResponse {
@@ -481,6 +482,155 @@ export interface LinkBudgetRequest {
 }
 
 // ---------------------------------------------------------------------------
+// FTTH Design types
+// ---------------------------------------------------------------------------
+
+export interface FtthDesignRequest {
+  lat: number;
+  lon: number;
+  radius_km: number;
+  subscribers: number;
+  technology: 'GPON' | 'XGS-PON';
+  split_ratio: number;
+  cascade_levels: number;
+  deployment_type: 'aerial' | 'underground' | 'mixed';
+  l2_id?: number;
+}
+
+export interface BomLineItem {
+  category: string;
+  item: string;
+  unit: string;
+  quantity: number;
+  unit_cost_brl: number;
+  total_cost_brl: number;
+}
+
+export interface FtthDesignResult {
+  optical_budget: OpticalBudgetResult;
+  splitter_cascade: {
+    levels: number;
+    stages: { level: number; location: string; ratio: number; loss_db: number; unit_cost_brl: number }[];
+    total_split: number;
+    total_loss_db: number;
+    description: string;
+  };
+  olt_sizing: {
+    technology: string;
+    subscribers: number;
+    split_ratio: number;
+    pon_ports: number;
+    boards: number;
+    ports_per_board: number;
+    chassis: number;
+    total_bandwidth_down_gbps: number;
+    total_bandwidth_up_gbps: number;
+    bandwidth_per_sub_down_mbps: number;
+    bandwidth_per_sub_up_mbps: number;
+    olt_cost_brl: number;
+  };
+  coverage: Record<string, any>;
+  bom: {
+    items: BomLineItem[];
+    subtotals: Record<string, number>;
+    total_cost_brl: number;
+  };
+  summary: {
+    technology: string;
+    subscribers: number;
+    split_ratio: number;
+    deployment_type: string;
+    total_capex_brl: number;
+    capex_per_subscriber_brl: number;
+    optical_margin_db: number;
+    optical_viable: boolean;
+    max_reach_km: number;
+    trunk_km: number;
+    distribution_km: number;
+    drop_km: number;
+  };
+}
+
+export interface OpticalBudgetRequest {
+  fiber_km: number;
+  splices: number;
+  connectors: number;
+  splitter_ratios: number[];
+  technology: 'GPON' | 'XGS-PON';
+}
+
+export interface OpticalBudgetResult {
+  technology: string;
+  pon_class: string;
+  budget_db: number;
+  wavelength: string;
+  losses: {
+    fiber_db: number;
+    splice_db: number;
+    connector_db: number;
+    splitter_db: number;
+  };
+  total_loss_db: number;
+  margin_db: number;
+  viable: boolean;
+  max_distance_km: number;
+  total_split_ratio: number;
+  fiber_km: number;
+  splices: number;
+  connectors: number;
+  splitter_ratios: number[];
+}
+
+export interface ViabilityRequest {
+  l2_id: number;
+  technology: 'FTTH' | 'FWA' | 'Hibrido';
+  subscribers: number;
+  arpu: number;
+  capex_override?: number;
+}
+
+export interface ViabilityScenario {
+  label: string;
+  target_pct: number;
+  months_to_target: number;
+  max_subscribers: number;
+  payback_months: number | null;
+  npv_brl: number;
+  irr_pct: number | null;
+  monthly_revenue_at_target_brl: number;
+  monthly_opex_at_target_brl: number;
+  cashflow: { month: number; subscribers: number; revenue_brl: number; opex_brl: number; net_brl: number; cumulative_brl: number }[];
+}
+
+export interface ViabilityResult {
+  technology: string;
+  subscribers: number;
+  arpu_brl: number;
+  capex: { total_brl: number; per_subscriber_brl: number };
+  opex_per_subscriber_brl: number;
+  scenarios: {
+    optimistic: ViabilityScenario;
+    realistic: ViabilityScenario;
+    conservative: ViabilityScenario;
+  };
+  market_context: {
+    total_subscribers: number;
+    providers: number;
+    hhi: number;
+    leader_name: string | null;
+    leader_share_pct: number;
+    fiber_pct: number;
+    growth_trend: string;
+  };
+  recommendation: {
+    status: 'viable' | 'marginal' | 'not_viable';
+    label: string;
+    reason: string;
+  };
+  discount_rate_annual_pct: number;
+}
+
+// ---------------------------------------------------------------------------
 // Network Health types
 // ---------------------------------------------------------------------------
 
@@ -661,4 +811,72 @@ export interface SatelliteGrowthRanking {
   avg_built_up_change_pct: number | null;
   latest_built_up_area_km2: number | null;
   avg_ndvi: number | null;
+}
+
+// ---------------------------------------------------------------------------
+// UK Topology types
+// ---------------------------------------------------------------------------
+
+export interface UkTopologyNode {
+  building: string;
+  lat: number;
+  lon: number;
+  dwelling_count: number;
+  splitter: string;
+  cable_type: string;
+  distance_from_previous_m: number;
+  distance_from_aux_m: number;
+  roof_linked: boolean;
+  optical_budget: {
+    total_loss_db: number;
+    rx_power_dbm: number;
+    margin_db: number;
+    pass: boolean;
+  };
+}
+
+export interface UkTopologyBranch {
+  name: string;
+  nodes: UkTopologyNode[];
+  total_distance_m: number;
+  building_count: number;
+}
+
+export interface UkTopologyResult {
+  project_id: string;
+  postcode: string;
+  premises: number;
+  buildings: number;
+  aux_joint: { lat: number; lon: number };
+  branches: UkTopologyBranch[];
+  bom: {
+    cable_12f_m: number;
+    cable_24f_m: number;
+    cable_48f_m: number;
+    cable_144f_m: number;
+    total_cable_m: number;
+    splitter_32way: number;
+    splitter_64way: number;
+    pbo_count: number;
+    splice_closures: number;
+    total_splices: number;
+    cable_segments: number;
+  };
+  cost: {
+    total_capex_gbp: number;
+    capex_per_premises_gbp: number;
+    annual_pia_rental_gbp: number;
+  };
+}
+
+export interface UkTopologyComparison {
+  buildings: Array<{
+    name: string;
+    generated_splitter: string;
+    reference_splitter: string;
+    match: boolean;
+  }>;
+  overall_match_pct: number;
+  pbo_detection: { found: number; expected: number };
+  reference_source: string;
 }

@@ -165,9 +165,13 @@ async def anomaly_detection(
     lookback_months: int = 6,
     limit: int = 50,
 ) -> dict[str, Any]:
-    """Detect quality anomalies using pyod IForest (fallback: z-score)."""
-    where_parts = ["qi.year_month >= TO_CHAR(NOW() - make_interval(months => :lookback), 'YYYY-MM')"]
-    params: dict[str, Any] = {"lookback": lookback_months, "limit": limit}
+    """Detect quality anomalies across municipalities using z-score comparison.
+
+    Groups by metric_type and finds municipalities whose latest value is
+    an outlier compared to their peers (cross-sectional anomaly detection).
+    """
+    where_parts = ["qi.year_month = (SELECT MAX(year_month) FROM quality_indicators)"]
+    params: dict[str, Any] = {"limit": limit}
 
     if state:
         where_parts.append("""
@@ -193,7 +197,8 @@ async def anomaly_detection(
         JOIN admin_level_2 a2 ON a2.id = qi.l2_id
         JOIN admin_level_1 a1 ON a2.l1_id = a1.id
         WHERE {where_sql}
-        ORDER BY qi.l2_id, qi.metric_type, qi.year_month
+            AND qi.value IS NOT NULL
+        ORDER BY qi.metric_type, qi.l2_id
     """)
 
     result = await db.execute(sql, params)
@@ -204,17 +209,16 @@ async def anomaly_detection(
 
     import numpy as np
 
-    # Group by (l2_id, metric_type)
-    groups: dict[tuple, list] = {}
-    row_map: dict[tuple, list] = {}
+    # Group by metric_type — compare municipalities against each other
+    groups: dict[str, list] = {}
+    row_map: dict[str, list] = {}
     for row in rows:
-        key = (row.l2_id, row.metric_type)
+        key = row.metric_type
         if key not in groups:
             groups[key] = []
             row_map[key] = []
-        if row.value is not None:
-            groups[key].append(float(row.value))
-            row_map[key].append(row)
+        groups[key].append(float(row.value))
+        row_map[key].append(row)
 
     anomalies = []
     method = "zscore"
@@ -225,12 +229,14 @@ async def anomaly_detection(
         method = "iforest"
 
         for key, values in groups.items():
-            if len(values) < 4:
+            if len(values) < 10:
                 continue
             arr = np.array(values).reshape(-1, 1)
-            clf = IForest(contamination=0.1, random_state=42, n_estimators=50)
+            if np.std(arr) == 0:
+                continue
+            clf = IForest(contamination=0.05, random_state=42, n_estimators=50)
             clf.fit(arr)
-            labels = clf.labels_  # 0=normal, 1=anomaly
+            labels = clf.labels_
             scores = clf.decision_scores_
 
             for i, label in enumerate(labels):
@@ -251,7 +257,7 @@ async def anomaly_detection(
         method = "zscore"
 
         for key, values in groups.items():
-            if len(values) < 4:
+            if len(values) < 10:
                 continue
             mean = np.mean(values)
             std = np.std(values)
@@ -279,6 +285,5 @@ async def anomaly_detection(
     return {
         "total_anomalies": len(anomalies),
         "method": method,
-        "lookback_months": lookback_months,
         "anomalies": anomalies[:limit],
     }

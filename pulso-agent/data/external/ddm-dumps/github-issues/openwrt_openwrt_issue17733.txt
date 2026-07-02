@@ -1,0 +1,76 @@
+# Source: https://github.com/openwrt/openwrt/issues/17733
+# Title: Zyxel PMG3000-D20B GPON SFP module no longer recognized in 24.10/snapshot
+# Retrieved: 2026-07-02
+# License: user-posted content on GitHub, unclear
+
+## From: issue body (user: twwn)
+ethtool -m eth2
+	Identifier                                : 0x03 (SFP)
+	Extended identifier                       : 0x04 (GBIC/SFP defined by 2-wire interface ID)
+	Connector                                 : 0x01 (SC)
+	Transceiver codes                         : 0x00 0x00 0x00 0x02 0x00 0x00 0x00 0x00 0x00
+	Transceiver type                          : Ethernet: 1000BASE-LX
+	Encoding                                  : 0x03 (NRZ)
+	BR, Nominal                               : 1200MBd
+	Rate identifier                           : 0x00 (unspecified)
+	Length (SMF,km)                           : 20km
+	Length (SMF)                              : 20000m
+	Length (50um)                             : 0m
+	Length (62.5um)                           : 0m
+	Length (Copper)                           : 0m
+	Length (OM3)                              : 0m
+	Laser wavelength                          : 1310nm
+	Vendor name                               : ZYXEL___________
+	Vendor OUI                                : 00:00:00
+	Vendor PN                                 : PMG3000-D20B____
+	Vendor rev                                : V1.0
+	Option values                             : 0x00 0x1a
+	Option                                    : RX_LOS implemented
+	Option                                    : TX_FAULT implemented
+	Option                                    : TX_DISABLE implemented
+[etc.]
+
+
+## From: https://github.com/openwrt/openwrt/issues/17733#issuecomment-2616973155 (user: twwn)
+	Laser bias current                        : **0.000 mA**
+	Laser output power                        : 2.0000 mW / 3.01 dBm
+	Receiver signal average optical power     : 0.0000 mW / -inf dBm
+	Module temperature                        : **10.85 degrees C / 51.53 degrees F**
+	Module voltage                            : 3.3000 V
+	Alarm/warning flags implemented           : Yes
+	Laser bias current high alarm             : Off
+	Laser bias current low alarm              : Off
+	Laser bias current high warning           : Off
+	Laser bias current low warning            : **On**
+
+
+## From: https://github.com/openwrt/openwrt/issues/17733#issuecomment-2628541520 (user: twwn)
+root@OpenWrt:~# uci show network.modem
+network.modem=interface
+network.modem.proto='static'
+network.modem.ipaddr='10.10.1.2'
+network.modem.netmask='255.0.0.0'
+network.modem.device='eth2'
+root@OpenWrt:~# uci show firewall.@zone[1].network
+firewall.cfg03dc81.network='wan' 'wan6' 'WWAN' 'WWAN6' 'WWAN_Q' 'WWAN6_Q' 'modem'
+root@OpenWrt:~# uci commit network; service network restart; uci commit firewall; service firewall restart
+[…]
+root@OpenWrt:~# ssh admin@10.10.1.1
+
+ssh: Connection to admin@10.10.1.1:22 exited: Connect failed: Host is unreachable
+root@OpenWrt:~# ping 10.10.1.1
+PING 10.10.1.1 (10.10.1.1): 56 data bytes
+^C
+--- 10.10.1.1 ping statistics ---
+20 packets transmitted, 0 packets received, 100% packet loss
+root@OpenWrt:~# uname -a
+Linux OpenWrt 5.4.271 #0 SMP Wed Jun 5 06:11:29 2024 aarch64 GNU/Linux
+root@OpenWrt:~# ethtool -m eth2
+[can post full version if of interest]
+	Transceiver type                          : Ethernet: 1000BASE-LX
+	Vendor name                               : ZYXEL___________
+	Vendor OUI                                : 00:00:00
+	Vendor PN                                 : PMG3000-D20B____
+	Vendor rev                                : V1.0
+
+

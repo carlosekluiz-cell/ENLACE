@@ -234,6 +234,7 @@ export default function SettingsPage() {
               {[
                 { code: 'pt-BR', label: 'Português (BR)' },
                 { code: 'en', label: 'English' },
+                { code: 'es', label: 'Español' },
               ].map((lang) => (
                 <button
                   key={lang.code}

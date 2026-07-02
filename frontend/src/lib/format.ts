@@ -1,11 +1,22 @@
 /**
- * Shared formatting utilities — null-safe, pt-BR locale.
+ * Shared formatting utilities — null-safe, locale-aware.
  * Single source of truth; replaces per-page local formatters.
  */
 
+export function formatCurrency(
+  value: number | undefined | null,
+  currency: string = 'BRL',
+  locale: string = 'pt-BR',
+): string {
+  if (value == null) {
+    const placeholder: Record<string, string> = { BRL: 'R$ --', COP: '$ --' };
+    return placeholder[currency] || '$ --';
+  }
+  return value.toLocaleString(locale, { style: 'currency', currency });
+}
+
 export function formatBRL(value: number | undefined | null): string {
-  if (value == null) return 'R$ --';
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  return formatCurrency(value, 'BRL', 'pt-BR');
 }
 
 export function formatNumber(value: number | undefined | null): string {

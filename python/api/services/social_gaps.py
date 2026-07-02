@@ -153,20 +153,26 @@ async def health_facility_gaps(
     where_sql = " AND ".join(where_parts)
 
     stats_sql = text(f"""
+        WITH muni_with_broadband AS (
+            SELECT DISTINCT l2_id FROM broadband_subscribers
+            WHERE year_month = (SELECT MAX(year_month) FROM broadband_subscribers)
+              AND subscribers > 0
+        )
         SELECT
             COUNT(*) AS total_facilities,
-            COUNT(*) FILTER (WHERE hf.has_internet = true) AS with_internet,
+            COUNT(*) FILTER (WHERE mwb.l2_id IS NOT NULL) AS with_internet,
             COALESCE(SUM(hf.bed_count), 0) AS total_beds
         FROM health_facilities hf
         JOIN admin_level_2 a2 ON a2.id = hf.l2_id
         JOIN admin_level_1 a1 ON a2.l1_id = a1.id
+        LEFT JOIN muni_with_broadband mwb ON mwb.l2_id = hf.l2_id
         WHERE {where_sql}
     """)
 
     stats_result = await db.execute(stats_sql, params)
     stats = stats_result.fetchone()
 
-    # Unconnected facilities prioritized by bed count
+    # Unconnected facilities: in municipalities with zero broadband subscribers
     gaps_sql = text(f"""
         WITH muni_coverage AS (
             SELECT l2_id, SUM(subscribers) AS total_subs
@@ -191,7 +197,7 @@ async def health_facility_gaps(
         JOIN admin_level_1 a1 ON a2.l1_id = a1.id
         LEFT JOIN muni_coverage mc ON mc.l2_id = a2.id
         WHERE {where_sql}
-            AND hf.has_internet = false
+            AND COALESCE(mc.total_subs, 0) = 0
         ORDER BY hf.bed_count DESC NULLS LAST
         LIMIT :limit
     """)
@@ -199,16 +205,22 @@ async def health_facility_gaps(
     gaps_result = await db.execute(gaps_sql, params)
     gap_rows = gaps_result.fetchall()
 
-    # By-state breakdown
+    # By-state breakdown (connected = in municipalities with broadband)
     state_sql = text(f"""
+        WITH muni_with_broadband AS (
+            SELECT DISTINCT l2_id FROM broadband_subscribers
+            WHERE year_month = (SELECT MAX(year_month) FROM broadband_subscribers)
+              AND subscribers > 0
+        )
         SELECT
             a1.abbrev AS state,
             COUNT(*) AS total,
-            COUNT(*) FILTER (WHERE hf.has_internet = true) AS connected,
+            COUNT(*) FILTER (WHERE mwb.l2_id IS NOT NULL) AS connected,
             COALESCE(SUM(hf.bed_count), 0) AS beds
         FROM health_facilities hf
         JOIN admin_level_2 a2 ON a2.id = hf.l2_id
         JOIN admin_level_1 a1 ON a2.l1_id = a1.id
+        LEFT JOIN muni_with_broadband mwb ON mwb.l2_id = hf.l2_id
         WHERE {where_sql}
         GROUP BY a1.abbrev
         ORDER BY COUNT(*) DESC

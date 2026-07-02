@@ -302,7 +302,7 @@ async def market_overview(
                 bs.provider_id,
                 p.name as provider_name,
                 SUM(bs.subscribers) as total_subs,
-                SUM(CASE WHEN bs.technology = 'fiber' THEN bs.subscribers ELSE 0 END) as fiber_subs
+                SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END) as fiber_subs
             FROM broadband_subscribers bs
             JOIN providers p ON bs.provider_id = p.id
             JOIN admin_level_2 a ON bs.l2_id = a.id
@@ -366,6 +366,103 @@ async def market_overview(
     )
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# GET /valuation-dcf/{provider_id} — DCF valuation from live subscriber data
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@router.get("/valuation-dcf/{provider_id}")
+async def valuation_dcf(
+    provider_id: int,
+    ebitda_margin_pct: float = Query(30.0, ge=0, le=100, description="EBITDA margin %"),
+    capex_pct_revenue: float = Query(15.0, ge=0, le=100, description="CAPEX as % of revenue"),
+    wacc_pct: float = Query(14.0, ge=1, le=50, description="WACC %"),
+    terminal_growth_pct: float = Query(3.0, ge=0, le=10, description="Terminal growth rate %"),
+    net_debt_brl: float = Query(0.0, ge=0, description="Net debt in BRL"),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
+):
+    """Run a full DCF valuation for a provider using live subscriber data.
+
+    Computes monthly revenue from subscriber count x technology-specific ARPU
+    (R$95 fiber, R$65 other), then runs 5-year DCF projection with sensitivity
+    analysis.
+    """
+    # Fetch subscriber breakdown for latest period
+    sql = text("""
+        WITH latest AS (
+            SELECT MAX(year_month) AS ym FROM broadband_subscribers
+        )
+        SELECT
+            p.name AS provider_name,
+            COALESCE(SUM(bs.subscribers), 0) AS total_subs,
+            COALESCE(SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb')
+                          THEN bs.subscribers ELSE 0 END), 0) AS fiber_subs
+        FROM providers p
+        LEFT JOIN broadband_subscribers bs ON bs.provider_id = p.id
+            AND bs.year_month = (SELECT ym FROM latest)
+        WHERE p.id = :pid
+        GROUP BY p.name
+    """)
+
+    result = await db.execute(sql, {"pid": provider_id})
+    row = result.fetchone()
+
+    if not row or not row.provider_name:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    total_subs = int(row.total_subs)
+    fiber_subs = int(row.fiber_subs)
+    other_subs = total_subs - fiber_subs
+
+    if total_subs == 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Provider has no active subscribers — cannot estimate revenue for DCF",
+        )
+
+    # Estimate monthly revenue from technology-specific ARPU
+    arpu_fiber = 95.0
+    arpu_other = 65.0
+    monthly_revenue = fiber_subs * arpu_fiber + other_subs * arpu_other
+
+    # Run DCF
+    val = dcf.calculate(
+        monthly_revenue_brl=monthly_revenue,
+        ebitda_margin_pct=ebitda_margin_pct,
+        capex_pct_revenue=capex_pct_revenue,
+        wacc_pct=wacc_pct,
+        terminal_growth_pct=terminal_growth_pct,
+        net_debt_brl=net_debt_brl,
+    )
+
+    return {
+        "provider_id": provider_id,
+        "provider_name": row.provider_name,
+        "total_subscribers": total_subs,
+        "fiber_subscribers": fiber_subs,
+        "other_subscribers": other_subs,
+        "estimated_monthly_revenue_brl": round(monthly_revenue, 2),
+        "estimated_annual_revenue_brl": round(monthly_revenue * 12, 2),
+        "assumptions": {
+            "arpu_fiber_brl": arpu_fiber,
+            "arpu_other_brl": arpu_other,
+            "ebitda_margin_pct": ebitda_margin_pct,
+            "capex_pct_revenue": capex_pct_revenue,
+            "wacc_pct": wacc_pct,
+            "terminal_growth_pct": terminal_growth_pct,
+            "net_debt_brl": net_debt_brl,
+        },
+        "dcf": {
+            "enterprise_value_brl": val.enterprise_value_brl,
+            "equity_value_brl": val.equity_value_brl,
+            "terminal_value_brl": val.terminal_value_brl,
+            "projected_cashflows": val.projected_cashflows,
+            "sensitivity_table": val.sensitivity_table,
+        },
+    }
+
+
 @router.get("/provider/{provider_id}/details")
 async def provider_details(
     provider_id: int,
@@ -409,7 +506,6 @@ async def provider_details(
     return {
         "provider_id": provider_id,
         "name": row.name,
-        "cnpj": row.cnpj,
         "company_status": row.status,
         "capital_social": float(row.capital_social) if row.capital_social else None,
         "founding_date": str(row.founding_date) if row.founding_date else None,

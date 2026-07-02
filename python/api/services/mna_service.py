@@ -86,7 +86,7 @@ async def comparable_analysis(
                 bs.provider_id,
                 p.name AS provider_name,
                 SUM(bs.subscribers) AS total_subs,
-                SUM(CASE WHEN bs.technology = 'fiber' THEN bs.subscribers ELSE 0 END) AS fiber_subs,
+                SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END) AS fiber_subs,
                 array_agg(DISTINCT l1.abbrev) AS state_codes
             FROM broadband_subscribers bs
             JOIN providers p ON bs.provider_id = p.id
@@ -145,7 +145,7 @@ async def comparable_analysis(
                 bs.provider_id,
                 p.name AS provider_name,
                 SUM(bs.subscribers) AS total_subs,
-                SUM(CASE WHEN bs.technology = 'fiber' THEN bs.subscribers ELSE 0 END) AS fiber_subs,
+                SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END) AS fiber_subs,
                 array_agg(DISTINCT l1.abbrev) AS state_codes,
                 COUNT(DISTINCT a2.id) AS municipality_count
             FROM broadband_subscribers bs
@@ -307,7 +307,7 @@ async def synergy_model(
                 bs.provider_id,
                 p.name AS provider_name,
                 SUM(bs.subscribers) AS total_subs,
-                SUM(CASE WHEN bs.technology = 'fiber' THEN bs.subscribers ELSE 0 END) AS fiber_subs,
+                SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END) AS fiber_subs,
                 array_agg(DISTINCT l1.abbrev) AS state_codes,
                 array_agg(DISTINCT a2.id) AS municipality_ids,
                 COUNT(DISTINCT a2.id) AS municipality_count
@@ -601,7 +601,7 @@ async def due_diligence_checklist(
             SELECT
                 bs.year_month,
                 SUM(bs.subscribers) AS total_subs,
-                SUM(CASE WHEN bs.technology = 'fiber' THEN bs.subscribers ELSE 0 END) AS fiber_subs
+                SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END) AS fiber_subs
             FROM broadband_subscribers bs
             WHERE bs.provider_id = :pid
             GROUP BY bs.year_month
@@ -1175,17 +1175,22 @@ async def get_spectrum_holdings(
         return {"error": "Provider not found", "provider_id": provider_id}
 
     # ---- Try spectrum_holdings table first ----
-    holdings_sql = text("""
-        SELECT
-            id, frequency_mhz, bandwidth_mhz, band_name,
-            license_expiry, coverage_area_km2, population_covered,
-            license_type
-        FROM spectrum_holdings
-        WHERE provider_id = :pid
-        ORDER BY frequency_mhz
-    """)
-    result = await db.execute(holdings_sql, {"pid": provider_id})
-    rows = result.fetchall()
+    rows = []
+    try:
+        holdings_sql = text("""
+            SELECT
+                id, frequency_mhz, bandwidth_mhz, band_name,
+                license_expiry, coverage_area_km2, population_covered,
+                license_type
+            FROM spectrum_holdings
+            WHERE provider_id = :pid
+            ORDER BY frequency_mhz
+        """)
+        result = await db.execute(holdings_sql, {"pid": provider_id})
+        rows = result.fetchall()
+    except Exception:
+        await db.rollback()
+        logger.warning("spectrum_holdings table not available, falling back to base_stations")
 
     if rows:
         holdings = [

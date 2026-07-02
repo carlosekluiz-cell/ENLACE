@@ -45,7 +45,7 @@ LEFT JOIN LATERAL (
     AND bs.year_month = (SELECT MAX(year_month) FROM broadband_subscribers WHERE l2_id = al2.id)
     GROUP BY bs.year_month
 ) latest ON TRUE
-WHERE al2.country_code = 'BR';
+;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mvms_l2 ON mv_market_summary(l2_id);
 CREATE INDEX IF NOT EXISTS idx_mvms_geom ON mv_market_summary USING GIST(centroid);

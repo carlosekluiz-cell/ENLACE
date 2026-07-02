@@ -75,7 +75,7 @@ class AnatelBackhaulPipeline(BasePipeline):
             SELECT
                 a2.id AS l2_id,
                 a2.code AS municipality_code,
-                SUM(CASE WHEN bs.technology = 'fiber' THEN bs.subscribers ELSE 0 END) > 0 AS has_fiber,
+                SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END) > 0 AS has_fiber,
                 SUM(CASE WHEN bs.technology = 'wireless' THEN bs.subscribers ELSE 0 END) > 0 AS has_radio,
                 SUM(CASE WHEN bs.technology = 'satellite' THEN bs.subscribers ELSE 0 END) > 0 AS has_satellite,
                 COUNT(DISTINCT bs.provider_id) AS provider_count

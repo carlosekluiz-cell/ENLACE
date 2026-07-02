@@ -200,8 +200,8 @@ async def compute_route(
             ST_AsGeoJSON(rs.geom)::json AS geojson
         FROM pgr_dijkstra(
             'SELECT id, source, target, cost, reverse_cost FROM road_segments',
-            :start_id,
-            :end_id,
+            CAST(:start_id AS bigint),
+            CAST(:end_id AS bigint),
             directed := false
         ) AS d
         JOIN road_segments rs ON d.edge = rs.id
@@ -360,8 +360,8 @@ async def compute_corridor(
                 ST_AsGeoJSON(rs.geom)::json AS geojson
             FROM pgr_dijkstra(
                 'SELECT id, source, target, cost, reverse_cost FROM road_segments',
-                :start_id,
-                :end_id,
+                CAST(:start_id AS bigint),
+                CAST(:end_id AS bigint),
                 directed := false
             ) AS d
             JOIN road_segments rs ON d.edge = rs.id

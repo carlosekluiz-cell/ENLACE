@@ -14,6 +14,7 @@ import {
   Loader2,
   MapPin,
 } from 'lucide-react';
+import DisclaimerBanner from '@/components/ui/DisclaimerBanner';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -380,6 +381,9 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6 p-6">
+      {/* Legal disclaimer */}
+      <DisclaimerBanner />
+
       {/* Stats row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="pulso-card">

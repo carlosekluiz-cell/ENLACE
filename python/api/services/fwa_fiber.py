@@ -87,7 +87,8 @@ async def compare_technologies(
 
     fwa_monthly_revenue = subs * ARPU_FWA
     fwa_annual_revenue = fwa_monthly_revenue * 12
-    fwa_payback_months = math.ceil(fwa_capex / max(fwa_monthly_revenue - fwa_monthly_opex, 1))
+    fwa_net_monthly = fwa_monthly_revenue - fwa_monthly_opex
+    fwa_payback_months = math.ceil(fwa_capex / fwa_net_monthly) if fwa_net_monthly > 0 else None
 
     # ── Fiber Calculation ──
     fiber_trunk_km = road_km * 0.3  # 30% of road network for fiber trunk
@@ -107,7 +108,8 @@ async def compare_technologies(
 
     fiber_monthly_revenue = subs * ARPU_FIBER
     fiber_annual_revenue = fiber_monthly_revenue * 12
-    fiber_payback_months = math.ceil(fiber_capex / max(fiber_monthly_revenue - fiber_monthly_opex, 1))
+    fiber_net_monthly = fiber_monthly_revenue - fiber_monthly_opex
+    fiber_payback_months = math.ceil(fiber_capex / fiber_net_monthly) if fiber_net_monthly > 0 else None
 
     # ── Recommendation ──
     if fwa_5yr_tco < fiber_5yr_tco * 0.7:
@@ -177,3 +179,266 @@ def get_presets() -> list[dict[str, Any]]:
         {"name": "Subúrbio", "subscribers": 15000, "area_km2": 30, "description": "Área suburbana densa"},
         {"name": "Centro urbano", "subscribers": 50000, "area_km2": 15, "description": "Centro urbano denso"},
     ]
+
+
+# ---------------------------------------------------------------------------
+# Ramp curve definitions
+# ---------------------------------------------------------------------------
+
+RAMP_CURVES = {
+    "optimistic": {"target_pct": 0.70, "months_to_target": 12, "label": "Otimista"},
+    "realistic": {"target_pct": 0.60, "months_to_target": 18, "label": "Realista"},
+    "conservative": {"target_pct": 0.40, "months_to_target": 24, "label": "Conservador"},
+}
+
+DISCOUNT_RATE_ANNUAL = 0.12  # 12% annual discount rate
+
+
+def _subscriber_ramp(month: int, target_subs: int, target_pct: float, months_to_target: int) -> int:
+    """S-curve subscriber ramp: reaches target_pct of subscribers at months_to_target."""
+    if month <= 0:
+        return 0
+    max_subs = int(target_subs * target_pct)
+    # Logistic growth curve
+    k = 6.0 / months_to_target  # steepness
+    midpoint = months_to_target / 2
+    ramp = max_subs / (1 + math.exp(-k * (month - midpoint)))
+    return min(int(ramp), max_subs)
+
+
+def _npv(cashflows: list[float], annual_rate: float) -> float:
+    """Calculate NPV from monthly cashflows using monthly discount rate."""
+    monthly_rate = (1 + annual_rate) ** (1 / 12) - 1
+    total = 0.0
+    for i, cf in enumerate(cashflows):
+        total += cf / ((1 + monthly_rate) ** i)
+    return total
+
+
+def _irr(cashflows: list[float], max_iter: int = 200, tol: float = 1e-6) -> Optional[float]:
+    """Calculate IRR using Newton's method on monthly cashflows. Returns annual rate."""
+    # Initial guess
+    r = 0.01  # monthly
+    for _ in range(max_iter):
+        npv_val = sum(cf / ((1 + r) ** i) for i, cf in enumerate(cashflows))
+        dnpv = sum(-i * cf / ((1 + r) ** (i + 1)) for i, cf in enumerate(cashflows))
+        if abs(dnpv) < 1e-12:
+            break
+        r_new = r - npv_val / dnpv
+        if abs(r_new - r) < tol:
+            r = r_new
+            break
+        r = r_new
+    if r <= -1 or r > 10:
+        return None
+    return round(((1 + r) ** 12 - 1) * 100, 2)  # annualized %
+
+
+async def get_market_context(db: AsyncSession, l2_id: int) -> dict[str, Any]:
+    """Fetch competitive market context for a municipality.
+
+    Returns HHI, competitor count, leader share, fiber %, and growth trend
+    from broadband_subscribers and competitive_analysis tables.
+    """
+    sql = text("""
+        WITH latest AS (
+            SELECT year_month FROM broadband_subscribers
+            WHERE l2_id = :l2_id
+            ORDER BY year_month DESC LIMIT 1
+        ),
+        subs AS (
+            SELECT bs.provider_id, p.name AS provider_name, SUM(bs.subscribers) AS subs,
+                   SUM(CASE WHEN bs.technology IN ('Fibra Óptica', 'Fiber') THEN bs.subscribers ELSE 0 END) AS fiber_subs
+            FROM broadband_subscribers bs
+            JOIN providers p ON bs.provider_id = p.id
+            WHERE bs.l2_id = :l2_id AND bs.year_month = (SELECT year_month FROM latest)
+            GROUP BY bs.provider_id, p.name
+        ),
+        totals AS (
+            SELECT SUM(subs) AS total, SUM(fiber_subs) AS total_fiber,
+                   COUNT(*) AS providers
+            FROM subs
+        )
+        SELECT t.total, t.total_fiber, t.providers,
+               s.provider_name AS leader_name, s.subs AS leader_subs,
+               ROUND(s.subs * 100.0 / NULLIF(t.total, 0), 1) AS leader_share,
+               ROUND(t.total_fiber * 100.0 / NULLIF(t.total, 0), 1) AS fiber_pct,
+               SUM(POWER(s2.subs * 100.0 / NULLIF(t.total, 0), 2)) AS hhi
+        FROM totals t
+        LEFT JOIN subs s ON s.subs = (SELECT MAX(subs) FROM subs)
+        LEFT JOIN subs s2 ON TRUE
+        GROUP BY t.total, t.total_fiber, t.providers, s.provider_name, s.subs
+    """)
+    result = await db.execute(sql, {"l2_id": l2_id})
+    row = result.fetchone()
+
+    if not row or not row.total:
+        return {
+            "total_subscribers": 0,
+            "providers": 0,
+            "hhi": 0,
+            "leader_name": None,
+            "leader_share_pct": 0,
+            "fiber_pct": 0,
+            "growth_trend": "unknown",
+        }
+
+    # Growth trend from last 6 months
+    growth_sql = text("""
+        SELECT year_month, SUM(subscribers) AS total
+        FROM broadband_subscribers
+        WHERE l2_id = :l2_id
+        GROUP BY year_month
+        ORDER BY year_month DESC LIMIT 6
+    """)
+    growth_result = await db.execute(growth_sql, {"l2_id": l2_id})
+    growth_rows = growth_result.fetchall()
+
+    trend = "stable"
+    if len(growth_rows) >= 2:
+        newest = growth_rows[0].total
+        oldest = growth_rows[-1].total
+        if oldest > 0:
+            change_pct = (newest - oldest) / oldest * 100
+            if change_pct > 5:
+                trend = "growing"
+            elif change_pct < -5:
+                trend = "declining"
+
+    return {
+        "total_subscribers": int(row.total),
+        "providers": int(row.providers),
+        "hhi": round(float(row.hhi or 0), 0),
+        "leader_name": row.leader_name,
+        "leader_share_pct": float(row.leader_share or 0),
+        "fiber_pct": float(row.fiber_pct or 0),
+        "growth_trend": trend,
+    }
+
+
+async def viability_analysis(
+    db: AsyncSession,
+    l2_id: int,
+    technology: str,
+    subscribers: int,
+    arpu: float,
+    capex_override: Optional[float] = None,
+) -> dict[str, Any]:
+    """Economic viability analysis with 3 scenarios, NPV, IRR, and payback.
+
+    Args:
+        db: Async database session.
+        l2_id: Municipality ID.
+        technology: "FTTH", "FWA", or "Hibrido".
+        subscribers: Target subscriber count.
+        arpu: Average Revenue Per User (BRL/month).
+        capex_override: Optional manual CAPEX (otherwise estimated).
+
+    Returns:
+        Dict with CAPEX breakdown, OPEX, 3 scenario analyses, market context,
+        and recommendation.
+    """
+    # Estimate CAPEX
+    if capex_override:
+        total_capex = capex_override
+    else:
+        if technology == "FWA":
+            total_capex = subscribers * (FWA_CPE_COST + 200)  # CPE + tower share
+        elif technology == "Hibrido":
+            total_capex = subscribers * 2_200  # blend
+        else:  # FTTH
+            total_capex = subscribers * 2_800  # typical FTTH CAPEX/sub
+
+    # OPEX per subscriber per month
+    if technology == "FWA":
+        opex_per_sub = FWA_MONTHLY_OPEX_PER_SUB
+    elif technology == "Hibrido":
+        opex_per_sub = 12
+    else:
+        opex_per_sub = FIBER_MONTHLY_OPEX_PER_SUB
+
+    # Market context
+    market = await get_market_context(db, l2_id)
+
+    # Run 3 scenarios over 60 months
+    scenarios = {}
+    for scenario_key, curve in RAMP_CURVES.items():
+        cashflows = [-total_capex]
+        monthly_data = []
+        payback_month = None
+        cumulative = -total_capex
+
+        for month in range(1, 61):
+            active_subs = _subscriber_ramp(month, subscribers, curve["target_pct"], curve["months_to_target"])
+            revenue = active_subs * arpu
+            opex = active_subs * opex_per_sub
+            net = revenue - opex
+            cumulative += net
+            cashflows.append(net)
+
+            monthly_data.append({
+                "month": month,
+                "subscribers": active_subs,
+                "revenue_brl": round(revenue, 2),
+                "opex_brl": round(opex, 2),
+                "net_brl": round(net, 2),
+                "cumulative_brl": round(cumulative, 2),
+            })
+
+            if payback_month is None and cumulative >= 0:
+                payback_month = month
+
+        npv_val = _npv(cashflows, DISCOUNT_RATE_ANNUAL)
+        irr_val = _irr(cashflows)
+
+        scenarios[scenario_key] = {
+            "label": curve["label"],
+            "target_pct": curve["target_pct"],
+            "months_to_target": curve["months_to_target"],
+            "max_subscribers": int(subscribers * curve["target_pct"]),
+            "payback_months": payback_month,
+            "npv_brl": round(npv_val, 2),
+            "irr_pct": irr_val,
+            "monthly_revenue_at_target_brl": round(int(subscribers * curve["target_pct"]) * arpu, 2),
+            "monthly_opex_at_target_brl": round(int(subscribers * curve["target_pct"]) * opex_per_sub, 2),
+            "cashflow": monthly_data,
+        }
+
+    # Recommendation based on realistic scenario
+    realistic = scenarios["realistic"]
+    if realistic["payback_months"] is not None and realistic["payback_months"] <= 24:
+        recommendation = "viable"
+        recommendation_label = "Viável"
+        recommendation_reason = f"Payback em {realistic['payback_months']} meses no cenário realista"
+    elif realistic["payback_months"] is not None and realistic["payback_months"] <= 48:
+        recommendation = "marginal"
+        recommendation_label = "Marginal"
+        recommendation_reason = f"Payback em {realistic['payback_months']} meses — requer análise detalhada"
+    else:
+        recommendation = "not_viable"
+        recommendation_label = "Inviável"
+        recommendation_reason = "Payback superior a 48 meses ou NPV negativo"
+
+    if realistic["npv_brl"] < 0:
+        recommendation = "not_viable"
+        recommendation_label = "Inviável"
+        recommendation_reason = f"NPV negativo (R$ {realistic['npv_brl']:,.0f})"
+
+    return {
+        "technology": technology,
+        "subscribers": subscribers,
+        "arpu_brl": arpu,
+        "capex": {
+            "total_brl": round(total_capex, 2),
+            "per_subscriber_brl": round(total_capex / max(subscribers, 1), 2),
+        },
+        "opex_per_subscriber_brl": opex_per_sub,
+        "scenarios": scenarios,
+        "market_context": market,
+        "recommendation": {
+            "status": recommendation,
+            "label": recommendation_label,
+            "reason": recommendation_reason,
+        },
+        "discount_rate_annual_pct": DISCOUNT_RATE_ANNUAL * 100,
+    }

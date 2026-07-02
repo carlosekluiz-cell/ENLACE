@@ -1,0 +1,423 @@
+# EXCERPTS: raw CLI + snmpwalk output blocks extracted from NAG wiki page ".xPON. BDCOM. SNMP"
+# Source: https://nag.wiki/pages/viewpage.action?pageId=38764878 (fetched 2026-07-02)
+# Devices: BDCOM P3608B (EPON, 172.31.182.222) and BDCOM GP3600-08B (GPON, 172.31.182.217) - real lab devices
+# Value: CLI 'show ... optical-transceiver-diagnosis' output shown alongside SNMP values,
+#        proving scaling: e.g. CLI RxPower -34.0 dBm <-> SNMP enterprises.3320.101.108.1.3.113 = -340 (0.1 dBm units)
+# Key subtrees: EPON onu status 3320.101.11.4.1.5, OLT-side per-ONU rx 3320.101.108.1.3,
+#               ONU DDM rx/tx 3320.101.10.5.1.5/.6, GPON onu status 3320.10.3.3.1.4,
+#               GPON OLT rx per ONU 3320.10.2.3.1.3, GPON ONU DDM 3320.10.3.4.1.2/.3
+# License: unclear (public wiki documentation). Blocks separated by ===BLOCK===
+Switch#show epon onu-information 
+Interface EPON0/1 has registered 18 ONUs:
+IntfName         VendorID ModelID    MAC Address    Description                     BindType Status           Dereg Reason     
+---------------- -------- ---------- -------------- ------------------------------- -------- ---------------- -----------------
+EPON0/1:1        ----     0x00000000 8479.7374.d794 N/A                             static   deregistered     unknow           
+EPON0/1:2        ----     0x00000000 8479.7374.d795 N/A                             static   deregistered     unknow           
+EPON0/1:3        ----     0x00000000 8479.7374.d796 N/A                             static   deregistered     unknow           
+EPON0/1:4        ----     0x00000000 8479.7374.0d79 N/A                             static   deregistered     unknow           
+EPON0/1:5        ----     0x00000000 8479.7374.d797 N/A                             static   deregistered     unknow           
+EPON0/1:6        ----     0x00000000 006d.6195.caa8 N/A                             static   deregistered     unknow           
+EPON0/1:7        ----     0x00000000 98c7.a406.d6cc N/A                             static   deregistered     unknow           
+EPON0/1:8        ----     0x00000000 e0e8.e6bf.75bf N/A                             static   deregistered     unknow           
+EPON0/1:9        ----     0x00000000 0008.3601.bd7a N/A                             static   deregistered     unknow           
+EPON0/1:10       ----     0x00000000 98c7.a406.d6c8 N/A                             static   deregistered     unknow           
+EPON0/1:11       ----     0x00000000 e067.b361.f5f0 N/A                             static   deregistered     unknow           
+EPON0/1:12       ----     0x00000000 e067.b3de.a9a6 N/A                             static   deregistered     unknow           
+EPON0/1:13       ----     0x00000000 9845.623f.77ea N/A                             static   deregistered     unknow           
+EPON0/1:14       ----     0x00000000 f8f0.8218.dbcc N/A                             static   deregistered     unknow           
+EPON0/1:15       ----     0x00000000 f8f0.8210.33c3 N/A                             static   deregistered     unknow           
+EPON0/1:16       ----     0x00000000 e067.b31a.2b3c N/A                             static   deregistered     unknow           
+EPON0/1:17       SNR      SE1G       f8f0.8215.7844 N/A                             static   auto-configured  N/A              
+EPON0/1:18       ----     0x00000000 e067.b300.0001 N/A                             static   deregistered     unknow   
+
+Switch#show int epon 0/1
+EPON0/1 is down, line protocol is down
+  protocolstatus upTimes 10, downTimes 10, last transition 1970-1-4 1:58:34
+  Ifindex is 76, unique port number is 12
+
+===BLOCK===
+
+snmpwalk -v2c -c test 172.31.182.222 1.3.6.1.4.1.3320.101.11.4.1.5
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.1 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.2 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.3 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.4 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.5 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.6 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.7 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.8 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.9 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.10 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.11 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.12 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.13 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.14 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.15 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.16 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.17 = INTEGER: 5
+SNMPv2-SMI::enterprises.3320.101.11.4.1.5.76.18 = INTEGER: 2
+
+3320.101.11.4.1.5.76.17 - 76 = ifindex интерфейса GPON, 17 = порядковый номер ONU
+
+===BLOCK===
+
+Switch#show epon optical-transceiver-diagnosis interface epON 0/1:17
+ interface    RxPower(dBm)
+-----------  --------------
+epon0/1:17   -34.0      
+
+Switch#show int epON 0/1:17
+EPON0/1:17 is up, line protocol is up
+  protocolstatus upTimes 4, downTimes 3, last transition 1970-1-3 23:9:52
+  Ifindex is 113, unique port number is 12 (отсюда вытаскиваем Ifindex для ONU = 113)
+  Hardware is Giga-LLID, address is 9845.6223.009a (bia 9845.6223.009a)
+  MTU 2025 bytes, BW 1000000 kbit, DLY 2000 usec
+  Encapsulation ARPA
+  Flow-Control Off
+
+===BLOCK===
+
+snmpwalk -v2c -c test 172.31.182.222 1.3.6.1.4.1.3320.101.108.1.3.113 - 113 =  ifindex ONU
+SNMPv2-SMI::enterprises.3320.101.108.1.3.113 = INTEGER: -340 (единица измерения 0.1 dBm)
+
+===BLOCK===
+
+Switch#show  epon onu-ctc-optical-transceiver-diagnosis interface epON 0/1   
+IntfName     Temp(degree) Volt(V) Bias(mA) TxPow(dBm) RxPow(dBm)
+------------ ------------ ------- -------- ---------- ----------
+epon0/1:1    --           --      --       --         --        
+epon0/1:2    --           --      --       --         --        
+epon0/1:3    --           --      --       --         --        
+epon0/1:4    --           --      --       --         --        
+epon0/1:5    --           --      --       --         --        
+epon0/1:6    --           --      --       --         --        
+epon0/1:7    --           --      --       --         --        
+epon0/1:8    --           --      --       --         --        
+epon0/1:9    --           --      --       --         --        
+epon0/1:10   --           --      --       --         --        
+epon0/1:11   --           --      --       --         --        
+epon0/1:12   --           --      --       --         --        
+epon0/1:13   --           --      --       --         --        
+epon0/1:14   --           --      --       --         --        
+epon0/1:15   --           --      --       --         --        
+epon0/1:16   --           --      --       --         --        
+epon0/1:17   35.6         3.3     15.1     1.7        -22.7     
+epon0/1:18   --           --      --       --         --    
+
+Switch#show int epON 0/1:17
+EPON0/1:17 is up, line protocol is up
+  protocolstatus upTimes 4, downTimes 3, last transition 1970-1-3 23:9:52
+  Ifindex is 113, unique port number is 12 (отсюда вытаскиваем Ifindex для ONU = 113)
+  Hardware is Giga-LLID, address is 9845.6223.009a (bia 9845.6223.009a)
+  MTU 2025 bytes, BW 1000000 kbit, DLY 2000 usec
+  Encapsulation ARPA
+  Flow-Control Off
+
+===BLOCK===
+
+RX:
+snmpwalk -v2c -c test 172.31.182.222 1.3.6.1.4.1.3320.101.10.5.1.5.113 - 113 =  ifindex ONU
+SNMPv2-SMI::enterprises.3320.101.10.5.1.5.113 = INTEGER: -226 (единица измерения 0.1 dBm)
+TX:
+snmpwalk -v2c -c test 172.31.182.222 1.3.6.1.4.1.3320.101.10.5.1.6.113
+SNMPv2-SMI::enterprises.3320.101.10.5.1.6.113 = INTEGER: 17 (единица измерения 0.1 dBm)
+
+===BLOCK===
+
+Switch#show mac address-table 
+        Mac Address Table (Total 59)
+------------------------------------------
+
+Vlan    Mac Address       Type       Ports
+----    -----------       ----       -----
+170     f880.8276.1108    DYNAMIC    g0/5
+170     f023.b95f.835b    DYNAMIC    g0/5
+170     5416.5166.c0eb    DYNAMIC    g0/5
+170     0050.56b1.dbb0    DYNAMIC    g0/5
+170     e069.95ba.ad17    DYNAMIC    g0/5
+170     0a12.45e2.9d53    DYNAMIC    g0/5
+170     f023.b95b.fd55    DYNAMIC    g0/5
+170     482c.d083.548f    DYNAMIC    g0/5
+170     50eb.713e.4121    DYNAMIC    g0/5
+170     f023.b960.fe4b    DYNAMIC    g0/5
+170     d037.4553.8814    DYNAMIC    g0/5
+170     f023.b959.2130    DYNAMIC    g0/5
+170     f8f0.8265.958d    DYNAMIC    g0/5
+4033    0014.a882.0302    DYNAMIC    g0/5
+182     0a12.2c91.8cf2    DYNAMIC    g0/5
+182     0014.a882.0302    DYNAMIC    g0/5
+170     0050.c294.6040    DYNAMIC    g0/5
+100     0014.a882.0302    DYNAMIC    g0/5
+170     f8f0.8265.af3c    DYNAMIC    g0/5
+170     0014.a882.0302    DYNAMIC    g0/5
+1199    0014.a882.0302    DYNAMIC    g0/5
+170     0013.c607.4587    DYNAMIC    g0/5
+170     f023.b946.a7fe    DYNAMIC    g0/5
+170     c434.6bbf.6644    DYNAMIC    g0/5
+170     0050.c25d.3033    DYNAMIC    g0/5
+170     2441.8c8f.9878    DYNAMIC    g0/5
+170     0050.56b1.95aa    DYNAMIC    g0/5
+170     f023.b95c.4c33    DYNAMIC    g0/5
+170     0050.56b2.4b8b    DYNAMIC    g0/5
+170     5254.0027.94ff    DYNAMIC    g0/5
+170     0050.c228.1000    DYNAMIC    g0/5
+170     f8f0.8265.86c9    DYNAMIC    g0/5
+170     d8c0.a693.2239    DYNAMIC    g0/5
+170     0e1a.bfd2.9cdc    DYNAMIC    g0/5
+182     d476.a000.b6cc    DYNAMIC    g0/5
+170     000c.2997.d08c    DYNAMIC    g0/5
+170     0008.a20e.e8d1    DYNAMIC    g0/5
+170     f023.b95d.eed3    DYNAMIC    g0/5
+4033    1cb7.2c91.8cf2    DYNAMIC    g0/5
+170     f8f0.8265.85a6    DYNAMIC    g0/5
+170     f8f0.8265.851d    DYNAMIC    g0/5
+170     f8f0.8265.852d    DYNAMIC    g0/5
+182     60f1.8ada.3335    DYNAMIC    g0/5
+170     a042.3f2f.1cdb    DYNAMIC    g0/5
+170     0e1a.2c91.8cf2    DYNAMIC    g0/5
+170     f023.b95f.2b6a    DYNAMIC    g0/5
+4033    8840.3362.4a9e    DYNAMIC    g0/5
+170     f8f0.8265.c0cc    DYNAMIC    g0/5
+170     64d1.5440.b91b    DYNAMIC    g0/5
+170     d476.a000.b6cc    DYNAMIC    g0/5
+170     0011.0403.0694    DYNAMIC    g0/5
+170     bc32.5fab.905d    DYNAMIC    g0/5
+170     f023.b954.a880    DYNAMIC    g0/5
+170     f023.b95e.57e7    DYNAMIC    g0/5
+170     f8f0.8292.3ee5    DYNAMIC    g0/5
+170     f8f0.8265.c21a    DYNAMIC    g0/5
+170     0897.988f.db54    DYNAMIC    g0/5
+182     0050.b60f.36d6    DYNAMIC    epon0/1:17
+1       f8f0.8215.7845    DYNAMIC    epon0/1:17
+
+===BLOCK===
+
+snmpwalk -Cc -v2c -c test 172.31.182.222 1.3.6.1.2.1.17.7.1.2.2.1.2
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.248.128.130.118.17.8 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.240.35.185.95.131.91 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.84.22.81.102.192.235 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.0.80.86.177.219.176 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.224.105.149.186.173.23 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.10.18.69.226.157.83 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.240.35.185.91.253.85 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.72.44.208.131.84.143 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.80.235.113.62.65.33 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.240.35.185.96.254.75 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.240.35.185.89.33.48 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.248.240.130.101.149.141 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.4033.0.20.168.130.3.2 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.182.10.18.44.145.140.242 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.182.0.20.168.130.3.2 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.0.80.194.148.96.64 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.100.0.20.168.130.3.2 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.248.240.130.101.175.60 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.0.20.168.130.3.2 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.1199.0.20.168.130.3.2 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.0.19.198.7.69.135 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.240.35.185.70.167.254 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.196.52.107.191.102.68 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.0.80.194.93.48.51 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.36.65.140.143.152.120 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.0.80.86.177.149.170 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.240.35.185.92.76.51 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.0.80.86.178.75.139 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.82.84.0.39.148.255 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.0.80.194.40.16.0 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.248.240.130.101.134.201 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.216.192.166.147.34.57 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.14.26.191.210.156.220 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.182.212.118.160.0.182.204 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.0.12.41.151.208.140 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.0.8.162.14.232.209 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.240.35.185.93.238.211 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.4033.28.183.44.145.140.242 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.248.240.130.101.133.166 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.248.240.130.101.133.29 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.248.240.130.101.133.45 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.182.96.241.138.218.51.53 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.160.66.63.47.28.219 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.14.26.44.145.140.242 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.240.35.185.95.43.106 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.4033.136.64.51.98.74.158 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.248.240.130.101.192.204 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.100.209.84.64.185.27 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.212.118.160.0.182.204 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.0.17.4.3.6.148 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.188.50.95.171.144.93 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.240.35.185.84.168.128 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.240.35.185.94.87.231 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.248.240.130.146.62.229 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.248.240.130.101.194.26 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.170.8.151.152.143.219.84 = INTEGER: 69
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.182.0.80.182.15.54.214 = INTEGER: 113
+SNMPv2-SMI::mib-2.17.7.1.2.2.1.2.1.248.240.130.21.120.69 = INTEGER: 113
+
+Первое значение после OID = vlan, затем MAC в DEC, результат = ifindex интерфейса.
+
+===BLOCK===
+
+Switch#show mac address-table int epON 0/1:17
+        Mac Address Table (Total 2)
+------------------------------------------
+
+Vlan    Mac Address       Type       Ports
+----    -----------       ----       -----
+182     0050.b60f.36d6    DYNAMIC    epon0/1:17
+1       f8f0.8215.7845    DYNAMIC    epon0/1:17
+
+===BLOCK===
+
+snmpset -v2c -c test 172.31.182.222 1.3.6.1.4.1.3320.101.9.2.1.0 i 113 - 113 = ifindex ONU
+SNMPv2-SMI::enterprises.3320.101.9.2.1.0 = INTEGER: 113 
+
+snmpwalk -v2c -c test 172.31.182.222 1.3.6.1.4.1.3320.101.9.2.3
+SNMPv2-SMI::enterprises.3320.101.9.2.3.1.1.1 = INTEGER: 1
+SNMPv2-SMI::enterprises.3320.101.9.2.3.1.1.2 = INTEGER: 2
+SNMPv2-SMI::enterprises.3320.101.9.2.3.1.2.1 = INTEGER: 182
+SNMPv2-SMI::enterprises.3320.101.9.2.3.1.2.2 = INTEGER: 1
+SNMPv2-SMI::enterprises.3320.101.9.2.3.1.3.1 = Hex-STRING: 00 50 B6 0F 36 D6
+SNMPv2-SMI::enterprises.3320.101.9.2.3.1.3.2 = Hex-STRING: F8 F0 82 15 78 45
+
+===BLOCK===
+
+Switch_config#show gpon onu-information                   
+Interface GPON0/1 has bound 2 ONUs:
+IntfName       VendorID  ModelID      SN               LOID                     Status   Config Status Active Time
+-------------- --------- ------------ ---------------- ------------------------ -------- ------------- -------------------
+GPON0/1:1      HWTC      N/A          HWTC:E6BF75AF    N/A                      off-line N/A           N/A                 
+GPON0/1:2      PX20      N/A          PX20:19082100    N/A                      off-line N/A           N/A                 
+
+Interface GPON0/4 has bound 3 ONUs:
+IntfName       VendorID  ModelID      SN               LOID                     Status   Config Status Active Time
+-------------- --------- ------------ ---------------- ------------------------ -------- ------------- -------------------
+GPON0/4:1      HWTC      N/A          HWTC:006BD2F1    N/A                      off-line N/A           N/A                 
+GPON0/4:2      HWTC      N/A          HWTC:8218DBCC    N/A                      off-line N/A           N/A                 
+GPON0/4:3      BDCM      N/A          BDCM:6B241F1E    N/A                      off-line N/A           N/A                 
+
+Interface GPON0/8 has bound 7 ONUs:
+IntfName       VendorID  ModelID      SN               LOID                     Status   Config Status Active Time
+-------------- --------- ------------ ---------------- ------------------------ -------- ------------- -------------------
+GPON0/8:1      HWTC      N/A          HWTC:82129648    N/A                      off-line N/A           N/A                 
+GPON0/8:2      HWTC      N/A          HWTC:3601BD62    N/A                      off-line N/A           N/A                 
+GPON0/8:3      BDCM      N/A          BDCM:62F80BC3    N/A                      off-line N/A           N/A                 
+GPON0/8:4      DC19      N/A          DC19:B361F5E8    N/A                      off-line N/A           N/A                 
+GPON0/8:5      HWTC      ONT1GEF      HWTC:821033C3    N/A                      active   success       2000-01-05 00:16:52 
+GPON0/8:6      HWTC      N/A          HWTC:B31A2B3C    N/A                      off-line N/A           N/A                 
+GPON0/8:7      BDCM      N/A          BDCM:625B9188    N/A                      off-line N/A           N/A  
+
+Switch_config# show int gpON 0/8:5
+GPON0/8:5 is up, line protocol is up
+  protocolstatus upTimes 1, downTimes 0, last transition 2000-1-5 0:16:52
+  Ifindex is 174, unique port number is 21
+  Hardware is GPON-ONUID, address is 9845.6230.cb2f (bia 9845.6230.cb2f)
+  MTU 4000 bytes, BW 2500000 kbit, DLY 2000 usec
+  Encapsulation ARPA
+  Flow-Control Off
+  5 minutes input rate 61478 bits/sec, 92 packets/sec
+  5 minutes output rate 4220178 bits/sec, 351 packets/sec
+     Received 25248 packets, 2461126 bytes
+     0 unreceived burst, 0 bip8 error
+     0 fec corrected, 0 fec uncorrectable
+     0 lcdg error, 0 rdi error
+     Received ploam 80 non-idle, 0 error
+     Received omci 575 frames, 0 error
+     Transmitted 91703 packets, 136733077 bytes
+     39 ber reported
+virtual-port 1 UniCast:
+     Received 25248 packets, 2461126 bytes
+     Transmitted 91703 packets, 136733077 bytes
+
+===BLOCK===
+
+snmpwalk -Cc -v2c -c test 172.31.182.217 1.3.6.1.4.1.3320.10.3.3.1.4
+SNMPv2-SMI::enterprises.3320.10.3.3.1.4.166 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.3.3.1.4.170 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.3.3.1.4.171 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.3.3.1.4.172 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.3.3.1.4.173 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.3.3.1.4.174 = INTEGER: 3
+SNMPv2-SMI::enterprises.3320.10.3.3.1.4.175 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.3.3.1.4.176 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.3.3.1.4.177 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.3.3.1.4.178 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.3.3.1.4.179 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.3.3.1.4.180 = INTEGER: 0
+
+===BLOCK===
+
+Switch#show gpon optical-transceiver-diagnosis  interface gpON 0/8
+ interface    Temperature(degree)    Voltage(V)    Current(mA)    TxPower(dBm)
+-----------  ---------------------  ------------  -------------  --------------
+ gpon0/8      35.0                   3.4           13.3           3.6           
+ interface    RxPower(dBm)
+-----------  --------------
+ gpon0/8:5    -12.1
+
+===BLOCK===
+
+snmpwalk -Cc -v2c -c test 172.31.182.217 1.3.6.1.4.1.3320.10.2.3.1.3
+SNMPv2-SMI::enterprises.3320.10.2.3.1.3.166 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.2.3.1.3.170 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.2.3.1.3.171 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.2.3.1.3.172 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.2.3.1.3.173 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.2.3.1.3.174 = INTEGER: -121
+SNMPv2-SMI::enterprises.3320.10.2.3.1.3.175 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.2.3.1.3.176 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.2.3.1.3.177 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.2.3.1.3.178 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.2.3.1.3.179 = INTEGER: 0
+SNMPv2-SMI::enterprises.3320.10.2.3.1.3.180 = INTEGER: 0
+
+===BLOCK===
+
+Switch#show gpon onu-optical-transceiver-diagnosis interface gpON 0/8 
+ IntfName       Temp(degree)  Volt(V)  Bias(mA)  RxPow(dBm)  TxPow(dBm)
+ -------------  ------------  -------  --------  ----------  ----------
+ gpon0/8:1      --            --       --        --          --
+ gpon0/8:2      --            --       --        --          --
+ gpon0/8:3      --            --       --        --          --
+ gpon0/8:4      --            --       --        --          --
+ gpon0/8:5      34.6          3.3      12.2      -11.5       1.6       
+ gpon0/8:6      --            --       --        --          --
+ gpon0/8:7      --            --       --        --          --
+
+===BLOCK===
+
+snmpwalk -Cc -v2c -c test 172.31.182.217 1.3.6.1.4.1.3320.10.3.4.1.2
+SNMPv2-SMI::enterprises.3320.10.3.4.1.2.174 = INTEGER: -115
+
+snmpwalk -Cc -v2c -c test 172.31.182.217 1.3.6.1.4.1.3320.10.3.4.1.3
+SNMPv2-SMI::enterprises.3320.10.3.4.1.3.174 = INTEGER: 16
+
+===BLOCK===
+
+Switch#show mac address-table int gpON 0/8:5
+        Mac Address Table (Total 1)
+------------------------------------------
+
+Vlan    Mac Address       Type       Ports
+----    -----------       ----       -----
+170     0050.b60f.36d6    DYNAMIC    gpon0/8:5-1
+
+Switch#show int gpON 0/8:5
+GPON0/8:5 is up, line protocol is up
+  protocolstatus upTimes 1, downTimes 0, last transition 2000-1-5 0:16:52
+  Ifindex is 174, unique port number is 21
+
+IFINDEX = 174
+
+===BLOCK===
+
+snmpset -v2c -c test 172.31.182.217 1.3.6.1.4.1.3320.10.15.6.0 i 174
+SNMPv2-SMI::enterprises.3320.10.15.6.0 = INTEGER: 174
+
+snmpset -v2c -c test 172.31.182.217 1.3.6.1.4.1.3320.10.15.2.0 i 3
+SNMPv2-SMI::enterprises.3320.10.15.2.0 = INTEGER: 3
+
+snmpwalk -Cc -v2c -c test 172.31.182.217 1.3.6.1.4.1.3320.10.15.1
+SNMPv2-SMI::enterprises.3320.10.15.1.1.1.1 = INTEGER: 1
+SNMPv2-SMI::enterprises.3320.10.15.1.1.2.1 = INTEGER: 174
+SNMPv2-SMI::enterprises.3320.10.15.1.1.3.1 = INTEGER: 1
+SNMPv2-SMI::enterprises.3320.10.15.1.1.4.1 = INTEGER: 170
+SNMPv2-SMI::enterprises.3320.10.15.1.1.5.1 = Hex-STRING: 00 50 B6 0F 36 D6

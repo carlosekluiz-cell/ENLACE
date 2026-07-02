@@ -14,6 +14,14 @@ use crate::fault::topology::FibreTopology;
 pub struct FaultLocation {
     /// Estimated distance from the OLT to the break point (metres)
     pub estimated_distance_m: u32,
+    /// Lower bound of the break location (metres from OLT)
+    pub min_distance_m: u32,
+    /// Upper bound of the break location (metres from OLT)
+    pub max_distance_m: u32,
+    /// True when the evidence does not pin the break to a single span
+    /// (e.g. undecided no-ONT nodes sit between the last confirmed-online
+    /// node and the first confirmed-offline node)
+    pub ambiguous: bool,
     /// Human-readable description of where the break is
     pub description: String,
     /// Which algorithm produced this estimate
@@ -77,6 +85,9 @@ impl<'a> FaultLocator<'a> {
         if offline_dists.is_empty() {
             return FaultLocation {
                 estimated_distance_m: 0,
+                min_distance_m: 0,
+                max_distance_m: 0,
+                ambiguous: true,
                 description: "No distance data available for affected ONTs".into(),
                 method: "distance_only".into(),
                 boundary: None,
@@ -101,6 +112,9 @@ impl<'a> FaultLocator<'a> {
 
         FaultLocation {
             estimated_distance_m: estimated,
+            min_distance_m: 0,
+            max_distance_m: nearest_offline,
+            ambiguous: true,
             description,
             method: "distance_only".into(),
             boundary: None,
@@ -167,75 +181,151 @@ impl<'a> FaultLocator<'a> {
             })
             .collect();
 
-        // Traverse edges (sorted by cumulative distance) to find the boundary edge.
-        // Build a list of edges sorted by their "to" node's distance_from_olt_m.
-        let mut edges_with_dist: Vec<(&str, &str, u32, u32)> = topo
-            .edges
-            .iter()
-            .filter_map(|e| {
-                let to_node = topo.nodes.get(&e.to)?;
-                let from_node = topo.nodes.get(&e.from)?;
-                Some((
-                    e.from.as_str(),
-                    e.to.as_str(),
-                    e.length_m,
-                    to_node.distance_from_olt_m,
-                ))
-            })
-            .collect();
-
-        // Sort by distance of destination node (OLT-outward traversal)
-        edges_with_dist.sort_by_key(|&(_, _, _, d)| d);
-
-        let mut last_online_node: Option<&str> = None;
-        let mut first_offline_node: Option<&str> = None;
-        let mut boundary_span_m = 0u32;
-
-        for &(from, to, span_m, _dist) in &edges_with_dist {
-            let from_status = node_has_online.get(from).copied().flatten();
-            let to_status = node_has_online.get(to).copied().flatten();
-
-            match (from_status, to_status) {
-                (Some(true), Some(false)) => {
-                    // Boundary edge found
-                    last_online_node = Some(from);
-                    first_offline_node = Some(to);
-                    boundary_span_m = span_m;
-                    break;
-                }
-                (None, Some(false)) => {
-                    // "from" has no ONTs — trust the to-side verdict
-                    last_online_node = Some(from);
-                    first_offline_node = Some(to);
-                    boundary_span_m = span_m;
-                    break;
-                }
-                _ => {}
+        // Build adjacency (from → children) for the downstream-evidence walk
+        let mut children: std::collections::HashMap<&str, Vec<&str>> =
+            std::collections::HashMap::new();
+        for e in &topo.edges {
+            if topo.nodes.contains_key(&e.from) && topo.nodes.contains_key(&e.to) {
+                children
+                    .entry(e.from.as_str())
+                    .or_default()
+                    .push(e.to.as_str());
             }
         }
 
-        let last_online = last_online_node?;
-        let first_offline = first_offline_node?;
+        // Propagate ONT evidence up the tree: a node with online ONTs anywhere
+        // downstream has POSITIVE evidence that light still reaches it.
+        // Undecided (no-ONT) nodes never count as online on their own — that
+        // was the bug that sent splice crews past the break.
+        let mut memo: std::collections::HashMap<&str, (bool, bool)> =
+            std::collections::HashMap::new();
+        for node_id in topo.nodes.keys() {
+            subtree_status(node_id.as_str(), &children, &node_has_online, &mut memo);
+        }
 
-        let last_online_node_data = topo.nodes.get(last_online)?;
-        let break_est = last_online_node_data.distance_from_olt_m + boundary_span_m / 2;
+        // The boundary edge: light confirmed to reach `from` (online evidence
+        // downstream of it), while the subtree under `to` has offline ONTs and
+        // no online ones. Pick the shallowest such edge.
+        let mut candidates: Vec<(&str, &str, u32, u32, u32)> = Vec::new();
+        for e in &topo.edges {
+            let from_node = match topo.nodes.get(&e.from) { Some(n) => n, None => continue };
+            let to_node = match topo.nodes.get(&e.to) { Some(n) => n, None => continue };
+            let (from_online, _) = *memo.get(e.from.as_str()).unwrap_or(&(false, false));
+            let (to_online, to_offline) = *memo.get(e.to.as_str()).unwrap_or(&(false, false));
+            if from_online && !to_online && to_offline {
+                candidates.push((
+                    e.from.as_str(),
+                    e.to.as_str(),
+                    e.length_m,
+                    from_node.distance_from_olt_m,
+                    to_node.distance_from_olt_m,
+                ));
+            }
+        }
+        candidates.sort_by_key(|&(_, _, _, _, to_dist)| to_dist);
 
+        // No positive upstream-online evidence anywhere → decline, and let the
+        // caller fall back to the distance-only estimator.
+        let &(from, to, span_m, from_dist, to_dist) = candidates.first()?;
+
+        let to_status = node_has_online.get(to).copied().flatten();
+        if to_status == Some(false) {
+            // Exact boundary: the offline evidence sits directly on `to`.
+            let min = from_dist;
+            let max = to_dist.max(from_dist + span_m);
+            let break_est = from_dist + span_m / 2;
+            let description = format!(
+                "Break on span {} → {} (estimated {} m from OLT, range {}–{} m)",
+                from, to, break_est, min, max
+            );
+            return Some(FaultLocation {
+                estimated_distance_m: break_est,
+                min_distance_m: min,
+                max_distance_m: max,
+                ambiguous: false,
+                description,
+                method: "topology".into(),
+                boundary: Some(BoundaryInfo {
+                    last_online_node: from.to_string(),
+                    first_offline_node: to.to_string(),
+                    span_length_m: span_m,
+                }),
+            });
+        }
+
+        // `to` itself is undecided (no ONTs mapped): the break lies somewhere
+        // between the confirmed-online node and the shallowest node below `to`
+        // with direct offline evidence — report the RANGE, not a point.
+        let mut queue = vec![to];
+        let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        let mut first_offline: Option<(&str, u32)> = None;
+        while let Some(n) = queue.pop() {
+            if !seen.insert(n) {
+                continue;
+            }
+            if node_has_online.get(n).copied().flatten() == Some(false) {
+                if let Some(node) = topo.nodes.get(n) {
+                    let d = node.distance_from_olt_m;
+                    if first_offline.map(|(_, bd)| d < bd).unwrap_or(true) {
+                        first_offline = Some((n, d));
+                    }
+                }
+            }
+            if let Some(kids) = children.get(n) {
+                queue.extend(kids.iter().copied());
+            }
+        }
+        let (offline_node, max) = first_offline?;
+
+        let min = from_dist;
+        let span = max.saturating_sub(min);
+        let break_est = min + span / 2;
         let description = format!(
-            "Break on span {} → {} (estimated {} m from OLT, span {} m)",
-            last_online, first_offline, break_est, boundary_span_m
+            "Break between {} and {} (evidence ambiguous — undecided nodes in \
+             between; range {}–{} m from OLT)",
+            from, offline_node, min, max
         );
-
         Some(FaultLocation {
             estimated_distance_m: break_est,
+            min_distance_m: min,
+            max_distance_m: max,
+            ambiguous: true,
             description,
             method: "topology".into(),
             boundary: Some(BoundaryInfo {
-                last_online_node: last_online.to_string(),
-                first_offline_node: first_offline.to_string(),
-                span_length_m: boundary_span_m,
+                last_online_node: from.to_string(),
+                first_offline_node: offline_node.to_string(),
+                span_length_m: span,
             }),
         })
     }
+}
+
+/// Post-order walk: does the subtree rooted at `node` contain online /
+/// offline ONTs? Memoized; tolerates cycles in malformed topologies via a
+/// provisional memo entry.
+fn subtree_status<'a>(
+    node: &'a str,
+    children: &std::collections::HashMap<&'a str, Vec<&'a str>>,
+    node_has_online: &std::collections::HashMap<&'a str, Option<bool>>,
+    memo: &mut std::collections::HashMap<&'a str, (bool, bool)>,
+) -> (bool, bool) {
+    if let Some(&status) = memo.get(node) {
+        return status;
+    }
+    memo.insert(node, (false, false)); // cycle guard
+    let own = node_has_online.get(node).copied().flatten();
+    let mut has_online = own == Some(true);
+    let mut has_offline = own == Some(false);
+    if let Some(kids) = children.get(node) {
+        for kid in kids {
+            let (online, offline) = subtree_status(kid, children, node_has_online, memo);
+            has_online |= online;
+            has_offline |= offline;
+        }
+    }
+    memo.insert(node, (has_online, has_offline));
+    (has_online, has_offline)
 }
 
 #[cfg(test)]
@@ -250,12 +340,14 @@ mod tests {
             pon_port: port.into(),
             olt_id: "OLT-01".into(),
             severity: "major".into(),
+            fault_type: crate::fault::detector::FaultType::FibreCut,
             affected_onts: affected
                 .into_iter()
                 .map(|(s, d)| AffectedOnt {
                     serial_number: s.into(),
                     distance_meters: Some(d),
                     last_rx_dbm: Some(-30.0),
+                    had_dying_gasp: false,
                 })
                 .collect(),
             detection_latency_seconds: 5,
@@ -314,13 +406,99 @@ mod tests {
         assert_eq!(loc.method, "topology", "should use topology algorithm");
 
         let boundary = loc.boundary.as_ref().expect("topology result must have boundary info");
-        // The break should be between SP002 (online side) and DP001 (offline side)
+        // DP002 (fed through SP002 → SP003) is online, so light provably
+        // reaches SP002 — the break sits on the SP002 → DP001 span.
         assert_eq!(boundary.last_online_node, "SP002");
         assert_eq!(boundary.first_offline_node, "DP001");
         assert_eq!(boundary.span_length_m, 400);
+        assert!(!loc.ambiguous);
 
-        // Estimated break = 1300 (SP002) + 400/2 = 1500 m
+        // Estimated break = 1300 (SP002) + 400/2 = 1500 m, range 1300–1700 m
         assert_eq!(loc.estimated_distance_m, 1500);
+        assert_eq!(loc.min_distance_m, 1300);
+        assert_eq!(loc.max_distance_m, 1700);
+    }
+
+    #[test]
+    fn test_all_offline_topology_falls_back_to_distance_only() {
+        // Regression for the (None, Some(false)) first-match bug: a feeder cut
+        // near the OLT with NO online ONTs anywhere used to be "localized" to
+        // the SP002→DP001 span at ~1500 m. Without positive upstream-online
+        // evidence the topology locator must decline and fall back.
+        let topo = FibreTopology::synthetic();
+        let locator = FaultLocator::new(&topo);
+
+        // Every ONT on the port is offline (cut at ~400 m, before SP001)
+        let affected: Vec<(&str, u32)> = vec![
+            ("ADTN00000000", 1700), ("ADTN00000001", 1700), ("ADTN00000002", 1700),
+            ("ADTN00000003", 1700), ("ADTN00000004", 1700), ("ADTN00000005", 1700),
+            ("ADTN00000006", 1700),
+            ("ADTN00000007", 2250), ("ADTN00000008", 2250), ("ADTN00000009", 2250),
+            ("ADTN0000000A", 2250), ("ADTN0000000B", 2250), ("ADTN0000000C", 2250),
+            ("ADTN0000000D", 2250),
+        ];
+        let event = make_event("0/1/0", affected);
+        let online: Vec<String> = vec![];
+
+        let loc = locator.locate(&event, &online);
+        assert_eq!(loc.method, "distance_only",
+            "no upstream online evidence → must not fire the topology rule");
+        assert!(loc.ambiguous);
+        assert_eq!(loc.min_distance_m, 0);
+        assert_eq!(loc.max_distance_m, 1700);
+    }
+
+    #[test]
+    fn test_ambiguous_boundary_reports_range() {
+        // Chain: OLT(0m) → DP-A(500m, online ONT) → SP-B(1000m, no ONTs)
+        //        → DP-C(1500m, offline ONTs).
+        // The break is somewhere between 500 m and 1500 m — the locator must
+        // report that RANGE, anchored on the confirmed-online node, not a
+        // point estimate on the SP-B→DP-C span.
+        use crate::fault::topology::{FibreTopology, TopologyNode, TopologyEdge, NodeType};
+
+        let mut topo = FibreTopology::empty();
+        for (id, dist, node_type) in [
+            ("OLT", 0u32, NodeType::Olt),
+            ("DP-A", 500, NodeType::DistributionPoint),
+            ("SP-B", 1000, NodeType::SplicePoint),
+            ("DP-C", 1500, NodeType::DistributionPoint),
+        ] {
+            topo.nodes.insert(id.to_string(), TopologyNode {
+                id: id.to_string(),
+                lat: 0.0,
+                lon: 0.0,
+                node_type,
+                distance_from_olt_m: dist,
+            });
+        }
+        topo.edges = vec![
+            TopologyEdge { from: "OLT".into(), to: "DP-A".into(), length_m: 500 },
+            TopologyEdge { from: "DP-A".into(), to: "SP-B".into(), length_m: 500 },
+            TopologyEdge { from: "SP-B".into(), to: "DP-C".into(), length_m: 500 },
+        ];
+        topo.ont_to_node.insert("ONLINE1".into(), "DP-A".into());
+        for i in 0..5 {
+            topo.ont_to_node.insert(format!("OFF{}", i), "DP-C".into());
+        }
+
+        let locator = FaultLocator::new(&topo);
+        let affected: Vec<(&str, u32)> = vec![
+            ("OFF0", 1500), ("OFF1", 1500), ("OFF2", 1500), ("OFF3", 1500), ("OFF4", 1500),
+        ];
+        let event = make_event("0/1/0", affected);
+        let online = vec!["ONLINE1".to_string()];
+
+        let loc = locator.locate(&event, &online);
+        assert_eq!(loc.method, "topology");
+        assert!(loc.ambiguous, "undecided SP-B in the path → evidence is ambiguous");
+        assert_eq!(loc.min_distance_m, 500, "range starts at last confirmed-online node");
+        assert_eq!(loc.max_distance_m, 1500, "range ends at first offline node");
+        let boundary = loc.boundary.as_ref().unwrap();
+        assert_eq!(boundary.last_online_node, "DP-A");
+        assert_eq!(boundary.first_offline_node, "DP-C");
+        assert_eq!(boundary.span_length_m, 1000);
+        assert!(loc.description.contains("ambiguous"));
     }
 
     #[test]

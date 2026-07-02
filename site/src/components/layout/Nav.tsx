@@ -58,13 +58,6 @@ export default function Nav() {
 
         {/* CTA */}
         <div className="hidden items-center gap-4 md:flex">
-          <Link
-            href="/login"
-            className="text-sm transition-colors duration-300"
-            style={{ color: scrolled ? 'var(--text-secondary)' : 'var(--text-on-dark-secondary)' }}
-          >
-            Entrar
-          </Link>
           <Link href="/precos" className={scrolled ? 'pulso-btn-primary' : 'pulso-btn-dark'}>
             Começar
           </Link>

@@ -4,42 +4,40 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Recursos',
-  description: 'Documentação técnica, whitepaper, calculadora de ROI e matriz de funcionalidades para decisores.',
+  description: 'Whitepaper, calculadora de ROI e matriz de funcionalidades para decisores.',
   alternates: { canonical: 'https://pulso.network/recursos' },
 };
 
 const heroStats = [
-  { value: '28M+', label: 'Registros de produção' },
-  { value: 'R$16,4M', label: 'Custo de reprodução' },
-  { value: '38', label: 'Pipelines automatizados' },
-  { value: '9.000+', label: 'LOC Rust (motor RF)' },
+  { value: '28M+', label: 'Data points' },
+  { value: '38+', label: 'Fontes de dados' },
+  { value: '25', label: 'Módulos de análise' },
+  { value: '5.570', label: 'Municípios cobertos' },
 ];
 
 const resources = [
   {
     title: 'Whitepaper',
     href: '/recursos/whitepaper',
-    tag: 'Investidores & Executivos',
-    description: 'Visão completa da plataforma: mercado de R$250B, fosso tecnológico, análise competitiva e estratégia go-to-market.',
+    tag: 'Investidores & Decisores',
+    description: 'Como a Pulso Network transforma 38+ fontes públicas em telecom tech e inteligência acionável para o mercado de telecomunicações brasileiro.',
     highlights: [
-      'Mercado de 13.534 ISPs movimentando R$250B+/ano',
-      '5 dores críticas que a plataforma resolve',
-      'Motor RF em Rust com 6 modelos ITU-R sobre terreno real',
-      'Nenhum concorrente cobre RF + Mercado + Regulatório + M&A + Satélite',
-      'Valuation: R$16,4M (306 person-months, COCOMO II)',
-      'ARR projetado: R$1,8M → R$16,8M em 3 anos',
+      '13.534 ISPs ativos monitorados em 5.570 municípios',
+      '19M+ registros cruzados de fontes públicas oficiais',
+      'Compliance automatizado: regulatório, qualidade e obrigações',
+      '37 períodos históricos de dinâmica competitiva',
     ],
-    stat: { value: 'R$16,4M', label: 'Custo de reprodução independente' },
+    stat: { value: '19M+', label: 'Registros cruzados em produção' },
   },
   {
     title: 'Calculadora de ROI',
     href: '/recursos/roi',
     tag: 'ISPs & Decisores',
-    description: '3 casos de uso reais com retorno calculado. De 3,3x a 111x sobre o custo da assinatura.',
+    description: '3 casos de uso reais com retorno calculado. Expansão, conformidade e M&A.',
     highlights: [
       'Caso 1: Expansão — R$2M CAPEX protegido, 96% menos tempo de análise',
       'Caso 2: Conformidade — R$100K em multas evitadas, 7,5x ROI total',
-      'Caso 3: M&A — 10 targets pelo preço de 1 due diligence tradicional',
+      'Caso 3: M&A — análise de mercado acelerada por município',
       'Payback em menos de 1 mês em todos os cenários',
     ],
     stat: { value: '3,3x–111x', label: 'ROI por caso de uso' },
@@ -67,47 +65,12 @@ const resources = [
       'A2: SRTM/NASA (1.681 tiles), Sentinel-2/ESA, MapBiomas',
       'A3: OpenStreetMap (6,4M rodovias, 37K torres), Open-Meteo',
       'B1: Scores proprietários com fórmula documentada',
-      '5 etapas de validação automática por pipeline',
+      '5 etapas de validação automática por fonte',
     ],
     stat: { value: '19+', label: 'Fontes classificadas' },
   },
 ];
 
-const technicalDocs = [
-  {
-    title: 'Arquitetura do Sistema',
-    description: 'Next.js 14 + FastAPI + Rust RF Engine (gRPC+TLS) + PostgreSQL/PostGIS.',
-    details: [
-      'Frontend: Next.js 14, TypeScript, Tailwind, Leaflet',
-      'Backend: FastAPI (Python 3.11), JWT auth, SSE',
-      'RF Engine: Rust, 6 crates, gRPC+TLS, SRTM 30m',
-      'DB: PostgreSQL + PostGIS, materialized views',
-      '38 pipelines (APScheduler), Sentinel-2 via GEE',
-    ],
-  },
-  {
-    title: 'Catálogo de Pipelines',
-    description: '38 pipelines automatizados alimentando 62 tabelas.',
-    details: [
-      '7 diarios: Anatel, INMET, PNCP, DOU, Querido Diário',
-      '7 semanais: IBGE, ANP, BNDES, CNPJ enriquecimento',
-      '12 mensais: IBGE censo, SRTM, MapBiomas, OSM, DATASUS',
-      '5 computados: scores, HHI, quality, market summary',
-      'Validação: contagem, integridade, limites, freshness',
-    ],
-  },
-  {
-    title: 'Dicionário de Dados',
-    description: '62 tabelas com esquema completo e exemplos de consulta.',
-    details: [
-      'providers (13.534 rows): national_id, name, uf, license_type',
-      'broadband_subscribers (4,3M): provider_id, l2_id, subscribers, tech',
-      'road_segments (6,4M): geom, highway_class, length_km',
-      'base_stations (37.325): geom, provider_id, height_m',
-      'opportunity_scores (5.572): composite, demand, competition, growth',
-    ],
-  },
-];
 
 export default function RecursosPage() {
   return (
@@ -196,46 +159,6 @@ export default function RecursosPage() {
         </Section>
       ))}
 
-      {/* Technical Docs — Surface */}
-      <Section background="surface">
-        <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
-          Documentação Técnica
-        </div>
-        <h2 className="font-serif text-2xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
-          Para equipes de engenharia
-        </h2>
-        <p className="text-sm leading-relaxed mb-8 max-w-2xl" style={{ color: 'var(--text-secondary)' }}>
-          Documentação detalhada da arquitetura, pipelines e esquema de dados. Disponível para clientes
-          dos tiers Profissional e Empresa.
-        </p>
-        <div className="grid grid-cols-1 gap-0 md:grid-cols-3" style={{ border: '1px solid var(--border)' }}>
-          {technicalDocs.map((doc) => (
-            <div
-              key={doc.title}
-              className="p-6"
-              style={{
-                background: 'var(--bg-primary)',
-                borderRight: '1px solid var(--border)',
-              }}
-            >
-              <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {doc.title}
-              </h3>
-              <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                {doc.description}
-              </p>
-              <ul className="mt-4 space-y-1.5">
-                {doc.details.map((d) => (
-                  <li key={d} className="text-xs font-mono leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                    {d}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </Section>
-
       {/* CTA — Dark */}
       <Section background="dark" grain>
         <div className="text-center max-w-2xl mx-auto">
@@ -250,8 +173,8 @@ export default function RecursosPage() {
             <Link href="/precos" className="pulso-btn-dark">
               Entrar na lista de espera
             </Link>
-            <Link href="/precos" className="pulso-btn-ghost">
-              Ver planos
+            <Link href="/recursos/funcionalidades" className="pulso-btn-ghost">
+              Ver funcionalidades
             </Link>
           </div>
         </div>

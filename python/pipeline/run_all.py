@@ -35,6 +35,16 @@ from python.pipeline.flows import (
     OSMRoadsPipeline,
     SNISSanitationPipeline,
     SRTMTerrainPipeline,
+    # Colombia base
+    DANECensusPipeline,
+    CRCProvidersPipeline,
+    MinTICBroadbandPipeline,
+    # Colombia intelligence layers
+    DANENBIPipeline,
+    SECOPContractsPipeline,
+    REPSHealthPipeline,
+    MENSchoolsPipeline,
+    CRCComplaintsPipeline,
 )
 
 
@@ -42,11 +52,14 @@ def run_all():
     """Execute all pipelines in dependency order."""
     pipelines = [
         # Phase 1: Geographic foundation (MUST run first)
-        IBGECensusPipeline(),           # States + municipalities (all other pipelines depend on this)
+        IBGECensusPipeline(),           # BR: States + municipalities
+        DANECensusPipeline(),           # CO: Departments + municipalities
         # Phase 2: Provider registry (broadband depends on this)
-        AnatelProvidersPipeline(),
+        AnatelProvidersPipeline(),      # BR providers
+        CRCProvidersPipeline(),         # CO providers
         # Phase 3: Core telecom data
-        AnatelBroadbandPipeline(),      # Highest priority — subscriber data
+        AnatelBroadbandPipeline(),      # BR: subscriber data
+        MinTICBroadbandPipeline(),      # CO: subscriber data
         AnatelBaseStationsPipeline(),
         AnatelQualityPipeline(),
         # Phase 4: Economic & demographic
@@ -54,13 +67,19 @@ def run_all():
         IBGEProjectionsPipeline(),
         IBGEPOFPipeline(),               # Household expenditure (POF 2017-2018)
         ANPFuelPipeline(),               # Fuel sales as economic activity proxy
+        DANENBIPipeline(),               # CO: Census 2018 NBI demographics
         # Phase 5: Infrastructure & environment
         ANEELPowerPipeline(),
         INMETWeatherPipeline(),
-        OSMRoadsPipeline(),
+        OSMRoadsPipeline(),              # BR + CO road network
         SNISSanitationPipeline(),        # Sanitation infrastructure
-        # Phase 6: Large file downloads (slowest)
-        SRTMTerrainPipeline(),
+        # Phase 6: Colombia intelligence layers
+        SECOPContractsPipeline(),        # CO: government contracts
+        REPSHealthPipeline(),            # CO: health facilities
+        MENSchoolsPipeline(),            # CO: schools
+        CRCComplaintsPipeline(),         # CO: consumer complaints
+        # Phase 7: Large file downloads (slowest)
+        SRTMTerrainPipeline(),           # BR + CO terrain tiles
         MapBiomasLandCoverPipeline(),
     ]
 

@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Dados — Pulso Network',
-  description: 'Mais de 38 fontes de dados públicos integradas: Anatel, IBGE, PGFN, Receita Federal, Portal da Transparência, PeeringDB e mais. 29M+ registros.',
+  description: 'Mais de 38 fontes de dados públicos integradas: Anatel, IBGE, Receita Federal, PeeringDB, BNDES e mais. 29M+ registros.',
   alternates: { canonical: 'https://pulso.network/dados' },
 };
 
@@ -12,7 +12,7 @@ const sources = [
   { name: 'Anatel STEL', description: 'Acessos de banda larga por município e provedor (4,1M registros)', frequency: 'Mensal' },
   { name: 'Anatel MOSAICO', description: 'ERBs (37.700+) e licenças de espectro georreferenciadas', frequency: 'Mensal' },
   { name: 'IBGE Censo / Estimativas', description: 'Demografia, renda e domicílios para 5.572 municípios', frequency: 'Anual' },
-  { name: 'SRTM / NASA', description: 'Modelo de elevação digital (30m) — 1.681 tiles cobrindo todo o Brasil', frequency: 'Estático' },
+  { name: 'SRTM / NASA', description: 'Modelo de elevação digital com resolução de 30 metros cobrindo todo o Brasil', frequency: 'Estático' },
   { name: 'ESA Sentinel-2', description: 'Imagens satélite para índices urbanos e uso do solo (10m)', frequency: 'Quinzenal' },
   { name: 'OpenStreetMap', description: 'Malha viária (6,4M segmentos) e linhas de transmissão (16.559 trechos)', frequency: 'Semanal' },
   { name: 'INMET / Open-Meteo', description: 'Dados meteorológicos de 671 estações (61.000+ observações)', frequency: 'Diária' },
@@ -40,19 +40,19 @@ const sources = [
   { name: 'OpenCelliD', description: 'Torres de celular crowdsourced para validação de cobertura', frequency: 'Mensal' },
   { name: 'Ookla Speedtest', description: 'Dados de velocidade agregados por tile e município', frequency: 'Trimestral' },
   { name: 'Microsoft Buildings', description: 'Footprints de edificações detectados por ML para estimativa de densidade', frequency: 'Estático' },
-  { name: 'BrasilAPI CNPJ', description: 'Enriquecimento de CNPJs: razão social, natureza jurídica, capital social, QSA (sócios)', frequency: 'Semanal' },
-  { name: 'PGFN Dívida Ativa', description: 'Dívidas fiscais federais: FGTS, previdenciário e não-previdenciário (261K+ registros)', frequency: 'Trimestral' },
-  { name: 'Portal da Transparência', description: 'Listas de sanções CEIS/CNEP — empresas impedidas e punidas pelo governo federal', frequency: 'Semanal' },
+  { name: 'BrasilAPI CNPJ', description: 'Enriquecimento de CNPJs: razão social, natureza jurídica, capital social', frequency: 'Semanal' },
+  { name: 'Registros Governamentais', description: 'Indicadores fiscais e regulatórios de provedores de telecomunicações', frequency: 'Trimestral' },
+  { name: 'Portal da Transparência', description: 'Registros de contratos e convênios do governo federal no setor de telecomunicações', frequency: 'Semanal' },
   { name: 'consumidor.gov.br', description: 'Reclamações de consumidores contra operadoras de telecomunicações', frequency: 'Mensal' },
-  { name: 'Receita Federal CNPJ', description: 'Quadro societário completo (56M CNPJs) — grafo de propriedade cruzada entre ISPs', frequency: 'Mensal' },
-  { name: 'Anatel Outorgas', description: 'Cadastro de 128K+ prestadoras de serviços de telecomunicações com outorgas e licenças', frequency: 'Diária' },
+  { name: 'Receita Federal CNPJ', description: 'Dados cadastrais de 56M CNPJs — razão social, CNAE, porte, situação cadastral', frequency: 'Mensal' },
+  { name: 'Anatel Outorgas', description: 'Cadastro de prestadoras de telecomunicações — 13.534 ISPs ativos com assinantes de banda larga', frequency: 'Diária' },
 ];
 
 const provenanceCategories = [
   {
     tier: 'Alta Governamental',
     description: 'Dados oficiais de órgãos reguladores e institutos públicos brasileiros.',
-    sources: ['Anatel (STEL, MOSAICO, RQUAL, Outorgas)', 'IBGE (Censo, Estimativas, POF, MUNIC, CNEFE)', 'INMET', 'SNIS', 'ANP', 'DataSUS', 'INEP', 'PNCP', 'BNDES', 'FUST', 'CAGED', 'Atlas da Violência (IPEA/FBSP)', 'ANEEL', 'Querido Diário', 'PGFN Dívida Ativa', 'Portal da Transparência (CEIS/CNEP)', 'consumidor.gov.br', 'Receita Federal (CNPJ/Sócios)'],
+    sources: ['Anatel (STEL, MOSAICO, RQUAL, Outorgas)', 'IBGE (Censo, Estimativas, POF, MUNIC, CNEFE)', 'INMET', 'SNIS', 'ANP', 'DataSUS', 'INEP', 'PNCP', 'BNDES', 'FUST', 'CAGED', 'Atlas da Violência (IPEA/FBSP)', 'ANEEL', 'Querido Diário', 'Registros Governamentais', 'Portal da Transparência', 'consumidor.gov.br', 'Receita Federal (CNPJ)'],
   },
   {
     tier: 'Alta Científica',
@@ -67,7 +67,7 @@ const provenanceCategories = [
   {
     tier: 'Média Computada',
     description: 'Indicadores derivados calculados pelo Pulso a partir das fontes primárias.',
-    sources: ['Scores de oportunidade', 'Índice HHI por município', 'Projeções financeiras M&A', 'Índices urbanos Sentinel-2', 'Pulso Score (13.534 ISPs)', 'Crédito ISP', 'Índice Starlink', 'Risco Climático', 'Análise Espacial', 'Grafo de propriedade cruzada', 'Due diligence M&A'],
+    sources: ['Scores de oportunidade', 'Índice HHI por município', 'Índices urbanos Sentinel-2', 'Pulso Score (13.534 ISPs)', 'Índice Starlink', 'Risco Climático', 'Análise Espacial', 'Compliance automatizado', 'Inteligência de mercado'],
   },
 ];
 
@@ -98,7 +98,7 @@ export default function DadosPage() {
           {[
             { value: '28M+', label: 'Data points' },
             { value: '38+', label: 'Fontes públicas' },
-            { value: '68', label: 'Tabelas de dados' },
+            { value: '26', label: 'Módulos de análise' },
             { value: '5.572', label: 'Municípios' },
           ].map((stat) => (
             <div key={stat.label} className="py-5 pr-6">
@@ -221,14 +221,13 @@ export default function DadosPage() {
 
         <div className="grid grid-cols-1 gap-0 md:grid-cols-2 lg:grid-cols-3" style={{ border: '1px solid var(--border)' }}>
           {[
-            { value: '10.740', label: 'Provedores com dívida ativa federal', sources: 'PGFN × Anatel' },
             { value: '783K', label: 'Vínculos societários mapeados', sources: 'Receita Federal × ISPs' },
             { value: '463K', label: 'Reclamações de consumidores', sources: 'consumidor.gov.br × Telecom' },
             { value: '88.619', label: 'Selos de qualidade Anatel', sources: 'RQUAL × Municípios' },
             { value: '16.375', label: 'Escolas offline em áreas com ISPs', sources: 'INEP × Anatel STEL' },
             { value: '318', label: 'Municípios com monopólio efetivo', sources: 'HHI × Assinantes' },
             { value: '60.581', label: 'Menções em diários oficiais', sources: 'Querido Diário × Telecom' },
-            { value: '1.709', label: 'Pares de ISPs com sócios em comum', sources: 'Grafo societário' },
+            { value: '4.602', label: 'Registros de investimento FUST', sources: 'Portal da Transparência' },
             { value: '37', label: 'Meses de série temporal completa', sources: 'Jan/2023 → Jan/2026' },
           ].map((item) => (
             <div

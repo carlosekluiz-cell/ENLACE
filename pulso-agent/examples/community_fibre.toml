@@ -7,7 +7,7 @@ data_dir = "/tmp/pulso-agent"
 poll_interval_secs = 30
 
 [cloud]
-endpoint = "https://api.pulso.network"
+endpoint = "https://api.enlace.network/v1/telemetry"
 api_key = "YOUR_API_KEY"
 
 # Adtran SDX 6320 — OpenOLT gRPC (no SNMP)
@@ -18,7 +18,7 @@ vendor = "adtran"
 
 [olts.grpc]
 port = 9191
-tls_enabled = false
+tls = false
 
 # Huawei MA5800 — SNMP v2c
 [[olts]]

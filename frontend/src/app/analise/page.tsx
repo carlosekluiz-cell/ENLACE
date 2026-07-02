@@ -9,6 +9,7 @@ import {
   GitCompareArrows, BarChart3, Shield, Activity, TrendingUp, AlertTriangle,
   Loader2, ChevronDown,
 } from 'lucide-react';
+import DisclaimerBanner from '@/components/ui/DisclaimerBanner';
 
 const STATES = [
   '', 'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO',
@@ -533,6 +534,11 @@ export default function AnaliseCruzadaPage() {
           <div className="w-48">
             <StateFilter value={stateFilter} onChange={setStateFilter} />
           </div>
+        </div>
+
+        {/* Legal disclaimer */}
+        <div className="mb-4">
+          <DisclaimerBanner />
         </div>
 
         {/* Tabs */}

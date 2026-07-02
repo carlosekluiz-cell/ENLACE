@@ -40,6 +40,42 @@ const BR_STATES = [
   { code: 'TO', name: 'Tocantins' },
 ] as const;
 
+const CO_DEPARTMENTS = [
+  { code: '05', name: 'Antioquia' },
+  { code: '08', name: 'Atlántico' },
+  { code: '11', name: 'Bogotá D.C.' },
+  { code: '13', name: 'Bolívar' },
+  { code: '15', name: 'Boyacá' },
+  { code: '17', name: 'Caldas' },
+  { code: '18', name: 'Caquetá' },
+  { code: '19', name: 'Cauca' },
+  { code: '20', name: 'Cesar' },
+  { code: '23', name: 'Córdoba' },
+  { code: '25', name: 'Cundinamarca' },
+  { code: '27', name: 'Chocó' },
+  { code: '41', name: 'Huila' },
+  { code: '44', name: 'La Guajira' },
+  { code: '47', name: 'Magdalena' },
+  { code: '50', name: 'Meta' },
+  { code: '52', name: 'Nariño' },
+  { code: '54', name: 'Norte de Santander' },
+  { code: '63', name: 'Quindío' },
+  { code: '66', name: 'Risaralda' },
+  { code: '68', name: 'Santander' },
+  { code: '70', name: 'Sucre' },
+  { code: '73', name: 'Tolima' },
+  { code: '76', name: 'Valle del Cauca' },
+  { code: '81', name: 'Arauca' },
+  { code: '85', name: 'Casanare' },
+  { code: '86', name: 'Putumayo' },
+  { code: '88', name: 'San Andrés y Providencia' },
+  { code: '91', name: 'Amazonas' },
+  { code: '94', name: 'Guainía' },
+  { code: '95', name: 'Guaviare' },
+  { code: '97', name: 'Vaupés' },
+  { code: '99', name: 'Vichada' },
+] as const;
+
 type Tab = 'login' | 'register';
 
 // ---------------------------------------------------------------------------
@@ -67,7 +103,10 @@ export default function LoginPage() {
   const [regPassword, setRegPassword] = useState('');
   const [regOrganization, setRegOrganization] = useState('');
   const [regState, setRegState] = useState('');
+  const [regCountry, setRegCountry] = useState('BR');
   const [showRegPassword, setShowRegPassword] = useState(false);
+
+  const isCO = regCountry === 'CO';
 
   // -------------------------------------------------------------------------
   // Handlers
@@ -115,12 +154,12 @@ export default function LoginPage() {
       !regPassword.trim() ||
       !regOrganization.trim()
     ) {
-      setError('Preencha todos os campos obrigatórios.');
+      setError(isCO ? 'Complete todos los campos obligatorios.' : 'Preencha todos os campos obrigatórios.');
       return;
     }
 
     if (regPassword.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres.');
+      setError(isCO ? 'La contraseña debe tener al menos 6 caracteres.' : 'A senha deve ter pelo menos 6 caracteres.');
       return;
     }
 
@@ -132,17 +171,20 @@ export default function LoginPage() {
         name: regName.trim(),
         organization: regOrganization.trim(),
         state_code: regState || undefined,
+        country_code: regCountry,
       });
+      localStorage.setItem('pulso_country', regCountry);
+      if (isCO) localStorage.setItem('pulso_language', 'es');
       await authLogin(response.access_token);
       router.push('/');
     } catch (err: any) {
       if (err?.status === 409) {
-        setError('Este e-mail já está cadastrado.');
+        setError(isCO ? 'Este correo ya está registrado.' : 'Este e-mail já está cadastrado.');
       } else if (err?.status === 422) {
-        setError('Dados inválidos. Verifique os campos e tente novamente.');
+        setError(isCO ? 'Datos inválidos. Verifique los campos e intente de nuevo.' : 'Dados inválidos. Verifique os campos e tente novamente.');
       } else {
         setError(
-          err?.message || 'Erro ao criar conta. Tente novamente mais tarde.'
+          err?.message || (isCO ? 'Error al crear cuenta. Intente más tarde.' : 'Erro ao criar conta. Tente novamente mais tarde.')
         );
       }
     } finally {
@@ -302,13 +344,13 @@ export default function LoginPage() {
                   className="mb-1.5 block text-sm font-medium"
                   style={{ color: 'var(--text-secondary)' }}
                 >
-                  Nome completo
+                  {isCO ? 'Nombre completo' : 'Nome completo'}
                 </label>
                 <input
                   id="reg-name"
                   type="text"
                   autoComplete="name"
-                  placeholder="Seu nome completo"
+                  placeholder={isCO ? 'Su nombre completo' : 'Seu nome completo'}
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
                   className="pulso-input w-full"
@@ -324,13 +366,13 @@ export default function LoginPage() {
                   className="mb-1.5 block text-sm font-medium"
                   style={{ color: 'var(--text-secondary)' }}
                 >
-                  E-mail
+                  {isCO ? 'Correo electrónico' : 'E-mail'}
                 </label>
                 <input
                   id="reg-email"
                   type="email"
                   autoComplete="email"
-                  placeholder="seu@email.com"
+                  placeholder={isCO ? 'tu@correo.com' : 'seu@email.com'}
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
                   className="pulso-input w-full"
@@ -346,7 +388,7 @@ export default function LoginPage() {
                   className="mb-1.5 block text-sm font-medium"
                   style={{ color: 'var(--text-secondary)' }}
                 >
-                  Senha
+                  {isCO ? 'Contraseña' : 'Senha'}
                 </label>
                 <div className="relative">
                   <input
@@ -379,7 +421,7 @@ export default function LoginPage() {
                   </button>
                 </div>
                 <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  A senha deve ter pelo menos 6 caracteres.
+                  {isCO ? 'La contraseña debe tener al menos 6 caracteres.' : 'A senha deve ter pelo menos 6 caracteres.'}
                 </p>
               </div>
 
@@ -390,13 +432,13 @@ export default function LoginPage() {
                   className="mb-1.5 block text-sm font-medium"
                   style={{ color: 'var(--text-secondary)' }}
                 >
-                  Organização / ISP
+                  {isCO ? 'Organización / ISP' : 'Organização / ISP'}
                 </label>
                 <input
                   id="reg-org"
                   type="text"
                   autoComplete="organization"
-                  placeholder="Nome da sua empresa ou ISP"
+                  placeholder={isCO ? 'Nombre de su empresa o ISP' : 'Nome da sua empresa ou ISP'}
                   value={regOrganization}
                   onChange={(e) => setRegOrganization(e.target.value)}
                   className="pulso-input w-full"
@@ -405,14 +447,35 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* State */}
+              {/* Country */}
+              <div>
+                <label
+                  htmlFor="reg-country"
+                  className="mb-1.5 block text-sm font-medium"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  País
+                </label>
+                <select
+                  id="reg-country"
+                  value={regCountry}
+                  onChange={(e) => { setRegCountry(e.target.value); setRegState(''); }}
+                  className="pulso-input w-full"
+                  disabled={loading}
+                >
+                  <option value="BR">Brasil</option>
+                  <option value="CO">Colombia</option>
+                </select>
+              </div>
+
+              {/* State / Department */}
               <div>
                 <label
                   htmlFor="reg-state"
                   className="mb-1.5 block text-sm font-medium"
                   style={{ color: 'var(--text-secondary)' }}
                 >
-                  Estado
+                  {isCO ? 'Departamento' : 'Estado'}
                 </label>
                 <select
                   id="reg-state"
@@ -421,12 +484,18 @@ export default function LoginPage() {
                   className="pulso-input w-full"
                   disabled={loading}
                 >
-                  <option value="">Selecione o estado</option>
-                  {BR_STATES.map((st) => (
-                    <option key={st.code} value={st.code}>
-                      {st.code} - {st.name}
-                    </option>
-                  ))}
+                  <option value="">{isCO ? 'Seleccione el departamento' : 'Selecione o estado'}</option>
+                  {isCO
+                    ? CO_DEPARTMENTS.map((dept) => (
+                        <option key={dept.code} value={dept.code}>
+                          {dept.name}
+                        </option>
+                      ))
+                    : BR_STATES.map((st) => (
+                        <option key={st.code} value={st.code}>
+                          {st.code} - {st.name}
+                        </option>
+                      ))}
                 </select>
               </div>
 
@@ -436,7 +505,7 @@ export default function LoginPage() {
                 disabled={loading}
                 className="pulso-btn-primary w-full flex items-center justify-center gap-2"
               >
-                {loading ? 'Criando conta...' : 'Criar Conta'}
+                {loading ? (isCO ? 'Creando cuenta...' : 'Criando conta...') : (isCO ? 'Crear Cuenta' : 'Criar Conta')}
               </button>
             </form>
           )}
@@ -444,7 +513,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="mt-6 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-          Plataforma de inteligência para provedores de internet brasileiros.
+          Plataforma de inteligência para provedores de internet.
         </p>
       </div>
     </div>

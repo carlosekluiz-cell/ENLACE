@@ -36,6 +36,12 @@ import type {
   CoverageResult,
   OptimizeRequest,
   LinkBudgetRequest,
+  FtthDesignRequest,
+  FtthDesignResult,
+  OpticalBudgetRequest,
+  OpticalBudgetResult,
+  ViabilityRequest,
+  ViabilityResult,
   WeatherRisk,
   MaintenancePriority,
   SatelliteYearData,
@@ -44,6 +50,9 @@ import type {
   MunicipalityFusion,
   FundingEligibility,
   GazetteAlert,
+  UkTopologyResult,
+  UkTopologyBranch,
+  UkTopologyComparison,
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.pulso.network';
@@ -107,6 +116,13 @@ export async function fetchApi<T>(
   const token = getToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  if (typeof window !== 'undefined') {
+    const country = localStorage.getItem('pulso_country');
+    if (country) {
+      headers['X-Country-Code'] = country;
+    }
   }
 
   const res = await fetch(url, {
@@ -379,7 +395,7 @@ export const api = {
       ),
   },
 
-  // ── Projeto de cobertura RF ──────────────────────────────────────────
+  // ── Projeto de Rede (RF + FTTH + Viabilidade) ──────────────────────
   design: {
     coverage: (params: CoverageRequest) =>
       fetchApi<CoverageResult>('/api/v1/design/coverage', {
@@ -404,6 +420,21 @@ export const api = {
       fetchApi<any>(
         `/api/v1/design/profile?start_lat=${startLat}&start_lon=${startLon}&end_lat=${endLat}&end_lon=${endLon}${stepM ? `&step_m=${stepM}` : ''}`
       ),
+    ftthDesign: (params: FtthDesignRequest) =>
+      fetchApi<FtthDesignResult>('/api/v1/design/ftth', {
+        method: 'POST',
+        body: JSON.stringify(params),
+      }),
+    opticalBudget: (params: OpticalBudgetRequest) =>
+      fetchApi<OpticalBudgetResult>('/api/v1/design/optical-budget', {
+        method: 'POST',
+        body: JSON.stringify(params),
+      }),
+    viability: (params: ViabilityRequest) =>
+      fetchApi<ViabilityResult>('/api/v1/design/viability', {
+        method: 'POST',
+        body: JSON.stringify(params),
+      }),
   },
 
   // ── Saúde da rede ───────────────────────────────────────────────────
@@ -819,10 +850,44 @@ export const api = {
     },
   },
 
+  // ── LATAM Dashboard ────────────────────────────────────────────────
+  latam: {
+    platformStats: () => fetchApi<any>('/api/v1/latam/platform-stats'),
+  },
+
   // ── Spectrum Valuation (M&A) ────────────────────────────────────────
   spectrum: {
     holdings: (providerId: number) => fetchApi<any>(`/api/v1/mna/spectrum/${providerId}`),
     valuation: (providerId: number) => fetchApi<any>(`/api/v1/mna/spectrum/valuation/${providerId}`),
+  },
+
+  // ── UK Topology ────────────────────────────────────────────────────
+  ukTopology: {
+    generate: (postcode: string) =>
+      fetchApi<UkTopologyResult>(`/api/v1/uk/topology/generate?postcode=${encodeURIComponent(postcode)}`),
+    branches: (postcode: string) =>
+      fetchApi<UkTopologyBranch[]>(`/api/v1/uk/topology/branches?postcode=${encodeURIComponent(postcode)}`),
+    opticalBudget: (postcode: string) =>
+      fetchApi<any>(`/api/v1/uk/topology/optical-budget?postcode=${encodeURIComponent(postcode)}`),
+    bom: (postcode: string) =>
+      fetchApi<any>(`/api/v1/uk/topology/bom?postcode=${encodeURIComponent(postcode)}`),
+    compare: (postcode: string) =>
+      fetchApi<UkTopologyComparison>(`/api/v1/uk/topology/compare?postcode=${encodeURIComponent(postcode)}`),
+    schematicSvgUrl: (postcode: string) =>
+      `/api/v1/uk/topology/schematic.svg?postcode=${encodeURIComponent(postcode)}`,
+    recalculate: (data: { postcode: string; node_id: string; new_lat: number; new_lon: number }) =>
+      fetchApi<UkTopologyResult>('/api/v1/uk/topology/recalculate', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    exportGeojsonUrl: (postcode: string) =>
+      `${API_BASE}/api/v1/uk/topology/export/geojson?postcode=${encodeURIComponent(postcode)}`,
+    exportKmlUrl: (postcode: string) =>
+      `${API_BASE}/api/v1/uk/topology/export/kml?postcode=${encodeURIComponent(postcode)}`,
+    exportBomXlsxUrl: (postcode: string) =>
+      `${API_BASE}/api/v1/uk/topology/export/bom.xlsx?postcode=${encodeURIComponent(postcode)}`,
+    exportPdfUrl: (postcode: string) =>
+      `${API_BASE}/api/v1/uk/topology/export/pdf?postcode=${encodeURIComponent(postcode)}`,
   },
 
 };

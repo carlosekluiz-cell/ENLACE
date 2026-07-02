@@ -331,15 +331,15 @@ async def compute_municipality_h3(
         INSERT INTO h3_cells (h3_index, resolution, l2_id, computed_at)
         SELECT DISTINCT
             cell::text,
-            :resolution,
-            :municipality_id,
+            :resolution ::smallint,
+            :municipality_id ::integer,
             NOW()
         FROM admin_level_2 a2,
              LATERAL ST_Dump(a2.geom) AS dump,
-             LATERAL h3_polygon_to_cells(dump.geom, :resolution) AS cell
-        WHERE a2.id = :municipality_id
+             LATERAL h3_polygon_to_cells(dump.geom, :resolution ::integer) AS cell
+        WHERE a2.id = :municipality_id ::integer
         ON CONFLICT (h3_index, resolution) DO UPDATE
-        SET l2_id = :municipality_id,
+        SET l2_id = :municipality_id ::integer,
             computed_at = NOW()
         RETURNING h3_index
     """)
@@ -372,22 +372,22 @@ async def compute_municipality_h3(
                 COALESCE(
                     (SELECT SUM(bs.subscribers)
                      FROM broadband_subscribers bs
-                     WHERE bs.l2_id = :municipality_id
+                     WHERE bs.l2_id = :municipality_id ::integer
                        AND bs.year_month = (
                            SELECT MAX(bs2.year_month)
                            FROM broadband_subscribers bs2
-                           WHERE bs2.l2_id = :municipality_id
+                           WHERE bs2.l2_id = :municipality_id ::integer
                        )
                     ) / NULLIF(
                         (SELECT COUNT(*) FROM h3_cells
-                         WHERE l2_id = :municipality_id AND resolution = :resolution),
+                         WHERE l2_id = :municipality_id ::integer AND resolution = :resolution ::smallint),
                         0
                     ),
                     0
                 ) AS per_cell_subs
             FROM h3_cells hc2
-            WHERE hc2.l2_id = :municipality_id
-              AND hc2.resolution = :resolution
+            WHERE hc2.l2_id = :municipality_id ::integer
+              AND hc2.resolution = :resolution ::smallint
         ) sub_data
         WHERE hc.id = sub_data.cell_id
     """)
@@ -405,16 +405,16 @@ async def compute_municipality_h3(
             SELECT
                 h3_lat_lng_to_cell(
                     ST_MakePoint(bs.longitude, bs.latitude)::point,
-                    :resolution
+                    :resolution ::integer
                 )::text AS cell_index,
                 COUNT(*) AS cnt
             FROM base_stations bs
             JOIN admin_level_2 a2 ON ST_Contains(a2.geom, bs.geom)
-            WHERE a2.id = :municipality_id
+            WHERE a2.id = :municipality_id ::integer
             GROUP BY cell_index
         ) tower_data
         WHERE hc.h3_index = tower_data.cell_index
-          AND hc.resolution = :resolution
+          AND hc.resolution = :resolution ::smallint
     """)
     await db.execute(
         towers_sql,
@@ -431,17 +431,17 @@ async def compute_municipality_h3(
                 COALESCE(
                     (SELECT a2.population
                      FROM admin_level_2 a2
-                     WHERE a2.id = :municipality_id
+                     WHERE a2.id = :municipality_id ::integer
                     ) / NULLIF(
                         (SELECT COUNT(*) FROM h3_cells
-                         WHERE l2_id = :municipality_id AND resolution = :resolution),
+                         WHERE l2_id = :municipality_id ::integer AND resolution = :resolution ::smallint),
                         0
                     ),
                     0
                 ) AS per_cell_pop
             FROM h3_cells hc2
-            WHERE hc2.l2_id = :municipality_id
-              AND hc2.resolution = :resolution
+            WHERE hc2.l2_id = :municipality_id ::integer
+              AND hc2.resolution = :resolution ::smallint
         ) pop_data
         WHERE hc.id = pop_data.cell_id
     """)
@@ -458,8 +458,8 @@ async def compute_municipality_h3(
             THEN ROUND((hc.subscribers::numeric / hc.population_estimate * 100), 2)
             ELSE 0
         END
-        WHERE hc.l2_id = :municipality_id
-          AND hc.resolution = :resolution
+        WHERE hc.l2_id = :municipality_id ::integer
+          AND hc.resolution = :resolution ::smallint
     """)
     await db.execute(
         pen_sql,
@@ -480,8 +480,8 @@ async def compute_municipality_h3(
             COUNT(*) FILTER (WHERE hc.tower_count > 0) AS cells_with_towers,
             COUNT(*) FILTER (WHERE hc.subscribers > 0) AS cells_with_subs
         FROM h3_cells hc
-        WHERE hc.l2_id = :municipality_id
-          AND hc.resolution = :resolution
+        WHERE hc.l2_id = :municipality_id ::integer
+          AND hc.resolution = :resolution ::smallint
     """)
     summary_result = await db.execute(
         summary_sql,

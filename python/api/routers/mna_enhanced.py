@@ -11,13 +11,14 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from python.api.auth.dependencies import require_auth
+from python.api.auth.dependencies import require_auth, require_due_diligence_access
 from python.api.database import get_db
 from python.api.services import mna_service
+from python.api.services.dd_audit import log_dd_access
 
 
 router = APIRouter(prefix="/api/v1/mna", tags=["mna"])
@@ -135,7 +136,7 @@ async def synergy_model(
 async def due_diligence(
     request: DueDiligenceRequest,
     db: AsyncSession = Depends(get_db),
-    user: dict = Depends(require_auth),
+    user: dict = Depends(require_due_diligence_access),
 ):
     """Generate a comprehensive due diligence checklist for an acquisition target.
 
@@ -222,19 +223,27 @@ async def due_diligence(
 
 @router.get("/due-diligence-dossier")
 async def due_diligence_dossier(
+    request: Request,
     provider_id: int = Query(..., ge=1, description="Provider ID to investigate"),
+    purpose: str = Query(..., min_length=3, description="Purpose of the DD request"),
+    nda_accepted: bool = Query(..., description="Confirm NDA acceptance"),
     db: AsyncSession = Depends(get_db),
-    user: dict = Depends(require_auth),
+    user: dict = Depends(require_due_diligence_access),
 ):
     """Build a comprehensive due diligence dossier for a provider.
 
-    Aggregates data from provider_tax_debts, ownership_graph,
-    provider_sanctions, consumer_complaints, and provider_details into
-    a single risk-assessed report suitable for M&A evaluation.
+    Requires Pulso Due Diligence contract, NDA acceptance, and stated purpose.
+    All access is audit-logged for LGPD compliance.
     """
     from sqlalchemy import text
-    from collections import defaultdict
     from datetime import date
+
+    if not nda_accepted:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Aceite do NDA obrigatório para acesso a dados de due diligence.",
+        )
 
     # ------------------------------------------------------------------
     # 1. Basic provider info
@@ -247,6 +256,14 @@ async def due_diligence_dossier(
 
     if not provider_row:
         return {"error": "Provider not found", "provider_id": provider_id}
+
+    # Check LGPD: pessoa natural (MEI/EI) — redact ownership section
+    is_pn_row = (await db.execute(text("""
+        SELECT COALESCE(is_pessoa_natural, false) AS is_pn
+        FROM provider_details
+        WHERE provider_id = :pid
+    """), {"pid": provider_id})).fetchone()
+    is_pessoa_natural = is_pn_row.is_pn if is_pn_row else False
 
     provider_section: dict[str, Any] = {
         "id": provider_row.id,
@@ -283,35 +300,32 @@ async def due_diligence_dossier(
     # ------------------------------------------------------------------
     detail_row = (await db.execute(text("""
         SELECT
-            legal_name, trade_name, legal_nature, capital_social,
-            founding_date, partner_count, address_city, address_state,
-            cnae_primary, status
-        FROM provider_details
-        WHERE provider_id = :pid
-        ORDER BY created_at DESC
+            pd.capital_social, pd.founding_date, pd.partner_count,
+            pd.address_city, pd.cnae_primary, pd.status,
+            pd.simples_nacional, p.name AS provider_name
+        FROM provider_details pd
+        JOIN providers p ON p.id = pd.provider_id
+        WHERE pd.provider_id = :pid
         LIMIT 1
     """), {"pid": provider_id})).fetchone()
 
     registration_section: dict[str, Any] = {}
     if detail_row:
         registration_section = {
-            "legal_name": detail_row.legal_name,
-            "trade_name": detail_row.trade_name,
-            "legal_nature": detail_row.legal_nature,
+            "name": detail_row.provider_name,
             "capital_social": float(detail_row.capital_social) if detail_row.capital_social else None,
             "founding_date": detail_row.founding_date,
             "status": detail_row.status,
             "partner_count": detail_row.partner_count,
             "address_city": detail_row.address_city,
-            "address_state": detail_row.address_state,
             "cnae_primary": detail_row.cnae_primary,
+            "simples_nacional": detail_row.simples_nacional,
         }
     else:
         registration_section = {
-            "legal_name": None, "trade_name": None, "legal_nature": None,
-            "capital_social": None, "founding_date": None, "status": None,
-            "partner_count": None, "address_city": None, "address_state": None,
-            "cnae_primary": None,
+            "name": None, "capital_social": None, "founding_date": None,
+            "status": None, "partner_count": None, "address_city": None,
+            "cnae_primary": None, "simples_nacional": None,
         }
 
     # ------------------------------------------------------------------
@@ -350,61 +364,69 @@ async def due_diligence_dossier(
     }
 
     # ------------------------------------------------------------------
-    # 5. Ownership graph (ownership_graph)
+    # 5. Ownership graph (ownership_graph) — LGPD: redact for pessoa natural
     # ------------------------------------------------------------------
-    partner_rows = (await db.execute(text("""
-        SELECT DISTINCT
-            partner_name, partner_document, partner_type, partner_role
-        FROM ownership_graph
-        WHERE provider_id = :pid
-        ORDER BY partner_name
-    """), {"pid": provider_id})).fetchall()
-
-    partners_list = [
-        {
-            "name": r.partner_name,
-            "document": r.partner_document,
-            "type": r.partner_type,
-            "role": r.partner_role,
+    if is_pessoa_natural:
+        ownership_section: dict[str, Any] = {
+            "redacted_lgpd": True,
+            "reason": "Pessoa natural (MEI/EI) — dados societários protegidos pela LGPD",
+            "partners": [],
+            "related_companies": [],
+            "related_isps": 0,
         }
-        for r in partner_rows
-    ]
+    else:
+        partner_rows = (await db.execute(text("""
+            SELECT DISTINCT
+                partner_name, partner_document, partner_role, relationship_type
+            FROM ownership_graph
+            WHERE provider_id = :pid
+            ORDER BY partner_name
+        """), {"pid": provider_id})).fetchall()
 
-    related_rows = (await db.execute(text("""
-        SELECT DISTINCT
-            related_cnpj_root, related_company_name, related_company_type
-        FROM ownership_graph
-        WHERE provider_id = :pid
-          AND related_cnpj_root IS NOT NULL
-        ORDER BY related_company_name
-    """), {"pid": provider_id})).fetchall()
+        partners_list = [
+            {
+                "name": r.partner_name,
+                "document": r.partner_document,
+                "type": r.relationship_type,
+                "role": r.partner_role,
+            }
+            for r in partner_rows
+        ]
 
-    related_companies = [
-        {
-            "cnpj_root": r.related_cnpj_root,
-            "name": r.related_company_name,
-            "type": r.related_company_type,
+        related_rows = (await db.execute(text("""
+            SELECT DISTINCT
+                related_cnpj_root, related_company_name, related_cnae
+            FROM ownership_graph
+            WHERE provider_id = :pid
+              AND related_cnpj_root IS NOT NULL
+            ORDER BY related_company_name
+        """), {"pid": provider_id})).fetchall()
+
+        related_companies = [
+            {
+                "cnpj_root": r.related_cnpj_root,
+                "name": r.related_company_name,
+                "cnae": r.related_cnae,
+            }
+            for r in related_rows
+        ]
+
+        related_isp_count = 0
+        if related_companies:
+            related_isp_row = (await db.execute(text("""
+                SELECT COUNT(DISTINCT og.related_cnpj_root) AS cnt
+                FROM ownership_graph og
+                JOIN providers p ON LEFT(p.national_id, 8) = og.related_cnpj_root
+                WHERE og.provider_id = :pid
+                  AND og.related_cnpj_root IS NOT NULL
+            """), {"pid": provider_id})).fetchone()
+            related_isp_count = related_isp_row.cnt if related_isp_row else 0
+
+        ownership_section: dict[str, Any] = {
+            "partners": partners_list,
+            "related_companies": related_companies,
+            "related_isps": related_isp_count,
         }
-        for r in related_rows
-    ]
-
-    # Count how many related companies are also ISPs (exist in providers)
-    related_isp_count = 0
-    if related_companies:
-        related_isp_row = (await db.execute(text("""
-            SELECT COUNT(DISTINCT og.related_cnpj_root) AS cnt
-            FROM ownership_graph og
-            JOIN providers p ON LEFT(p.national_id, 8) = og.related_cnpj_root
-            WHERE og.provider_id = :pid
-              AND og.related_cnpj_root IS NOT NULL
-        """), {"pid": provider_id})).fetchone()
-        related_isp_count = related_isp_row.cnt if related_isp_row else 0
-
-    ownership_section: dict[str, Any] = {
-        "partners": partners_list,
-        "related_companies": related_companies,
-        "related_isps": related_isp_count,
-    }
 
     # ------------------------------------------------------------------
     # 6. Sanctions (provider_sanctions)
@@ -412,10 +434,10 @@ async def due_diligence_dossier(
     sanction_rows = (await db.execute(text("""
         SELECT
             list_type, sanction_type, sanctioning_authority,
-            process_number, start_date, end_date
+            process_number, sanction_start_date, sanction_end_date
         FROM provider_sanctions
         WHERE provider_id = :pid
-        ORDER BY start_date DESC
+        ORDER BY sanction_start_date DESC
     """), {"pid": provider_id})).fetchall()
 
     today = date.today()
@@ -427,10 +449,10 @@ async def due_diligence_dossier(
             "sanction_type": r.sanction_type,
             "sanctioning_authority": r.sanctioning_authority,
             "process_number": r.process_number,
-            "start_date": r.start_date.isoformat() if r.start_date else None,
-            "end_date": r.end_date.isoformat() if r.end_date else None,
+            "start_date": r.sanction_start_date.isoformat() if r.sanction_start_date else None,
+            "end_date": r.sanction_end_date.isoformat() if r.sanction_end_date else None,
         }
-        if r.end_date and r.end_date < today:
+        if r.sanction_end_date and r.sanction_end_date < today:
             expired_sanctions.append(entry)
         else:
             active_sanctions.append(entry)
@@ -538,6 +560,24 @@ async def due_diligence_dossier(
     }
 
     # ------------------------------------------------------------------
+    # Audit log — LGPD compliance
+    # ------------------------------------------------------------------
+    sections_accessed = ["provider", "subscribers", "registration",
+                         "tax_debts", "ownership", "sanctions",
+                         "complaints", "risk_summary"]
+    await log_dd_access(
+        db,
+        user=user,
+        target_provider_id=provider_id,
+        target_cnpj=provider_row.national_id,
+        purpose=purpose,
+        nda_accepted=nda_accepted,
+        sections=sections_accessed,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+
+    # ------------------------------------------------------------------
     # Assemble full dossier
     # ------------------------------------------------------------------
     return {
@@ -607,3 +647,58 @@ async def spectrum_valuation(
     """Value spectrum assets for a provider."""
     result = await mna_service.value_spectrum(db=db, provider_id=provider_id)
     return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GET /ownership-summary/{provider_id} — Light ownership view (no CPFs)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@router.get("/ownership-summary/{provider_id}")
+async def ownership_summary(
+    provider_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
+):
+    """Partner names and roles only — no CPFs or documents.
+
+    LGPD-compliant: hides ownership entirely for pessoa natural (MEI/EI).
+    Full documents available only via the due-diligence-dossier endpoint
+    under Pulso Due Diligence contract.
+    """
+    from sqlalchemy import text
+
+    # Check if pessoa natural
+    pn_row = (await db.execute(text("""
+        SELECT COALESCE(pd.is_pessoa_natural, false) AS is_pn
+        FROM providers p
+        LEFT JOIN provider_details pd ON pd.provider_id = p.id
+        WHERE p.id = :pid
+    """), {"pid": provider_id})).fetchone()
+
+    if not pn_row:
+        return {"error": "Provider not found"}
+
+    if pn_row.is_pn:
+        return {"hidden": True, "reason": "LGPD — pessoa natural"}
+
+    partner_rows = (await db.execute(text("""
+        SELECT DISTINCT partner_name, partner_role, relationship_type
+        FROM ownership_graph
+        WHERE provider_id = :pid
+        ORDER BY partner_name
+    """), {"pid": provider_id})).fetchall()
+
+    return {
+        "provider_id": provider_id,
+        "documents_redacted": True,
+        "partners": [
+            {
+                "name": r.partner_name,
+                "role": r.partner_role,
+                "type": r.relationship_type,
+            }
+            for r in partner_rows
+        ],
+        "partner_count": len(partner_rows),
+    }

@@ -125,7 +125,7 @@ class AnatelRQUALPipeline(BasePipeline):
             provider_totals AS (
                 SELECT l2_id, provider_id,
                        SUM(subs) AS total_subs,
-                       SUM(CASE WHEN technology = 'fiber' THEN subs ELSE 0 END) AS fiber_subs,
+                       SUM(CASE WHEN LOWER(technology) IN ('fiber', 'ftth', 'fttb') THEN subs ELSE 0 END) AS fiber_subs,
                        COUNT(DISTINCT technology) AS tech_count
                 FROM current_data
                 GROUP BY l2_id, provider_id

@@ -30,12 +30,12 @@ const MapView = dynamic(() => import('@/components/map/MapView'), {
 
 const DEFAULT_BBOX = '-73.99,-33.77,-34.79,5.27';
 
-type MetricKey = 'subscribers' | 'penetration' | 'fiber_share';
+type MetricKey = 'subscribers' | 'penetration_pct' | 'growth_pct_12m';
 
 const METRIC_OPTIONS: { value: MetricKey; label: string; icon: React.ReactNode }[] = [
   { value: 'subscribers', label: 'Assinantes', icon: <Users size={12} /> },
-  { value: 'penetration', label: 'Penetracao', icon: <BarChart3 size={12} /> },
-  { value: 'fiber_share', label: '% Fibra', icon: <Wifi size={12} /> },
+  { value: 'penetration_pct', label: 'Penetração', icon: <BarChart3 size={12} /> },
+  { value: 'growth_pct_12m', label: 'Crescimento 12m', icon: <Wifi size={12} /> },
 ];
 
 const RESOLUTION_OPTIONS = [
@@ -416,11 +416,11 @@ export default function HexGridPage() {
             />
             <DetailRow
               label="Penetracao"
-              value={formatCellField(selectedCell, 'penetration', '%')}
+              value={formatCellField(selectedCell, 'penetration_pct', '%')}
             />
             <DetailRow
-              label="% Fibra"
-              value={formatCellField(selectedCell, 'fiber_share', '%')}
+              label="Crescimento 12m"
+              value={formatCellField(selectedCell, 'growth_pct_12m', '%')}
             />
             <DetailRow
               label="Populacao"
@@ -569,7 +569,7 @@ function rgbString(color: [number, number, number, number]): string {
 }
 
 function formatValue(value: number, metric: MetricKey): string {
-  if (metric === 'penetration' || metric === 'fiber_share') {
+  if (metric === 'penetration_pct' || metric === 'growth_pct_12m') {
     return `${value.toFixed(1)}%`;
   }
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;

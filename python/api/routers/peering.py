@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/v1/peering", tags=["peering"])
 async def get_networks(
     country: str = Query("BR"),
     info_type: Optional[str] = Query(None),
+    brazil_only: bool = Query(True, description="Filter to Brazilian-scope networks only"),
     limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_auth),
@@ -24,6 +25,8 @@ async def get_networks(
     if info_type:
         where_parts.append("info_type = :info_type")
         params["info_type"] = info_type
+    if brazil_only:
+        where_parts.append("info_scope NOT IN ('North America', 'Europe', 'Asia Pacific', 'Global')")
     where_sql = " AND ".join(where_parts)
     sql = text(f"SELECT * FROM peering_networks WHERE {where_sql} ORDER BY info_prefixes4 DESC NULLS LAST LIMIT :limit")
     result = await db.execute(sql, params)

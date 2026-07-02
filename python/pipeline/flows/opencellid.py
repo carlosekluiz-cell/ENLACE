@@ -1,12 +1,12 @@
 """OpenCelliD cell tower pipeline.
 
 Source: OpenCelliD community database (unwiredlabs.com)
-URL: https://opencellid.org/ocid/downloads?token={token}&type=mcc&file=724.csv.gz
+URL: https://opencellid.org/ocid/downloads?token={token}&type=mcc&file={mcc}.csv.gz
 Format: Gzipped CSV with columns: radio, mcc, net, area, cell, unit, lon, lat,
         range, samples, changeable, created, updated, averageSignal
-MCC 724 = Brazil
+MCC 724 = Brazil, MCC 732 = Colombia
 
-Downloads the Brazil-filtered CSV, inserts into opencellid_towers,
+Downloads country-filtered CSVs, inserts into opencellid_towers,
 matches to existing base_stations within 500m, and spatial-joins to
 admin_level_2 for municipality assignment.
 """
@@ -19,13 +19,43 @@ import os
 import pandas as pd
 
 from python.pipeline.base import BasePipeline
+from python.pipeline.config import (
+    BRAZIL_BBOX, COLOMBIA_BBOX,
+    MEXICO_BBOX, ARGENTINA_BBOX, CHILE_BBOX, PERU_BBOX, ECUADOR_BBOX,
+    VENEZUELA_BBOX, BOLIVIA_BBOX, PARAGUAY_BBOX, URUGUAY_BBOX,
+    PANAMA_BBOX, COSTA_RICA_BBOX, GUATEMALA_BBOX, HONDURAS_BBOX,
+    EL_SALVADOR_BBOX, NICARAGUA_BBOX, DOMINICAN_REPUBLIC_BBOX, CUBA_BBOX,
+)
 from python.pipeline.http_client import PipelineHTTPClient, get_cache_path
 
 logger = logging.getLogger(__name__)
 
 OPENCELLID_DOWNLOAD_URL = (
-    "https://opencellid.org/ocid/downloads?token={token}&type=mcc&file=724.csv.gz"
+    "https://opencellid.org/ocid/downloads?token={token}&type=mcc&file={mcc}.csv.gz"
 )
+
+# Country MCC codes and bounding boxes
+COUNTRY_MCC_CONFIG = {
+    724: {"name": "Brazil", "bbox": BRAZIL_BBOX},
+    732: {"name": "Colombia", "bbox": COLOMBIA_BBOX},
+    334: {"name": "Mexico", "bbox": MEXICO_BBOX},
+    722: {"name": "Argentina", "bbox": ARGENTINA_BBOX},
+    730: {"name": "Chile", "bbox": CHILE_BBOX},
+    716: {"name": "Peru", "bbox": PERU_BBOX},
+    740: {"name": "Ecuador", "bbox": ECUADOR_BBOX},
+    734: {"name": "Venezuela", "bbox": VENEZUELA_BBOX},
+    736: {"name": "Bolivia", "bbox": BOLIVIA_BBOX},
+    744: {"name": "Paraguay", "bbox": PARAGUAY_BBOX},
+    748: {"name": "Uruguay", "bbox": URUGUAY_BBOX},
+    714: {"name": "Panama", "bbox": PANAMA_BBOX},
+    712: {"name": "Costa Rica", "bbox": COSTA_RICA_BBOX},
+    704: {"name": "Guatemala", "bbox": GUATEMALA_BBOX},
+    708: {"name": "Honduras", "bbox": HONDURAS_BBOX},
+    706: {"name": "El Salvador", "bbox": EL_SALVADOR_BBOX},
+    710: {"name": "Nicaragua", "bbox": NICARAGUA_BBOX},
+    370: {"name": "Dominican Republic", "bbox": DOMINICAN_REPUBLIC_BBOX},
+    368: {"name": "Cuba", "bbox": CUBA_BBOX},
+}
 
 # MNC -> operator name mapping for MCC 724 (Brazil)
 MNC_OPERATOR_MAP = {
@@ -41,9 +71,24 @@ MNC_OPERATOR_MAP = {
     32: "Oi",
 }
 
+# MNC -> operator name mapping for MCC 732 (Colombia)
+MNC_OPERATOR_MAP_CO = {
+    101: "Claro",
+    102: "Movistar",
+    103: "Tigo",
+    111: "Tigo",
+    123: "Movistar",
+    130: "Avantel",
+    142: "UNE",
+    154: "Virgin",
+    165: "WOM",
+    187: "ETB",
+    199: "DIRECTV",
+}
+
 
 class OpenCelliDPipeline(BasePipeline):
-    """Ingest OpenCelliD cell tower data for Brazil (MCC=724)."""
+    """Ingest OpenCelliD cell tower data for all 19 LATAM countries."""
 
     def __init__(self):
         super().__init__("opencellid")
@@ -74,7 +119,7 @@ class OpenCelliDPipeline(BasePipeline):
         return False
 
     def download(self) -> pd.DataFrame:
-        """Download OpenCelliD Brazil CSV (gzipped)."""
+        """Download OpenCelliD CSVs for Brazil and Colombia (gzipped)."""
         token = os.getenv("OPENCELLID_TOKEN")
         if not token:
             raise ValueError(
@@ -82,25 +127,38 @@ class OpenCelliDPipeline(BasePipeline):
                 "Register at https://opencellid.org to obtain an API token."
             )
 
-        url = OPENCELLID_DOWNLOAD_URL.format(token=token)
-        cache_path = get_cache_path("opencellid_724.csv.gz")
-
-        with PipelineHTTPClient(timeout=600) as http:
-            logger.info("Downloading OpenCelliD Brazil (MCC=724) data...")
-            http.download_file(url, cache_path, resume=False)
-
-        # Decompress and read CSV (OpenCelliD has no header row)
         OPENCELLID_COLUMNS = [
             "radio", "mcc", "net", "area", "cell", "unit",
             "lon", "lat", "range", "samples", "changeable",
             "created", "updated", "averageSignal",
         ]
-        logger.info(f"Decompressing {cache_path}...")
-        with gzip.open(cache_path, "rt", encoding="utf-8", errors="replace") as f:
-            df = pd.read_csv(f, dtype=str, on_bad_lines="skip", header=None, names=OPENCELLID_COLUMNS)
 
-        logger.info(f"Downloaded {len(df)} OpenCelliD records for Brazil")
-        return df
+        all_dfs = []
+        with PipelineHTTPClient(timeout=600) as http:
+            for mcc in COUNTRY_MCC_CONFIG:
+                country_name = COUNTRY_MCC_CONFIG[mcc]["name"]
+                url = OPENCELLID_DOWNLOAD_URL.format(token=token, mcc=mcc)
+                cache_path = get_cache_path(f"opencellid_{mcc}.csv.gz")
+
+                try:
+                    logger.info(f"Downloading OpenCelliD {country_name} (MCC={mcc}) data...")
+                    http.download_file(url, cache_path, resume=False)
+
+                    logger.info(f"Decompressing {cache_path}...")
+                    with gzip.open(cache_path, "rt", encoding="utf-8", errors="replace") as f:
+                        df = pd.read_csv(f, dtype=str, on_bad_lines="skip", header=None, names=OPENCELLID_COLUMNS)
+
+                    logger.info(f"Downloaded {len(df)} OpenCelliD records for {country_name}")
+                    all_dfs.append(df)
+                except Exception as e:
+                    logger.warning(f"Could not download OpenCelliD MCC={mcc} ({country_name}): {e}")
+
+        if not all_dfs:
+            raise ValueError("No OpenCelliD data could be downloaded for any country")
+
+        combined = pd.concat(all_dfs, ignore_index=True)
+        logger.info(f"Total OpenCelliD records: {len(combined)}")
+        return combined
 
     def validate_raw(self, data: pd.DataFrame) -> None:
         if data.empty:
@@ -112,21 +170,23 @@ class OpenCelliDPipeline(BasePipeline):
         logger.info(f"OpenCelliD CSV columns: {list(data.columns)}")
 
     def transform(self, raw_data: pd.DataFrame) -> pd.DataFrame:
-        """Parse and filter OpenCelliD records to Brazil bounds."""
+        """Parse and filter OpenCelliD records to Brazil and Colombia bounds."""
         df = raw_data.copy()
 
         rows = []
         for _, row in df.iterrows():
             try:
                 mcc = int(row.get("mcc", 0))
-                if mcc != 724:
+                if mcc not in COUNTRY_MCC_CONFIG:
                     continue
 
                 lat = float(row.get("lat", 0))
                 lon = float(row.get("lon", 0))
 
-                # Validate Brazil bounds
-                if not (-34.0 <= lat <= 6.0 and -74.0 <= lon <= -28.0):
+                # Validate bounds for the corresponding country
+                bbox = COUNTRY_MCC_CONFIG[mcc]["bbox"]
+                if not (bbox["min_lat"] <= lat <= bbox["max_lat"]
+                        and bbox["min_lon"] <= lon <= bbox["max_lon"]):
                     continue
 
                 mnc = int(row.get("net", 0))

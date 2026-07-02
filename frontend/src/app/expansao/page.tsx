@@ -9,6 +9,7 @@ import { api, computeSatelliteAnalysis } from '@/lib/api';
 import type { SatelliteComputeResult } from '@/lib/api';
 import type { OpportunityScore, BaseStationPoint, MunicipalityFusion } from '@/lib/types';
 import { TrendingUp, Target, BarChart3, X, AlertTriangle, Map as MapIcon, Radio, Satellite, Loader2, Building2, Landmark, FileText, Zap } from 'lucide-react';
+import DisclaimerBanner from '@/components/ui/DisclaimerBanner';
 
 const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false });
 
@@ -258,6 +259,9 @@ export default function OpportunitiesPage() {
 
   return (
     <div className="space-y-6 p-6">
+      {/* Legal disclaimer */}
+      <DisclaimerBanner />
+
       {/* Error banner */}
       {error && (
         <div

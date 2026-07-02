@@ -46,16 +46,17 @@ async def compute_weather_risk(
                 AVG(wo.temperature_c) AS avg_temp,
                 MIN(wo.temperature_c) AS min_temp,
                 MAX(wo.temperature_c) AS max_temp,
-                COUNT(wo.id) AS observation_count,
+                COUNT(wo.station_id) AS observation_count,
                 (SELECT COUNT(*) FROM base_stations bst
                  JOIN admin_level_2 a22 ON ST_Contains(a22.geom, bst.geom)
                  WHERE a22.id = a2.id) AS tower_count
             FROM admin_level_2 a2
             JOIN admin_level_1 a1 ON a2.l1_id = a1.id
-            LEFT JOIN weather_observations wo ON wo.l2_id = a2.id
+            LEFT JOIN weather_stations ws ON ST_Contains(a2.geom, ws.geom)
+            LEFT JOIN weather_observations wo ON wo.station_id = ws.id
             WHERE {where_sql}
             GROUP BY a2.id, a2.name, a1.abbrev
-            HAVING COUNT(wo.id) > 0
+            HAVING COUNT(wo.station_id) > 0
         )
         SELECT * FROM muni_weather
         ORDER BY tower_count DESC
@@ -172,7 +173,8 @@ async def seasonal_risk(
             MAX(wo.precipitation_mm) AS max_precip,
             COUNT(*) AS observations
         FROM weather_observations wo
-        JOIN admin_level_2 a2 ON wo.l2_id = a2.id
+        JOIN weather_stations ws ON wo.station_id = ws.id
+        JOIN admin_level_2 a2 ON ST_Contains(a2.geom, ws.geom)
         JOIN admin_level_1 a1 ON a2.l1_id = a1.id
         WHERE {where_sql}
         GROUP BY EXTRACT(MONTH FROM wo.observed_at)

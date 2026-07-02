@@ -1,0 +1,9 @@
+agent_id = "test-audit-agent"
+data_dir = "/tmp/pulso-agent-test"
+poll_interval_secs = 60
+
+[cloud]
+endpoint = "https://api.enlace.network/v1/telemetry"
+api_key = "TEST_KEY"
+send_interval_secs = 300
+verify_tls = true

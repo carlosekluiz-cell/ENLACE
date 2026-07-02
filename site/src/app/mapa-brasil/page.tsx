@@ -977,12 +977,12 @@ export default function MapaBrasilPage() {
             <Link href="/precos" className="pulso-btn-dark inline-flex items-center gap-2">
               Entrar na lista de espera <ArrowRight size={14} />
             </Link>
-            <Link href="/precos" className="pulso-btn-ghost">
-              Ver planos
+            <Link href="/recursos/funcionalidades" className="pulso-btn-ghost">
+              Ver funcionalidades
             </Link>
           </div>
           <p className="mt-5 font-mono text-xs" style={{ color: 'var(--text-on-dark-muted)' }}>
-            Plano gratuito permanente. Sem cartao de credito.
+            Tier gratuito disponível no lançamento. Sem cartão de crédito.
           </p>
         </div>
       </Section>

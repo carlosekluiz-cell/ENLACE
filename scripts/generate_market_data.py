@@ -174,6 +174,114 @@ def generate_narrative(uf: str, state_name: str, data: dict) -> str:
     return narrative.strip()
 
 
+def _classify_opportunity(opp: dict) -> dict:
+    """Convert raw opportunity scores to classification teasers. Protects proprietary scoring."""
+    if not opp or not opp.get("composite"):
+        return {}
+    composite = opp["composite"]
+    if composite >= 70:
+        level = "alto"
+    elif composite >= 50:
+        level = "moderado"
+    elif composite >= 30:
+        level = "baixo"
+    else:
+        level = "muito_baixo"
+    return {
+        "level": level,
+        "demand_level": "alto" if opp.get("demand", 0) >= 60 else "moderado" if opp.get("demand", 0) >= 40 else "baixo",
+        "competition_level": "alto" if opp.get("competition", 0) >= 60 else "moderado" if opp.get("competition", 0) >= 40 else "baixo",
+        "infrastructure_level": "alto" if opp.get("infrastructure", 0) >= 60 else "moderado" if opp.get("infrastructure", 0) >= 40 else "baixo",
+        "growth_level": "alto" if opp.get("growth", 0) >= 60 else "moderado" if opp.get("growth", 0) >= 40 else "baixo",
+    }
+
+
+def _classify_hhi_trend(trend: list) -> dict:
+    """Convert raw HHI quarterly array to trend summary. Protects time-series data."""
+    if not trend or len(trend) < 2:
+        return {}
+    first = trend[0]
+    last = trend[-1]
+    delta = last - first
+    periods = len(trend)
+    if delta < -200:
+        direction = "caindo"
+    elif delta > 200:
+        direction = "subindo"
+    else:
+        direction = "estavel"
+    return {
+        "direction": direction,
+        "current": last,
+        "periods": periods,
+    }
+
+
+def generate_city_narrative(city_name: str, state_name: str, uf: str, data: dict) -> str:
+    """Generate unique ~100-word prose paragraph for a municipality."""
+    parts = []
+    subs = data.get("subscribers", 0)
+    isp_count = data.get("isp_count", 0)
+    pen = data.get("penetration", 0)
+    hhi = data.get("hhi", 0)
+    fiber = data.get("fiber_pct", 0)
+    growth = data.get("growth_pct", 0)
+
+    subs_fmt = f"{subs:,.0f}".replace(",", ".") if subs < 10000 else f"{subs / 1000:.0f} mil"
+    parts.append(
+        f"{city_name} ({uf.upper()}) possui {subs_fmt} acessos de banda larga fixa "
+        f"atendidos por {isp_count} provedor{'es' if isp_count != 1 else ''}, "
+        f"com penetração de {pen}% dos domicílios."
+    )
+
+    if hhi < 1500:
+        parts.append(f"O mercado local é competitivo (HHI {hhi}).")
+    elif hhi < 2500:
+        parts.append(f"A concentração de mercado é moderada (HHI {hhi}).")
+    else:
+        parts.append(f"O mercado é altamente concentrado (HHI {hhi}), com poucos provedores dominantes.")
+
+    if fiber >= 70:
+        parts.append(f"A fibra óptica predomina, com {fiber}% dos acessos.")
+    elif fiber >= 40:
+        parts.append(f"A migração para fibra avança — já representa {fiber}% dos acessos.")
+    elif fiber > 0:
+        parts.append(f"Tecnologias legadas ainda predominam; fibra responde por {fiber}% dos acessos.")
+
+    if growth > 20:
+        parts.append(f"O mercado cresceu expressivos {growth}% nos últimos 3 anos.")
+    elif growth > 5:
+        parts.append(f"Crescimento de {growth}% desde 2023 indica expansão contínua.")
+    elif growth > 0:
+        parts.append(f"Crescimento modesto ({growth}%) sinaliza maturidade.")
+
+    schools = data.get("schools", {})
+    sanitation = data.get("sanitation", {})
+    opp = data.get("opportunity", {})
+
+    infra_notes = []
+    no_inet = schools.get("no_internet", 0)
+    if no_inet > 0:
+        infra_notes.append(f"{no_inet} escola{'s' if no_inet != 1 else ''} sem internet")
+    water = sanitation.get("water_pct", 0)
+    if 0 < water < 80:
+        infra_notes.append(f"cobertura de água em {water:.0f}%")
+    if infra_notes:
+        parts.append(f"Desafios incluem {' e '.join(infra_notes)}.")
+
+    opp_level = opp.get("level", "")
+    if opp_level == "alto":
+        parts.append("Score de oportunidade alto — forte potencial para investimento em telecom.")
+    elif opp_level == "moderado":
+        parts.append("Oportunidade moderada para expansão de banda larga.")
+
+    planning = data.get("planning", {})
+    if planning.get("digital_governance"):
+        parts.append("O município possui governança digital.")
+
+    return " ".join(parts)
+
+
 def main():
     conn = psycopg2.connect(DB_DSN)
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -460,6 +568,265 @@ def main():
         }
     print(f"  Economy for {len(state_economy)} states")
 
+    # ═══════════════════════════════════════════════════════════════
+    # NEW: 13. Opportunity scores per municipality
+    # ═══════════════════════════════════════════════════════════════
+    print("Querying opportunity scores...")
+    cur.execute("""
+        SELECT a2.id AS l2_id,
+               os.demand_score, os.competition_score,
+               os.infrastructure_score, os.growth_score, os.composite_score
+        FROM opportunity_scores os
+        JOIN admin_level_2 a2 ON a2.code = os.geographic_id
+    """)
+    opp_map = {}
+    for r in cur.fetchall():
+        opp_map[r["l2_id"]] = {
+            "demand": round(float(r["demand_score"]), 1) if r["demand_score"] else 0,
+            "competition": round(float(r["competition_score"]), 1) if r["competition_score"] else 0,
+            "infrastructure": round(float(r["infrastructure_score"]), 1) if r["infrastructure_score"] else 0,
+            "growth": round(float(r["growth_score"]), 1) if r["growth_score"] else 0,
+            "composite": round(float(r["composite_score"]), 1) if r["composite_score"] else 0,
+        }
+    print(f"  Opportunity scores for {len(opp_map)} municipalities")
+
+    # ═══════════════════════════════════════════════════════════════
+    # NEW: 14. Schools per municipality
+    # ═══════════════════════════════════════════════════════════════
+    print("Querying schools...")
+    cur.execute("""
+        SELECT l2_id,
+               COUNT(*) AS total,
+               SUM(CASE WHEN NOT has_internet THEN 1 ELSE 0 END) AS no_internet,
+               SUM(COALESCE(student_count, 0)) AS students
+        FROM schools
+        WHERE year = (SELECT MAX(year) FROM schools)
+        GROUP BY l2_id
+    """)
+    schools_map = {}
+    for r in cur.fetchall():
+        schools_map[r["l2_id"]] = {
+            "total": r["total"],
+            "no_internet": r["no_internet"],
+            "students": r["students"],
+        }
+    print(f"  Schools for {len(schools_map)} municipalities")
+
+    # ═══════════════════════════════════════════════════════════════
+    # NEW: 15. Health facilities per municipality
+    # ═══════════════════════════════════════════════════════════════
+    print("Querying health facilities...")
+    cur.execute("""
+        SELECT l2_id,
+               COUNT(*) AS facilities,
+               SUM(COALESCE(bed_count, 0)) AS beds
+        FROM health_facilities
+        GROUP BY l2_id
+    """)
+    health_map = {}
+    for r in cur.fetchall():
+        health_map[r["l2_id"]] = {
+            "facilities": r["facilities"],
+            "beds": r["beds"],
+        }
+    print(f"  Health facilities for {len(health_map)} municipalities")
+
+    # ═══════════════════════════════════════════════════════════════
+    # NEW: 16. Safety indicators per municipality
+    # ═══════════════════════════════════════════════════════════════
+    print("Querying safety indicators...")
+    cur.execute("""
+        SELECT l2_id, homicide_rate, risk_score
+        FROM safety_indicators
+        WHERE year = (SELECT MAX(year) FROM safety_indicators)
+    """)
+    safety_map = {}
+    for r in cur.fetchall():
+        safety_map[r["l2_id"]] = {
+            "homicide_rate": round(float(r["homicide_rate"]), 1) if r["homicide_rate"] else 0,
+            "risk_score": round(float(r["risk_score"]), 1) if r["risk_score"] else 0,
+        }
+    print(f"  Safety for {len(safety_map)} municipalities")
+
+    # ═══════════════════════════════════════════════════════════════
+    # NEW: 17. Sanitation indicators per municipality
+    # ═══════════════════════════════════════════════════════════════
+    print("Querying sanitation...")
+    cur.execute("""
+        SELECT l2_id, water_coverage_pct, sewage_coverage_pct, water_losses_pct
+        FROM sanitation_indicators
+        WHERE year = (SELECT MAX(year) FROM sanitation_indicators)
+    """)
+    sanitation_map = {}
+    for r in cur.fetchall():
+        sanitation_map[r["l2_id"]] = {
+            "water_pct": round(float(r["water_coverage_pct"]), 1) if r["water_coverage_pct"] else 0,
+            "sewage_pct": round(float(r["sewage_coverage_pct"]), 1) if r["sewage_coverage_pct"] else 0,
+            "water_loss_pct": round(float(r["water_losses_pct"]), 1) if r["water_losses_pct"] else 0,
+        }
+    print(f"  Sanitation for {len(sanitation_map)} municipalities")
+
+    # ═══════════════════════════════════════════════════════════════
+    # NEW: 18. Economy per municipality (PIB per capita, formal employment)
+    # ═══════════════════════════════════════════════════════════════
+    print("Querying municipal economy...")
+    cur.execute("""
+        SELECT l2_id, pib_per_capita_brl, formal_employment
+        FROM economic_indicators
+        WHERE year = (SELECT MAX(year) FROM economic_indicators)
+    """)
+    muni_economy_map = {}
+    for r in cur.fetchall():
+        muni_economy_map[r["l2_id"]] = {
+            "pib_per_capita": round(float(r["pib_per_capita_brl"])) if r["pib_per_capita_brl"] else 0,
+            "formal_employment": r["formal_employment"] or 0,
+        }
+    print(f"  Municipal economy for {len(muni_economy_map)} municipalities")
+
+    # ═══════════════════════════════════════════════════════════════
+    # NEW: 19. Building density per municipality
+    # ═══════════════════════════════════════════════════════════════
+    print("Querying building density...")
+    cur.execute("""
+        SELECT l2_id, total_addresses, residential_addresses,
+               density_per_km2,
+               CASE WHEN total_addresses > 0
+                    THEN rural_addresses::float / total_addresses * 100
+                    ELSE 0 END AS rural_pct
+        FROM building_density
+    """)
+    density_map = {}
+    for r in cur.fetchall():
+        density_map[r["l2_id"]] = {
+            "addresses": r["total_addresses"] or 0,
+            "residential": r["residential_addresses"] or 0,
+            "per_km2": round(float(r["density_per_km2"]), 1) if r["density_per_km2"] else 0,
+            "rural_pct": round(float(r["rural_pct"]), 1) if r["rural_pct"] else 0,
+        }
+    print(f"  Building density for {len(density_map)} municipalities")
+
+    # ═══════════════════════════════════════════════════════════════
+    # NEW: 20. Telecom employment per municipality (latest year/month)
+    # ═══════════════════════════════════════════════════════════════
+    print("Querying municipal telecom employment...")
+    cur.execute("""
+        SELECT l2_id, formal_jobs_telecom, avg_salary_brl
+        FROM employment_indicators
+        WHERE year = (SELECT MAX(year) FROM employment_indicators)
+          AND month = (SELECT MAX(month) FROM employment_indicators
+                       WHERE year = (SELECT MAX(year) FROM employment_indicators))
+    """)
+    muni_employment_map = {}
+    for r in cur.fetchall():
+        muni_employment_map[r["l2_id"]] = {
+            "telecom_jobs": r["formal_jobs_telecom"] or 0,
+            "telecom_salary": round(float(r["avg_salary_brl"])) if r["avg_salary_brl"] else 0,
+        }
+    print(f"  Municipal employment for {len(muni_employment_map)} municipalities")
+
+    # ═══════════════════════════════════════════════════════════════
+    # NEW: 21. Municipal planning
+    # ═══════════════════════════════════════════════════════════════
+    print("Querying municipal planning...")
+    cur.execute("""
+        SELECT l2_id, has_plano_diretor, has_zoning_law,
+               has_building_code, has_digital_governance
+        FROM municipal_planning
+        WHERE munic_year = (SELECT MAX(munic_year) FROM municipal_planning)
+    """)
+    planning_map = {}
+    for r in cur.fetchall():
+        planning_map[r["l2_id"]] = {
+            "plano_diretor": bool(r["has_plano_diretor"]),
+            "zoning": bool(r["has_zoning_law"]),
+            "building_code": bool(r["has_building_code"]),
+            "digital_governance": bool(r["has_digital_governance"]),
+        }
+    print(f"  Municipal planning for {len(planning_map)} municipalities")
+
+    # ═══════════════════════════════════════════════════════════════
+    # NEW: 22. Top ouro providers per municipality (for city pages)
+    # ═══════════════════════════════════════════════════════════════
+    print("Querying top ouro providers...")
+    cur.execute("""
+        SELECT qs.l2_id, p.name AS provider_name,
+               qs.overall_score, qs.speed_score,
+               qs.availability_score, qs.latency_score
+        FROM quality_seals qs
+        JOIN providers p ON p.id = qs.provider_id
+        WHERE qs.year_half = (SELECT MAX(year_half) FROM quality_seals)
+          AND qs.seal_level = 'ouro'
+        ORDER BY qs.l2_id, qs.overall_score DESC
+    """)
+    ouro_providers_map = defaultdict(list)
+    for r in cur.fetchall():
+        if len(ouro_providers_map[r["l2_id"]]) < 5:
+            ouro_providers_map[r["l2_id"]].append({
+                "name": r["provider_name"],
+                "score": round(float(r["overall_score"]), 1) if r["overall_score"] else 0,
+                "speed": round(float(r["speed_score"]), 1) if r["speed_score"] else 0,
+                "availability": round(float(r["availability_score"]), 1) if r["availability_score"] else 0,
+                "latency": round(float(r["latency_score"]), 1) if r["latency_score"] else 0,
+            })
+    print(f"  Ouro providers for {len(ouro_providers_map)} municipalities")
+
+    # ═══════════════════════════════════════════════════════════════
+    # NEW: 23. HHI trend per municipality (quarterly from competitive_analysis)
+    # ═══════════════════════════════════════════════════════════════
+    print("Querying HHI trends...")
+    cur.execute("""
+        SELECT l2_id, year_month, hhi_index
+        FROM competitive_analysis
+        ORDER BY l2_id, year_month
+    """)
+    hhi_trend_raw = defaultdict(list)
+    for r in cur.fetchall():
+        hhi_trend_raw[r["l2_id"]].append({
+            "ym": r["year_month"],
+            "hhi": round(float(r["hhi_index"])) if r["hhi_index"] else 0,
+        })
+    # Aggregate to quarterly (last 12 quarters)
+    hhi_trend_map = {}
+    for l2_id, entries in hhi_trend_raw.items():
+        quarterly = {}
+        for e in entries:
+            q = ym_to_quarter(e["ym"])
+            quarterly[q] = e["hhi"]  # keep latest month per quarter
+        # Last 12 quarters
+        sorted_qs = sorted(quarterly.keys())[-12:]
+        hhi_trend_map[l2_id] = [quarterly[q] for q in sorted_qs]
+    print(f"  HHI trends for {len(hhi_trend_map)} municipalities")
+
+    # ═══════════════════════════════════════════════════════════════
+    # NEW: 24. ALL quality seal providers per municipality (for /qualidade page)
+    # ═══════════════════════════════════════════════════════════════
+    print("Querying all quality providers for search page...")
+    cur.execute("""
+        SELECT qs.l2_id, a1.abbrev AS uf, a2.name AS city_name, a2.code AS city_code,
+               p.name AS provider_name, qs.seal_level,
+               qs.overall_score, qs.speed_score,
+               qs.availability_score, qs.latency_score
+        FROM quality_seals qs
+        JOIN providers p ON p.id = qs.provider_id
+        JOIN admin_level_2 a2 ON a2.id = qs.l2_id
+        JOIN admin_level_1 a1 ON a1.id = a2.l1_id
+        WHERE qs.year_half = (SELECT MAX(year_half) FROM quality_seals)
+        ORDER BY a1.abbrev, a2.name, qs.overall_score DESC
+    """)
+    quality_by_state = defaultdict(lambda: defaultdict(list))
+    for r in cur.fetchall():
+        uf = r["uf"].lower()
+        city_code = r["city_code"]
+        quality_by_state[uf][city_code].append({
+            "name": r["provider_name"],
+            "seal": r["seal_level"],
+            "score": round(float(r["overall_score"]), 1) if r["overall_score"] else 0,
+            "speed": round(float(r["speed_score"]), 1) if r["speed_score"] else 0,
+            "avail": round(float(r["availability_score"]), 1) if r["availability_score"] else 0,
+            "latency": round(float(r["latency_score"]), 1) if r["latency_score"] else 0,
+        })
+    print(f"  Quality providers for {len(quality_by_state)} states")
+
     cur.close()
     conn.close()
 
@@ -515,6 +882,17 @@ def main():
                 "ouro_isps": q["ouro"],
             },
             "growth_pct": muni_growth.get(l2_id, 0),
+            "opportunity": _classify_opportunity(opp_map.get(l2_id, {})),
+            "schools": schools_map.get(l2_id, {}),
+            "health": health_map.get(l2_id, {}),
+            "safety": safety_map.get(l2_id, {}),
+            "sanitation": sanitation_map.get(l2_id, {}),
+            "economy": muni_economy_map.get(l2_id, {}),
+            "density": density_map.get(l2_id, {}),
+            "employment": muni_employment_map.get(l2_id, {}),
+            "planning": planning_map.get(l2_id, {}),
+            "top_providers": ouro_providers_map.get(l2_id, []),
+            "hhi_trend": _classify_hhi_trend(hhi_trend_map.get(l2_id, [])),
         }
 
         st = states[uf]
@@ -643,7 +1021,39 @@ def main():
             "period": latest_ym,
         }
 
-        # Generate narrative
+        # State-level aggregates from city data
+        cities_with_schools = [c for c in st["cities"] if c.get("schools")]
+        schools_no_internet_total = sum(c["schools"].get("no_internet", 0) for c in cities_with_schools)
+        cities_with_sanitation = [c for c in st["cities"] if c.get("sanitation") and c["sanitation"].get("water_pct", 0) > 0]
+        avg_water = round(sum(c["sanitation"]["water_pct"] for c in cities_with_sanitation) / max(len(cities_with_sanitation), 1), 1)
+        avg_sewage = round(sum(c["sanitation"].get("sewage_pct", 0) for c in cities_with_sanitation) / max(len(cities_with_sanitation), 1), 1)
+        digital_gov_count = sum(1 for c in st["cities"] if c.get("planning", {}).get("digital_governance"))
+        # Top 10 opportunity municipalities (use raw opp_map for ranking, emit level only)
+        opp_level_rank = {"alto": 3, "moderado": 2, "baixo": 1, "muito_baixo": 0}
+        cities_with_opp = [c for c in st["cities"] if c.get("opportunity", {}).get("level")]
+        top10_opp = sorted(cities_with_opp,
+                           key=lambda c: opp_level_rank.get(c["opportunity"]["level"], 0),
+                           reverse=True)[:10]
+
+        state_data["aggregates"] = {
+            "schools_no_internet": schools_no_internet_total,
+            "avg_water_pct": avg_water,
+            "avg_sewage_pct": avg_sewage,
+            "digital_governance_count": digital_gov_count,
+            "top_opportunities": [
+                {"name": c["name"], "slug": c["slug"], "level": c["opportunity"]["level"],
+                 "subscribers": c["subscribers"], "isp_count": c["isp_count"]}
+                for c in top10_opp
+            ],
+        }
+
+        # Generate city narratives
+        for city in st["cities"]:
+            city["narrative"] = generate_city_narrative(
+                city["name"], st["state_name"], uf, city
+            )
+
+        # Generate state narrative
         narrative = generate_narrative(uf, st["state_name"], state_data)
         state_data["insights"] = {"narrative": narrative}
 
@@ -651,6 +1061,41 @@ def main():
             json.dump(state_data, f, ensure_ascii=False, separators=(",", ":"), cls=DecimalEncoder)
 
     print(f"Wrote {len(states)} state files")
+
+    # ═══════════════════════════════════════════════════════════════
+    # Write quality/{uf}.json files for consumer search page
+    # ═══════════════════════════════════════════════════════════════
+    quality_dir = os.path.join(OUT_DIR, "quality")
+    quality_public_dir = os.path.join(SITEMAP_DIR, "data", "quality")
+    os.makedirs(quality_dir, exist_ok=True)
+    os.makedirs(quality_public_dir, exist_ok=True)
+    # Build a slug lookup from all states
+    code_to_slug = {}
+    code_to_name = {}
+    for uf_key, st in states.items():
+        for city in st["cities"]:
+            code_to_slug[city["code"]] = city["slug"]
+            code_to_name[city["code"]] = city["name"]
+
+    for uf_key in sorted(quality_by_state.keys()):
+        cities_quality = []
+        for city_code, providers in quality_by_state[uf_key].items():
+            slug = code_to_slug.get(city_code, "")
+            name = code_to_name.get(city_code, "")
+            if slug and name:
+                cities_quality.append({
+                    "code": city_code,
+                    "name": name,
+                    "slug": slug,
+                    "providers": providers,
+                })
+        cities_quality.sort(key=lambda c: c["name"])
+        quality_json = json.dumps(cities_quality, ensure_ascii=False, separators=(",", ":"), cls=DecimalEncoder)
+        with open(os.path.join(quality_dir, f"{uf_key}.json"), "w") as f:
+            f.write(quality_json)
+        with open(os.path.join(quality_public_dir, f"{uf_key}.json"), "w") as f:
+            f.write(quality_json)
+    print(f"Wrote {len(quality_by_state)} quality files")
 
     # Generate sitemap
     os.makedirs(SITEMAP_DIR, exist_ok=True)
@@ -692,21 +1137,26 @@ def main():
         ("/recursos/funcionalidades", "monthly", "0.6"),
         ("/recursos/dados-confianca", "monthly", "0.6"),
         ("/mercado", "weekly", "0.9"),
+        ("/qualidade", "weekly", "0.8"),
         ("/termos", "yearly", "0.3"),
         ("/privacidade", "yearly", "0.3"),
     ]
 
     # Add blog post slugs
     blog_slugs = [
-        "top-50-municípios-oportunidade-isps-2026",
-        "concentração-mercado-hhi-caindo",
-        "fibra-vs-rádio-evolução-tecnologica",
+        "crescimento-banda-larga-interior-2026",
+        "top-50-municipios-oportunidade-isps-2026",
+        "concentracao-mercado-hhi-caindo",
+        "fibra-vs-radio-evolucao-tecnologica",
         "outorga-anatel-2026-provedores",
         "fust-2026-conectividade-rural",
         "consolidacao-isp-aquisicoes",
         "internet-rural-municipios-30-mil",
-        "due-diligence-ma-dados-abertos",
+        "inteligencia-ma-dados-abertos",
         "custo-fibra-optica-km-brasil",
+        "como-montar-provedor-de-internet-2026",
+        "ranking-provedores-internet-brasil-2026",
+        "banda-larga-brasil-panorama-2026",
     ]
     for slug in blog_slugs:
         core_pages.append((f"/blog/{slug}", "monthly", "0.6"))

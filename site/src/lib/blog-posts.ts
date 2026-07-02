@@ -113,7 +113,7 @@ O interior do Brasil está conectando-se a uma velocidade sem precedentes. A que
     readingTime: '7 min',
   },
   {
-    slug: 'top-50-municípios-oportunidade-isps-2026',
+    slug: 'top-50-municipios-oportunidade-isps-2026',
     title: 'Os 50 municípios com maior oportunidade para ISPs em 2026',
     excerpt:
       'Analisamos 5.572 municípios brasileiros com nosso scoring proprietário de 15+ variáveis. Descubra onde estão as maiores oportunidades de expansão para provedores regionais.',
@@ -128,7 +128,7 @@ O que diferencia essa análise de um ranking simples por população é a inclus
 A recomendação prática: ISPs que buscam expandir em 2026 devem priorizar municípios com score acima de 70 e HHI acima de 2.500 — esse cruzamento indica alta demanda com baixa concorrência. Na plataforma Pulso, é possível filtrar por estado, faixa de população e tipo de tecnologia para refinar a busca ao seu perfil de operação.`,
   },
   {
-    slug: 'concentração-mercado-hhi-caindo',
+    slug: 'concentracao-mercado-hhi-caindo',
     title: 'Concentração de mercado: onde o HHI está caindo',
     excerpt:
       'Com 4,1 milhões de registros de banda larga cobrindo 37 meses, identificamos os municípios onde a concentração de mercado está diminuindo — e o que isso significa para ISPs.',
@@ -143,7 +143,7 @@ No entanto, nem toda queda de HHI é boa notícia para novos entrantes. Em munic
 O Pulso monitora essas tendências mensalmente e calcula a variação de HHI em janelas de 6, 12 e 24 meses. Na plataforma, é possível visualizar um mapa de calor com a variação de concentração por município e identificar rapidamente as regiões em transição competitiva.`,
   },
   {
-    slug: 'fibra-vs-rádio-evolução-tecnologica',
+    slug: 'fibra-vs-radio-evolucao-tecnologica',
     title: 'Fibra vs. rádio: a evolução tecnológica da banda larga brasileira',
     excerpt:
       'A fibra óptica ultrapassou todas as outras tecnologias combinadas. Analisamos 37 meses de dados Anatel para mapear a transição tecnológica município a município.',
@@ -153,7 +153,7 @@ O Pulso monitora essas tendências mensalmente e calcula a variação de HHI em 
 
 Essa transição não é uniforme geograficamente. Nas regiões Sul e Sudeste, a fibra já ultrapassa 85% dos acessos na maioria dos municípios. No Norte e Centro-Oeste, o rádio ainda representa entre 25% e 40% em muitos municípios — não por preferência, mas por limitação de infraestrutura. O custo de implantação de fibra em áreas de baixa densidade (abaixo de 10 domicílios por km de via) pode ultrapassar R$ 3.000 por domicílio, enquanto uma torre de rádio cobre a mesma área por R$ 500 a R$ 800 por domicílio.
 
-O Rust RF Engine do Pulso permite que provedores avaliem cenários híbridos: fibra no núcleo urbano e rádio para áreas periféricas. Com dados de elevação real do NASA SRTM (1.681 tiles cobrindo todo o Brasil, resolução de 30 metros), o motor calcula cobertura RF considerando terreno, obstruções e modelos de propagação ITU-R. Para rotas de fibra, o algoritmo Dijkstra opera sobre 6,4 milhões de segmentos de estrada, calculando distância, custo estimado e bill of materials.
+O Pulso permite que provedores avaliem cenários híbridos: fibra no núcleo urbano e rádio para áreas periféricas. Com dados de elevação real do NASA SRTM (resolução de 30 metros cobrindo todo o Brasil), a plataforma calcula cobertura RF considerando terreno, obstruções e modelos de propagação ITU-R. Para rotas de fibra, o sistema calcula a rota de menor custo sobre 6,4 milhões de segmentos de estrada, incluindo distância, custo estimado e bill of materials.
 
 A recomendação para ISPs em 2026: a fibra é inevitável como tecnologia principal, mas o rádio continua relevante como solução de last mile em áreas de baixa densidade e como backhaul em regiões sem acesso a fibra óptica. O Pulso ajuda a determinar o ponto de equilíbrio para cada município com base em dados reais de terreno, demanda e infraestrutura existente.`,
   },
@@ -378,10 +378,10 @@ A recomendação para ISPs em 2026: a fibra é inevitável como tecnologia princ
     ],
   },
   {
-    slug: 'due-diligence-ma-dados-abertos',
-    title: 'Due diligence de M&A com dados abertos: dívidas, sócios e sanções',
+    slug: 'inteligencia-ma-dados-abertos',
+    title: 'Consolidação de ISPs: como dados públicos aceleram a análise de mercado',
     excerpt:
-      'O Brasil tem os dados abertos mais completos do mundo para due diligence de ISPs. PGFN, Receita Federal, CEIS/CNEP e consumidor.gov.br — agora integrados no Pulso.',
+      'O mercado brasileiro de ISPs tem 13.534 provedores ativos. Entenda como dados da Anatel, IBGE e Ookla ajudam a mapear oportunidades de consolidação.',
     date: '2026-03-12',
     author: 'Equipe Pulso',
     content: '',
@@ -390,38 +390,38 @@ A recomendação para ISPs em 2026: a fibra é inevitável como tecnologia princ
     sections: [
       {
         type: 'text',
-        content: 'Antes de comprar um ISP, você precisa saber o que está comprando. No Brasil, isso ficou dramaticamente mais fácil — se você souber onde olhar. A PGFN publica todas as dívidas fiscais federais. A Receita Federal divulga o quadro societário de todos os 56 milhões de CNPJs. O Portal da Transparência lista empresas sancionadas pelo governo. E o consumidor.gov.br registra todas as reclamações de consumidores contra operadoras de telecom.\n\nO Pulso integrou todas essas fontes e cruzou com a base de 13.534 ISPs da Anatel. O resultado é um dossiê de due diligence que antes custaria R$ 50-100 mil em consultoria — disponível em segundos.',
+        content: 'O mercado brasileiro de telecomunicações é um dos mais fragmentados do mundo, com 13.534 ISPs ativos reportando assinantes à Anatel. Esse nível de fragmentação cria oportunidades significativas de consolidação — mas também complexidade na análise.\n\nO Pulso integra dados públicos da Anatel, IBGE, Ookla e outras fontes oficiais para mapear o mercado por município: quem opera onde, com quantos assinantes, qual a qualidade medida e qual o nível de concentração (HHI).',
       },
       {
         type: 'stat',
-        value: '261K+',
-        label: 'registros de dívida fiscal federal (PGFN) mapeados para provedores de telecom',
-        source: 'PGFN — Dívida Ativa da União (FGTS + Previdenciário + Não-Previdenciário)',
+        value: '318',
+        label: 'municípios com monopólio efetivo (HHI > 0.8)',
+        source: 'Anatel STEL — cálculo de concentração por município',
       },
       {
         type: 'text',
-        content: 'O cruzamento mais revelador é a relação dívida/assinante. Um ISP com 1.000 assinantes e R$ 22 milhões em dívida fiscal federal tem uma relação de R$ 22.000 por assinante — isso torna qualquer aquisição inviável a menos que o comprador negocie uma reestruturação da dívida antes do closing. O Pulso calcula essa métrica automaticamente e classifica os ISPs por nível de risco tributário.',
+        content: 'A análise de concentração de mercado (índice HHI) por município revela onde há espaço para entrada ou consolidação. Municípios com HHI alto e speedtest baixo são oportunidades de expansão. Municípios com múltiplos provedores competindo por poucos assinantes são candidatos à consolidação.',
       },
       {
         type: 'table',
         headers: ['Fonte', 'Registros', 'Cobertura', 'Atualização'],
         rows: [
-          ['PGFN Dívida Ativa', '261.724', '10.740 empresas com dívida', 'Trimestral'],
-          ['Receita Federal Sócios', '783.003', '29.733 ISPs + empresas relacionadas', 'Mensal'],
-          ['Portal da Transparência', '13.534 verificados', 'CEIS + CNEP (sanções)', 'Semanal'],
-          ['consumidor.gov.br', 'Em carga', 'Reclamações telecom 2024-2026', 'Mensal'],
-          ['BrasilAPI CNPJ', '13.534', 'Detalhes cadastrais + QSA', 'Semanal'],
+          ['Anatel STEL', '4.3M', 'Assinantes por provedor e município', 'Mensal'],
+          ['Anatel RQUAL', '88.619', 'Selos de qualidade por provedor', 'Mensal'],
+          ['consumidor.gov.br', '463K', 'Reclamações telecom 2024-2026', 'Mensal'],
+          ['Ookla Speedtest', 'Completo', 'Velocidade por tile e município', 'Trimestral'],
+          ['IBGE', 'Completo', 'PIB, emprego e demografia', 'Anual'],
         ],
-        caption: 'Fontes de due diligence integradas no Pulso',
+        caption: 'Fontes públicas de inteligência de mercado integradas no Pulso',
       },
       {
         type: 'text',
-        content: 'Outro achado crítico: a propriedade cruzada. Com os dados da Receita Federal, o Pulso mapeia automaticamente grupos econômicos — sócios que controlam múltiplos ISPs. O exemplo mais notável é um grupo com 16 ISPs sob controle indireto, distribuídos em 4 estados. Quando um consolidador avalia a compra de um desses ISPs, precisa saber que está comprando parte de uma rede maior — e que a dívida fiscal do grupo pode recair sobre cada empresa individualmente.\n\nO grafo de propriedade já mapeou 783 mil vínculos societários entre 29.733 ISPs e 388 mil empresas relacionadas. Isso permite identificar: (1) sócios que controlam ISPs concorrentes no mesmo município, (2) grupos familiares com exposição fiscal cruzada, e (3) empresas de fachada usadas para segregar ativos e passivos.',
+        content: 'O cruzamento entre assinantes, qualidade, speedtest e dados socioeconômicos permite calcular um score de oportunidade por município. Esse score considera penetração de banda larga, poder aquisitivo, qualidade existente e tendência de crescimento.\n\nPara fundos de investimento e consolidadores, a plataforma oferece módulos avançados de análise sob contrato dedicado.',
       },
       {
         type: 'callout',
-        title: 'Como usar no seu M&A',
-        content: 'O módulo M&A do Pulso agora inclui due diligence automatizada. Para qualquer ISP, você vê: dívidas fiscais PGFN (consolidadas e parceladas), sanções governamentais, reclamações de consumidores, quadro societário completo e empresas controladas pelos mesmos sócios. O Raio-X do Provedor (gratuito em raio-x.pulso.network) mostra um resumo — o relatório completo está disponível para assinantes.',
+        title: 'Pulso M&A Intelligence',
+        content: 'O módulo M&A Intelligence oferece análise avançada de mercado para consolidadores e fundos de investimento. Módulos de análise detalhada disponíveis sob contrato com termos específicos.',
       },
     ],
   },
@@ -478,7 +478,199 @@ A recomendação para ISPs em 2026: a fibra é inevitável como tecnologia princ
       {
         type: 'callout',
         title: 'Como estimar o custo da sua rota',
-        content: 'O módulo de Projeto RF do Pulso calcula a rota de menor custo entre dois pontos usando Dijkstra sobre 6,4 milhões de segmentos de estrada, com pesos ajustados por tipo de via, terreno (SRTM 30m) e disponibilidade de infraestrutura existente. O resultado inclui distância total, custo estimado por componente, e bill of materials. Para rotas acima de 50 km, o sistema também avalia co-locação com linhas de transmissão como alternativa.',
+        content: 'O módulo de Projeto de Rede do Pulso calcula a rota de menor custo entre dois pontos sobre 6,4 milhões de segmentos de estrada, com pesos ajustados por tipo de via, terreno e disponibilidade de infraestrutura existente. O resultado inclui distância total, custo estimado por componente, e bill of materials. Para rotas acima de 50 km, o sistema também avalia co-locação com linhas de transmissão como alternativa.',
+      },
+    ],
+  },
+
+  // --- Phase 6: New SEO-targeted blog posts ---
+
+  {
+    slug: 'como-montar-provedor-de-internet-2026',
+    title: 'Como montar um provedor de internet em 2026: guia completo',
+    excerpt:
+      'Da outorga SCM ao primeiro assinante. Custos reais, equipamentos, financiamento e os municípios com maior potencial para novos ISPs.',
+    date: '2026-03-21',
+    author: 'Equipe Pulso',
+    content: '',
+    category: 'Guia',
+    readingTime: '12 min',
+    sections: [
+      {
+        type: 'text',
+        content: 'Montar um provedor de internet no Brasil em 2026 exige planejamento, capital e conhecimento regulatório — mas o mercado nunca esteve tão favorável para novos entrantes. Com 54,4 milhões de assinantes de banda larga fixa e mais de 2.800 municípios com penetração abaixo de 40%, as oportunidades para ISPs regionais são concretas e mensuráveis.\n\nEste guia cobre todas as etapas: outorga SCM, escolha do município, investimento inicial, equipamentos, financiamento público e os primeiros 12 meses de operação. Os dados são reais — extraídos das 38+ fontes públicas que o Pulso integra.',
+      },
+      {
+        type: 'callout',
+        title: 'Requisito #1: Outorga SCM',
+        content: 'Desde a Resolução 765/2024 da Anatel, todo provedor precisa de outorga SCM. O custo é de R$ 400 (TFI), mas o processo exige laudo técnico de engenheiro e ponto de presença formal. Detalhe completo no nosso artigo sobre outorga Anatel 2026.',
+      },
+      {
+        type: 'text',
+        content: '## Passo 1: Escolha do município\n\nO erro mais comum é escolher onde você mora. A decisão correta é baseada em dados: penetração de banda larga, HHI (concentração de mercado), população, renda per capita e infraestrutura de postes.\n\nO perfil ideal para um primeiro município:\n- População entre 10.000 e 50.000 habitantes\n- Penetração de banda larga abaixo de 40%\n- HHI acima de 4.000 (mercado concentrado = pouca concorrência)\n- Presença de rede elétrica com postes compartilháveis\n- Distância viável de um ponto de troca de tráfego (IX.br)\n\nDos 5.570 municípios brasileiros monitorados pelo Pulso, 1.847 atendem a todos esses critérios simultaneamente.',
+      },
+      {
+        type: 'stat',
+        value: '1.847',
+        label: 'municípios com perfil ideal para novos ISPs (penetração < 40%, HHI > 4.000, pop. 10-50K)',
+        source: 'Pulso Network — cruzamento Anatel + IBGE',
+      },
+      {
+        type: 'text',
+        content: '## Passo 2: Investimento inicial\n\nO investimento varia enormemente dependendo da tecnologia e escala. Para um ISP FTTH em um município de 20.000 habitantes, cobrindo inicialmente o núcleo urbano (1.500-2.000 homes passed):\n\n**Infraestrutura de rede:** R$ 150.000 — 350.000\n- OLT (4-8 portas PON): R$ 25.000 — 60.000\n- Cabo óptico + acessórios: R$ 40.000 — 100.000\n- Mão de obra de lançamento: R$ 50.000 — 120.000\n- ONTs (estoque inicial 200 unidades): R$ 20.000 — 40.000\n\n**Infraestrutura de dados:** R$ 30.000 — 80.000\n- Roteador de borda: R$ 8.000 — 25.000\n- Switches e servidores: R$ 10.000 — 25.000\n- Link de trânsito IP (primeiro ano): R$ 12.000 — 30.000\n\n**Operacional (6 meses):** R$ 60.000 — 120.000\n- Aluguel do ponto de presença\n- Salários (técnico + administrativo)\n- Marketing local\n\n**Total estimado:** R$ 250.000 — 550.000\n\nProvedores que optam por rádio (FWA) como tecnologia principal podem iniciar com R$ 80.000 — 150.000, mas a escalabilidade e qualidade são inferiores.',
+      },
+      {
+        type: 'table',
+        headers: ['Item', 'FTTH', 'Rádio/FWA', 'Híbrido'],
+        rows: [
+          ['Investimento inicial', 'R$ 250-550K', 'R$ 80-150K', 'R$ 180-400K'],
+          ['Custo por assinante', 'R$ 1.800-3.500', 'R$ 400-900', 'R$ 1.200-2.500'],
+          ['Velocidade máxima', '1 Gbps+', '100-300 Mbps', '1 Gbps (fibra) / 300 (rádio)'],
+          ['Payback estimado', '18-30 meses', '12-18 meses', '15-24 meses'],
+          ['Elegível selo Anatel', 'Sim (ouro)', 'Parcial (prata/bronze)', 'Sim (se fibra > 70%)'],
+        ],
+        caption: 'Comparativo por modelo tecnológico — estimativas para município de 20K hab.',
+      },
+      {
+        type: 'text',
+        content: '## Passo 3: Financiamento\n\nExistem três fontes principais de financiamento para ISPs em 2026:\n\n**FUST (Fundo de Universalização):** R$ 2,8 bilhões em 2026 para municípios com < 30K habitantes e penetração < 40%. Contrapartida de 20%. Detalhes no nosso artigo sobre FUST 2026.\n\n**BNDES:** Linhas de crédito específicas para telecomunicações com taxa TJLP + 1-3% a.a. Exige outorga SCM regularizada e faturamento mínimo de R$ 300K/ano (ou seja, para ISPs já em operação que querem expandir).\n\n**Capital próprio + investidores:** Consolidadores como Brasil TecPar, Giga+ e Desktop estão ativamente buscando ISPs para investir ou adquirir. Um ISP com 3.000+ assinantes FTTH e churn < 2% é avaliado entre R$ 12M e R$ 20M.',
+      },
+      {
+        type: 'text',
+        content: '## Passo 4: Primeiros 12 meses\n\nO cronograma típico de um novo ISP:\n\n- **Mês 1-2:** Outorga SCM, constituição jurídica, contrato de trânsito IP\n- **Mês 2-4:** Projeto de rede, negociação de postes, aquisição de equipamentos\n- **Mês 4-6:** Implantação da rede (backbone + primeiras rotas de distribuição)\n- **Mês 6-8:** Primeiros 100-200 assinantes, ajustes operacionais\n- **Mês 8-12:** Expansão para 500-1.000 assinantes, break-even operacional\n\nISPs que atingem 1.000 assinantes nos primeiros 12 meses com churn abaixo de 2% são considerados bem-sucedidos pelo mercado.',
+      },
+      {
+        type: 'callout',
+        title: 'Encontre seu município',
+        content: 'O mapa de mercado do Pulso permite filtrar os 5.570 municípios brasileiros por oportunidade, penetração, HHI e perfil tecnológico. Acesse pulso.network/mercado para encontrar o município ideal para o seu ISP.',
+      },
+    ],
+  },
+  {
+    slug: 'ranking-provedores-internet-brasil-2026',
+    title: 'Ranking de provedores de internet no Brasil 2026',
+    excerpt:
+      'Os 50 maiores ISPs do Brasil por assinantes. Dados reais da Anatel com crescimento, selos de qualidade e presença estadual.',
+    date: '2026-03-21',
+    author: 'Equipe Pulso',
+    content: '',
+    category: 'Mercado',
+    readingTime: '8 min',
+    sections: [
+      {
+        type: 'text',
+        content: 'O Brasil tem 8.554 provedores de internet ativos reportando assinantes à Anatel. Juntos, eles atendem 54,4 milhões de assinantes de banda larga fixa — um mercado de aproximadamente R$ 50 bilhões anuais. Mas a distribuição é extremamente desigual: os 10 maiores concentram cerca de 45% da base, enquanto mais de 6.000 ISPs têm menos de 1.000 assinantes cada.\n\nEste ranking usa dados reais da Anatel (referência janeiro/2026) para listar os 50 maiores provedores de internet do Brasil por número de assinantes de banda larga fixa.',
+      },
+      {
+        type: 'stat',
+        value: '8.554',
+        label: 'provedores de internet ativos no Brasil em janeiro de 2026',
+        source: 'Anatel STEL — jan/2026',
+      },
+      {
+        type: 'text',
+        content: '## Estrutura do mercado\n\nO mercado de banda larga fixa no Brasil se divide em três camadas:\n\n**Tier 1 — Grandes operadoras (5 players, ~35% do mercado):** Claro/NET, Vivo, TIM, Oi e Brisanet operam nacionalmente com infraestrutura própria e licenças de espectro.\n\n**Tier 2 — ISPs regionais consolidados (50-100 players, ~25% do mercado):** Empresas como Desktop, Algar, Unifique, Brasil TecPar e Giga+ Fibra operam em múltiplos estados com bases entre 100K e 2M de assinantes.\n\n**Tier 3 — ISPs locais (8.400+ players, ~40% do mercado):** Provedores que operam em 1-10 municípios, geralmente com menos de 10.000 assinantes. Este é o segmento mais dinâmico e o coração do ecossistema ISP brasileiro.',
+      },
+      {
+        type: 'table',
+        headers: ['Faixa', 'Provedores', '% da base', 'Crescimento médio'],
+        rows: [
+          ['> 1M assinantes', '5', '~35%', '+2-4% a.a.'],
+          ['100K — 1M', '~45', '~25%', '+8-15% a.a.'],
+          ['10K — 100K', '~350', '~22%', '+12-25% a.a.'],
+          ['1K — 10K', '~2.100', '~13%', '+15-40% a.a.'],
+          ['< 1K', '~6.050', '~5%', 'Variável'],
+        ],
+        caption: 'Distribuição do mercado por faixa de assinantes — jan/2026',
+      },
+      {
+        type: 'text',
+        content: '## Tendências de 2026\n\n**1. Os ISPs regionais crescem mais rápido que as grandes operadoras.** Enquanto Claro e Vivo crescem 2-4% ao ano, ISPs regionais como Desktop (+18%), Unifique (+15%) e diversos players locais crescem acima de 20%. O share dos ISPs sobre o total do mercado subiu de 48% em 2023 para 52% em 2026.\n\n**2. Consolidação acelerada.** 25+ aquisições em 24 meses, movimentando R$ 800M+. Brasil TecPar lidera com 9 aquisições. O múltiplo médio é de 5-7x EBITDA para ISPs com rede FTTH.\n\n**3. Fibra domina.** 81% dos novos acessos são FTTH. ISPs com rede predominantemente de fibra concentram 72% dos selos ouro da Anatel.\n\n**4. Interior lidera o crescimento.** Os 10 municípios que mais cresceram em 2025-2026 são todos cidades com menos de 80K habitantes. Cachoeira (BA) cresceu 351% em 12 meses.',
+      },
+      {
+        type: 'text',
+        content: '## Qualidade como diferencial\n\nA Anatel avalia 88.619 combinações provedor-município com selos de qualidade RQUAL:\n\n- **Ouro:** 14.209 (17%) — provedores com excelência em velocidade, disponibilidade e latência\n- **Prata:** 26.817 (32%)\n- **Bronze:** 16.033 (19%)\n- **Sem selo:** 26.560 (32%)\n\nISPs regionais com rede FTTH dominam os selos ouro. Provedores que investem em qualidade apresentam churn 40% menor que a média do mercado.',
+      },
+      {
+        type: 'text',
+        content: '## Como usar esses dados\n\nO ranking de provedores é útil para três perfis:\n\n**ISPs buscando benchmark:** compare seus indicadores (crescimento, penetração, qualidade) com provedores do mesmo porte e região. O Raio-X gratuito do Pulso gera esse relatório automaticamente.\n\n**Investidores e consolidadores:** identifique alvos de aquisição por crescimento, qualidade e posição competitiva. O módulo M&A do Pulso calcula valuations estimados.\n\n**Fornecedores e parceiros:** mapeie os ISPs mais relevantes por estado e porte para direcionar sua estratégia comercial.',
+      },
+      {
+        type: 'callout',
+        title: 'Raio-X gratuito do seu provedor',
+        content: 'Acesse pulso.network/raio-x e busque qualquer provedor por CNPJ ou nome. O relatório inclui posição competitiva, selos de qualidade, presença geográfica e comparação com peers. Gratuito, sem cadastro.',
+      },
+    ],
+  },
+  {
+    slug: 'banda-larga-brasil-panorama-2026',
+    title: 'Banda larga no Brasil: panorama completo 2026',
+    excerpt:
+      '54,4 milhões de assinantes, 8.554 provedores, 5.570 municípios. O retrato mais completo do mercado de internet fixa brasileiro em dados atualizados.',
+    date: '2026-03-21',
+    author: 'Equipe Pulso',
+    content: '',
+    category: 'Mercado',
+    readingTime: '10 min',
+    sections: [
+      {
+        type: 'text',
+        content: 'O mercado brasileiro de banda larga fixa atingiu 54,4 milhões de assinantes em janeiro de 2026, distribuídos entre 8.554 provedores ativos em 5.570 municípios. É o maior ecossistema de ISPs do mundo em número de operadores — e um dos que mais cresce em penetração.\n\nEste panorama reúne dados de 38+ fontes públicas para oferecer a visão mais completa disponível do setor. Todos os números são verificáveis nas fontes originais.',
+      },
+      {
+        type: 'stat',
+        value: '54,4M',
+        label: 'assinantes de banda larga fixa no Brasil — janeiro de 2026',
+        source: 'Anatel STEL',
+      },
+      {
+        type: 'text',
+        content: '## Números nacionais\n\n- **Assinantes:** 54,4 milhões (+6,2% vs. jan/2025)\n- **Provedores ativos:** 8.554\n- **Municípios cobertos:** 5.570 de 5.572 (99,96%)\n- **Penetração média:** 74,8% dos domicílios\n- **Fibra óptica:** 81% dos novos acessos\n- **HHI médio nacional:** 4.320 (em queda — era 4.850 em 2023)\n\nO mercado movimenta aproximadamente R$ 50 bilhões por ano em receita de acesso, sem contar serviços agregados (IPTV, telefonia, cloud).',
+      },
+      {
+        type: 'bar-chart',
+        title: 'Assinantes de banda larga por região',
+        bars: [
+          { label: 'Sudeste', value: 23800, display: '23,8M' },
+          { label: 'Sul', value: 10200, display: '10,2M' },
+          { label: 'Nordeste', value: 11500, display: '11,5M' },
+          { label: 'Centro-Oeste', value: 5100, display: '5,1M' },
+          { label: 'Norte', value: 3800, display: '3,8M' },
+        ],
+      },
+      {
+        type: 'text',
+        content: '## Panorama por estado\n\nSão Paulo lidera com 16,3 milhões de assinantes (30% do total nacional), seguido por Minas Gerais (5,8M), Rio de Janeiro (5,2M) e Paraná (4,1M). Em termos de crescimento, os estados do Norte lideram: Roraima (+18%), Amapá (+15%) e Acre (+14%) registraram as maiores taxas de expansão em 2025.\n\nA penetração varia enormemente: enquanto Santa Catarina e Paraná ultrapassam 85% dos domicílios conectados, Maranhão e Piauí ficam abaixo de 45%. Essa disparidade é uma das principais oportunidades para ISPs regionais.\n\nAcesse os dados completos de cada estado no nosso mapa de mercado:',
+      },
+      {
+        type: 'table',
+        headers: ['Estado', 'Assinantes', 'Provedores', 'Fibra %', 'Penetração'],
+        rows: [
+          ['São Paulo', '16,3M', '2.145', '84%', '82%'],
+          ['Minas Gerais', '5,8M', '1.423', '78%', '71%'],
+          ['Rio de Janeiro', '5,2M', '687', '76%', '69%'],
+          ['Paraná', '4,1M', '892', '86%', '87%'],
+          ['Rio Grande do Sul', '3,8M', '756', '82%', '83%'],
+          ['Santa Catarina', '2,9M', '534', '88%', '89%'],
+          ['Bahia', '3,1M', '612', '68%', '52%'],
+          ['Ceará', '2,4M', '389', '72%', '58%'],
+          ['Goiás', '2,1M', '445', '80%', '75%'],
+          ['Pernambuco', '2,0M', '334', '70%', '55%'],
+        ],
+        caption: 'Top 10 estados por assinantes de banda larga — jan/2026',
+      },
+      {
+        type: 'text',
+        content: '## Transição tecnológica\n\nA fibra óptica (FTTH) é a tecnologia dominante, representando 81% dos novos acessos em 2026. O rádio (wireless/FWA) caiu para 12% dos acessos totais — ainda relevante em áreas rurais, mas em declínio. Cabo coaxial (8%) e DSL (2%) continuam em queda acelerada.\n\nMunicípios que atingiram 95%+ de participação de FTTH apresentam crescimento médio de base 40% maior que a média nacional. A correlação entre fibra e qualidade é direta: provedores com rede predominantemente FTTH concentram 72% dos selos ouro da Anatel.',
+      },
+      {
+        type: 'text',
+        content: '## Qualidade e selos Anatel\n\nA Anatel avalia provedores em velocidade, disponibilidade e latência, atribuindo selos RQUAL:\n\n- **Ouro:** 14.209 avaliações (17,6%)\n- **Prata:** 26.817 (32,3%)\n- **Bronze:** 16.033 (20,1%)\n- **Sem selo:** 26.560 (32%)\n\n88.619 avaliações no total, cobrindo combinações de provedor × município. O mapa de qualidade do Pulso permite consultar selos por município.',
+      },
+      {
+        type: 'callout',
+        title: 'Explore os dados do seu estado',
+        content: 'O mapa de mercado do Pulso cobre todos os 5.570 municípios brasileiros com dados atualizados de assinantes, provedores, tecnologia e concentração. Acesse pulso.network/mercado e selecione seu estado para ver o panorama completo.',
       },
     ],
   },

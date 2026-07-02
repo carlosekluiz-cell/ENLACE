@@ -3,6 +3,7 @@ import {
   TrendingUp,
   Users,
   Antenna,
+  Cable,
   Shield,
   Activity,
   Mountain,
@@ -31,6 +32,7 @@ import {
 
 export interface NavItem {
   label: string;
+  labelKey?: string; // i18n key, e.g. 'sidebar.map'
   href: string;
   icon: LucideIcon;
   badge?: string; // "NEW", "BETA", etc.
@@ -40,6 +42,7 @@ export interface NavItem {
 export interface NavSection {
   id: string;
   label: string;
+  labelKey?: string; // i18n key for section header
   items: NavItem[];
 }
 
@@ -48,9 +51,9 @@ export const navSections: NavSection[] = [
     id: 'market',
     label: 'Inteligência de Mercado',
     items: [
-      { label: 'Mapa', href: '/', icon: Map },
-      { label: 'Expansão', href: '/expansao', icon: TrendingUp },
-      { label: 'Concorrência', href: '/concorrencia', icon: Users },
+      { label: 'Mapa', labelKey: 'sidebar.map', href: '/', icon: Map },
+      { label: 'Expansão', labelKey: 'sidebar.expansion', href: '/expansao', icon: TrendingUp },
+      { label: 'Concorrência', labelKey: 'sidebar.competition', href: '/concorrencia', icon: Users },
       { label: 'Research', href: '/research', icon: BookMarked },
       { label: 'Velocidade', href: '/velocidade', icon: Gauge, badge: 'NEW' },
       { label: 'Hex Grid', href: '/hexgrid', icon: Hexagon, badge: 'NEW' },
@@ -62,11 +65,10 @@ export const navSections: NavSection[] = [
     id: 'infra',
     label: 'Infraestrutura',
     items: [
-      { label: 'Projeto RF', href: '/projeto', icon: Antenna },
+      { label: 'Projeto de Rede', labelKey: 'sidebar.design', href: '/projeto', icon: Cable },
       { label: 'Satélite', href: '/satelite', icon: Satellite },
       { label: 'Fibra', href: '/fibra', icon: Building2, badge: 'NEW' },
       { label: 'Cobertura', href: '/compartilhamento', icon: Share2, badge: 'NEW' },
-      { label: 'FWA vs Fibra', href: '/fwa-fiber', icon: Radio, badge: 'NEW' },
       { label: 'Backhaul', href: '/backhaul', icon: Zap, badge: 'NEW' },
       { label: 'Risco Climático', href: '/risco-clima', icon: CloudRain, badge: 'NEW' },
       { label: 'Peering', href: '/peering', icon: Globe, badge: 'NEW' },
@@ -77,7 +79,7 @@ export const navSections: NavSection[] = [
     id: 'compliance',
     label: 'Conformidade',
     items: [
-      { label: 'Conformidade', href: '/conformidade', icon: Shield },
+      { label: 'Conformidade', labelKey: 'sidebar.compliance', href: '/conformidade', icon: Shield },
       { label: 'Obrigações 5G', href: '/obrigacoes', icon: Shield, badge: 'NEW' },
     ],
   },
@@ -94,19 +96,27 @@ export const navSections: NavSection[] = [
     id: 'rural',
     label: 'Rural & Social',
     items: [
-      { label: 'Rural', href: '/rural', icon: Mountain },
-      { label: 'Saúde', href: '/saude', icon: Activity },
+      { label: 'Rural', labelKey: 'sidebar.rural', href: '/rural', icon: Mountain },
+      { label: 'Saúde', labelKey: 'sidebar.health', href: '/saude', icon: Activity },
+    ],
+  },
+  {
+    id: 'pulso-uk',
+    label: 'PULSO UK',
+    items: [
+      { label: 'UK Topology', href: '/uk/topology', icon: Cable, badge: 'NEW' },
     ],
   },
   {
     id: 'data',
     label: 'Dados & AI',
     items: [
-      { label: 'Relatórios', href: '/relatorios', icon: FileText },
+      { label: 'Relatórios', labelKey: 'sidebar.reports', href: '/relatorios', icon: FileText },
       { label: 'Consulta SQL', href: '/consulta', icon: Search, badge: 'NEW' },
       { label: 'Alertas', href: '/alertas', icon: Bell, badge: 'NEW' },
       { label: 'Análise Cruzada', href: '/analise', icon: GitCompareArrows, badge: 'NEW' },
       { label: 'Histórico', href: '/historico', icon: Clock, badge: 'NEW' },
+      { label: 'LATAM', href: '/latam', icon: Globe, badge: 'NEW' },
     ],
   },
 ];

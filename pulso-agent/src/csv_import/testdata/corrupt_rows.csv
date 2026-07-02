@@ -1,0 +1,7 @@
+Timestamp,Serial Number,PON Port,Operational Status,RX Power (dBm)
+2026-06-30 08:15:00,ADTN21341A8C,1/1/xp1,IS,-21.7
+not-a-timestamp,ADTN21342B44,1/1/xp1,IS,-22.0
+2026-06-30 08:15:00,,1/1/xp1,IS,-20.1
+2026-06-30 08:15:00,ADTN21349C77,1/1/xp2,provisioning-pending,-24.2
+2026-06-30 08:15:00,ADTN2134D1E9,1/1/xp2,IS,not-a-number
+2026-06-30 08:15:00,ADTN2134EE00,1/1/xp2,OOS,

@@ -17,6 +17,7 @@ import {
   RefreshCw,
   X,
 } from 'lucide-react';
+import DisclaimerBanner from '@/components/ui/DisclaimerBanner';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -521,6 +522,15 @@ export default function CreditoPage() {
           Analise de credito e solvencia dos provedores de internet brasileiros
         </p>
       </div>
+
+      {/* Legal disclaimer — contract required */}
+      <DisclaimerBanner
+        level="red"
+        message="Scores indicativos para uso interno do contratante. Nao constitui avaliacao de credito nos termos da Lei 12.414/2011 (Cadastro Positivo) nem recomendacao de investimento. Acesso completo requer contratacao especifica."
+        ctaHref="/contato"
+        ctaLabel="Solicitar contratacao"
+        dismissible={false}
+      />
 
       {/* Errors */}
       {distError && <ErrorBanner message={`Erro na distribuicao: ${distError}`} />}

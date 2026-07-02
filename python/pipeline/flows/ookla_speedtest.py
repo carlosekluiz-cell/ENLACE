@@ -21,7 +21,7 @@ import pandas as pd
 from shapely.geometry import box
 
 from python.pipeline.base import BasePipeline
-from python.pipeline.config import BRAZIL_BBOX, DOWNLOAD_CACHE_DIR
+from python.pipeline.config import BRAZIL_BBOX, COLOMBIA_BBOX, ALL_LATAM_BBOXES, DOWNLOAD_CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -92,12 +92,19 @@ class OoklaSpeedtestPipeline(BasePipeline):
         return count == 0
 
     def download(self) -> pd.DataFrame:
-        """Download Ookla Parquet tiles from S3 and filter to Brazil bbox."""
+        """Download Ookla Parquet tiles from S3 and filter to all LATAM bboxes."""
+        # Combined bounding box covering all 19 LATAM countries
+        all_bboxes = list(ALL_LATAM_BBOXES.values())
+        combined_min_lat = min(b["min_lat"] for b in all_bboxes)
+        combined_max_lat = max(b["max_lat"] for b in all_bboxes)
+        combined_min_lon = min(b["min_lon"] for b in all_bboxes)
+        combined_max_lon = max(b["max_lon"] for b in all_bboxes)
+
         brazil_bbox = box(
-            BRAZIL_BBOX["min_lon"],
-            BRAZIL_BBOX["min_lat"],
-            BRAZIL_BBOX["max_lon"],
-            BRAZIL_BBOX["max_lat"],
+            combined_min_lon,
+            combined_min_lat,
+            combined_max_lon,
+            combined_max_lat,
         )
 
         cache_dir = Path(DOWNLOAD_CACHE_DIR)
@@ -107,9 +114,11 @@ class OoklaSpeedtestPipeline(BasePipeline):
 
         for year, quarter in QUARTERS_TO_TRY:
             quarter_label = f"{year}-Q{quarter}"
+            # Ookla uses date-based filenames: YYYY-MM-DD where MM is first month of quarter
+            quarter_start_month = (quarter - 1) * 3 + 1
             parquet_url = (
                 f"{OOKLA_S3_BASE}/type=fixed/year={year}/quarter={quarter}/"
-                f"{year}-{quarter}_performance_fixed_tiles.parquet"
+                f"{year}-{quarter_start_month:02d}-01_performance_fixed_tiles.parquet"
             )
             cache_path = cache_dir / f"ookla_fixed_{year}_q{quarter}.parquet"
 
@@ -158,11 +167,11 @@ class OoklaSpeedtestPipeline(BasePipeline):
                     logger.warning(f"Unknown Ookla format. Columns: {list(df.columns)}")
                     continue
 
-                # Filter to Brazil bounding box
+                # Filter to combined Brazil + Colombia bounding box
                 brazil_mask = gdf.geometry.intersects(brazil_bbox)
                 gdf_brazil = gdf[brazil_mask].copy()
                 logger.info(
-                    f"Ookla {quarter_label}: {len(gdf_brazil):,} tiles in Brazil "
+                    f"Ookla {quarter_label}: {len(gdf_brazil):,} tiles in BR+CO "
                     f"(from {len(gdf):,} total)"
                 )
 
@@ -240,7 +249,7 @@ class OoklaSpeedtestPipeline(BasePipeline):
             SELECT id AS l2_id, code, name,
                    ST_AsText(geom) AS geom_wkt
             FROM admin_level_2
-            WHERE country_code = 'BR' AND geom IS NOT NULL
+            WHERE geom IS NOT NULL
         """
         muni_df = pd.read_sql(muni_sql, conn)
         conn.close()

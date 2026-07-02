@@ -1,0 +1,5 @@
+ONT ID,Serial Number,OLT,PON Port,Admin State,Operational Status,RX Power (dBm),TX Power (dBm),Distance (m),Temperature (°C),Supply Voltage (V),Bias Current (mA),FEC Corrected,FEC Uncorrected,BIP Errors,Bytes In,Bytes Out,Last Updated
+1,ADTN21341A8C,olt-lon-01,1/1/xpon 1,enabled,IS,-21.7,2.4,1204,45.5 °C,3.31 V,12.4 mA,18234,0,3,182347776,23456789,2026-06-30 08:15:00
+2,ADTN21342B44,olt-lon-01,1/1/xpon 1,enabled,IS,-23.1,2.2,987,327.67,655.35,655.35,52,1,0,987654,12345,2026-06-30 08:15:00
+3,ADTN21349C77,olt-lon-01,1/1/xpon 2,enabled,OOS,,,1450,,,,,,,,,2026-06-30 08:15:00
+4,ADTN2134D1E9,olt-lon-01,1/1/xpon 2,enabled,IS-NR,-19.8,2.6,455,44.9,3.29,11.8,0,0,0,555000111,44000222,2026-06-30 08:15:00

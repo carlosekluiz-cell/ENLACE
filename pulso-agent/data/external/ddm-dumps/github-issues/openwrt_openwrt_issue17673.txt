@@ -1,0 +1,191 @@
+# Source: https://github.com/openwrt/openwrt/issues/17673
+# Title: Banana Pi R4 SFP Not Connecting
+# Retrieved: 2026-07-02
+# License: user-posted content on GitHub, unclear
+
+## From: issue body (user: RonWilliam547)
+root@OpenWrt:~# ethtool -m sfp-lan
+	Identifier                                : 0x03 (SFP)
+	Extended identifier                       : 0x04 (GBIC/SFP defined by 2-wire interface ID)
+	Connector                                 : 0x07 (LC)
+	Transceiver codes                         : 0x10 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+	Transceiver type                          : 10G Ethernet: 10G Base-SR
+	Encoding                                  : 0x06 (64B/66B)
+	BR, Nominal                               : 10300MBd
+	Rate identifier                           : 0x00 (unspecified)
+	Length (SMF,km)                           : 0km
+	Length (SMF)                              : 0m
+	Length (50um)                             : 80m
+	Length (62.5um)                           : 20m
+	Length (Copper)                           : 0m
+	Length (OM3)                              : 300m
+	Laser wavelength                          : 850nm
+	Vendor name                               : OEM
+	Vendor OUI                                : 00:00:00
+	Vendor PN                                 : SFP+-T30
+	Vendor rev                                : 1
+	Option values                             : 0x00 0x1a
+	Option                                    : RX_LOS implemented
+	Option                                    : TX_FAULT implemented
+	Option                                    : TX_DISABLE implemented
+	BR margin, max                            : 0%
+	BR margin, min                            : 0%
+	Vendor SN                                 : C202412310055
+	Date code                                 : 250102
+	Optical diagnostics support               : Yes
+	Laser bias current                        : 6.000 mA
+	Laser output power                        : 0.5000 mW / -3.01 dBm
+	Receiver signal average optical power     : 0.4000 mW / -3.98 dBm
+	Module temperature                        : 51.08 degrees C / 123.94 degrees F
+	Module voltage                            : 3.3054 V
+	Alarm/warning flags implemented           : Yes
+	Laser bias current high alarm             : Off
+	Laser bias current low alarm              : Off
+	Laser bias current high warning           : Off
+	Laser bias current low warning            : Off
+	Laser output power high alarm             : Off
+	Laser output power low alarm              : Off
+	Laser output power high warning           : Off
+	Laser output power low warning            : Off
+	Module temperature high alarm             : Off
+	Module temperature low alarm              : Off
+	Module temperature high warning           : Off
+	Module temperature low warning            : Off
+	Module voltage high alarm                 : Off
+	Module voltage low alarm                  : Off
+	Module voltage high warning               : Off
+	Module voltage low warning                : Off
+	Laser rx power high alarm                 : Off
+	Laser rx power low alarm                  : Off
+	Laser rx power high warning               : Off
+	Laser rx power low warning                : Off
+	Laser bias current high alarm threshold   : 15.000 mA
+	Laser bias current low alarm threshold    : 1.000 mA
+	Laser bias current high warning threshold : 13.000 mA
+	Laser bias current low warning threshold  : 2.000 mA
+	Laser output power high alarm threshold   : 1.9952 mW / 3.00 dBm
+	Laser output power low alarm threshold    : 0.1584 mW / -8.00 dBm
+	Laser output power high warning threshold : 1.7782 mW / 2.50 dBm
+	Laser output power low warning threshold  : 0.1778 mW / -7.50 dBm
+	Module temperature high alarm threshold   : 95.00 degrees C / 203.00 degrees F
+	Module temperature low alarm threshold    : -50.00 degrees C / -58.00 degrees F
+	Module temperature high warning threshold : 90.00 degrees C / 194.00 degrees F
+	Module temperature low warning threshold  : -45.00 degrees C / -49.00 degrees F
+	Module voltage high alarm threshold       : 3.6000 V
+	Module voltage low alarm threshold        : 3.0000 V
+	Module voltage high warning threshold     : 3.5000 V
+	Module voltage low warning threshold      : 3.1000 V
+	Laser rx power high alarm threshold       : 1.5849 mW / 2.00 dBm
+	Laser rx power low alarm threshold        : 0.0199 mW / -17.01 dBm
+	Laser rx power high warning threshold     : 1.2589 mW / 1.00 dBm
+	Laser rx power low warning threshold      : 0.0251 mW / -16.00 dBm
+root@OpenWrt:~#
+
+
+## From: issue body (user: RonWilliam547)
+root@OpenWrt:~# ethtool -m sfp-lan
+	Identifier                                : 0x03 (SFP)
+	Extended identifier                       : 0x04 (GBIC/SFP defined by 2-wire interface ID)
+	Connector                                 : 0x00 (unknown or unspecified)
+	Transceiver codes                         : 0x00 0x00 0x00 0x08 0x00 0x00 0x00 0x00 0x00
+	Transceiver type                          : Ethernet: 1000BASE-T
+	Encoding                                  : 0x01 (8B/10B)
+	BR, Nominal                               : 1300MBd
+	Rate identifier                           : 0x00 (unspecified)
+	Length (SMF,km)                           : 0km
+	Length (SMF)                              : 0m
+	Length (50um)                             : 0m
+	Length (62.5um)                           : 0m
+	Length (Copper)                           : 100m
+	Length (OM3)                              : 0m
+	Laser wavelength                          : 0nm
+	Vendor name                               : OEM
+	Vendor OUI                                : 00:00:00
+	Vendor PN                                 : SFP-GE-T
+	Vendor rev                                : 
+	Option values                             : 0x00 0x1a
+	Option                                    : RX_LOS implemented
+	Option                                    : TX_FAULT implemented
+	Option                                    : TX_DISABLE implemented
+	BR margin, max                            : 0%
+	BR margin, min                            : 0%
+	Vendor SN                                 : CSGE2O59225
+	Date code                                 : 24052701
+root@OpenWrt:~#
+
+
+## From: https://github.com/openwrt/openwrt/issues/17673#issuecomment-3707317336 (user: mhalano)
+	Identifier                                : 0x03 (SFP)
+	Extended identifier                       : 0x04 (GBIC/SFP defined by 2-wire interface ID)
+	Connector                                 : 0x07 (LC)
+	Transceiver codes                         : 0x00 0x00 0x00 0x01 0x20 0x40 0x0c 0x05 0x00
+	Transceiver type                          : FC: 100 MBytes/sec
+	Encoding                                  : 0x01 (8B/10B)
+	BR Nominal                                : 1300MBd
+	Rate identifier                           : 0x00 (unspecified)
+	Length (SMF)                              : 0km
+	Length (OM2)                              : 550m
+	Length (OM1)                              : 270m
+	Length (Copper or Active cable)           : 0m
+	Length (OM3)                              : 0m
+	Laser wavelength                          : 850nm
+	Vendor name                               : OEM
+	Vendor OUI                                : 00:1b:21
+	Vendor PN                                 : SFP-10G-T
+	Vendor rev                                : 1
+	Option values                             : 0x00 0x1a
+	Option                                    : TX_DISABLE implemented
+	BR margin max                             : 0%
+	BR margin min                             : 0%
+	Vendor SN                                 : CI202511040410
+	Date code                                 : 251104
+	Optical diagnostics support               : Yes
+	Laser bias current                        : 6.000 mA
+	Laser output power                        : 0.5000 mW / -3.01 dBm
+	Receiver signal average optical power     : 0.0000 mW / -inf dBm
+	Module temperature                        : 46.80 degrees C / 116.23 degrees F
+	Module voltage                            : 3.3573 V
+	Alarm/warning flags implemented           : Yes
+	Laser bias current high alarm             : Off
+	Laser bias current low alarm              : Off
+	Laser bias current high warning           : Off
+	Laser bias current low warning            : Off
+	Laser output power high alarm             : Off
+	Laser output power low alarm              : Off
+	Laser output power high warning           : Off
+	Laser output power low warning            : Off
+	Module temperature high alarm             : Off
+	Module temperature low alarm              : Off
+	Module temperature high warning           : Off
+	Module temperature low warning            : Off
+	Module voltage high alarm                 : Off
+	Module voltage low alarm                  : Off
+	Module voltage high warning               : Off
+	Module voltage low warning                : Off
+	Laser rx power high alarm                 : Off
+	Laser rx power low alarm                  : On
+	Laser rx power high warning               : Off
+	Laser rx power low warning                : On
+	Laser bias current high alarm threshold   : 15.000 mA
+	Laser bias current low alarm threshold    : 1.000 mA
+	Laser bias current high warning threshold : 13.000 mA
+	Laser bias current low warning threshold  : 2.000 mA
+	Laser output power high alarm threshold   : 1.9952 mW / 3.00 dBm
+	Laser output power low alarm threshold    : 0.1584 mW / -8.00 dBm
+	Laser output power high warning threshold : 1.7782 mW / 2.50 dBm
+	Laser output power low warning threshold  : 0.1778 mW / -7.50 dBm
+	Module temperature high alarm threshold   : 95.00 degrees C / 203.00 degrees F
+	Module temperature low alarm threshold    : -50.00 degrees C / -58.00 degrees F
+	Module temperature high warning threshold : 90.00 degrees C / 194.00 degrees F
+	Module temperature low warning threshold  : -45.00 degrees C / -49.00 degrees F
+	Module voltage high alarm threshold       : 3.6000 V
+	Module voltage low alarm threshold        : 3.0000 V
+	Module voltage high warning threshold     : 3.5000 V
+	Module voltage low warning threshold      : 3.1000 V
+	Laser rx power high alarm threshold       : 1.5849 mW / 2.00 dBm
+	Laser rx power low alarm threshold        : 0.0199 mW / -17.01 dBm
+	Laser rx power high warning threshold     : 1.2589 mW / 1.00 dBm
+	Laser rx power low warning threshold      : 0.0251 mW / -16.00 dBm
+
+
+

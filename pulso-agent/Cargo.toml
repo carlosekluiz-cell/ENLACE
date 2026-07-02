@@ -3,9 +3,9 @@ name = "pulso-agent"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "Open-source, vendor-agnostic ISP network intelligence agent. Monitors OLTs (Huawei/ZTE/FiberHome/Datacom/Intelbras/Parks/BDCOM/VSOL/CDATA/Ubiquiti), MikroTik routers, RADIUS sessions, and TR-069 CPE — pushing telemetry to the Pulso Network intelligence platform."
-repository = "https://github.com/pulso-network/pulso-agent"
-homepage = "https://pulsonetwork.com.br"
+description = "Open-source, vendor-agnostic ISP network intelligence agent. Monitors OLTs (Huawei/ZTE/FiberHome/Datacom/Intelbras/Parks/BDCOM/VSOL/CDATA/Ubiquiti), MikroTik routers, RADIUS sessions, and TR-069 CPE — pushing telemetry to the Enlace intelligence platform."
+repository = "https://github.com/enlace-network/pulso-agent"
+homepage = "https://enlace.network"
 keywords = ["isp", "telecom", "snmp", "gpon", "mikrotik"]
 categories = ["network-programming", "command-line-utilities"]
 
@@ -30,6 +30,12 @@ clap = { version = "4", features = ["derive"] }
 uuid = { version = "1", features = ["v4"] }
 sha2 = "0.10"
 md5 = "0.7"
+# SNMPv3 USM crypto (RFC 3414 / 3826 / 7860) — RustCrypto
+hmac = "0.12"
+sha1 = "0.10"
+md5_rc = { package = "md-5", version = "0.10" }
+aes = "0.8"
+cfb-mode = "0.8"
 base64 = "0.22"
 regex = "1"
 async-trait = "0.1"

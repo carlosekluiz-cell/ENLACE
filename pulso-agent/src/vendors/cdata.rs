@@ -1,17 +1,61 @@
 // SPDX-License-Identifier: Apache-2.0
 // CDATA OLT Collector (FD1104, FD1108, FD1216 series)
 //
-// Enterprise OID: 1.3.6.1.4.1.34592
-// MIB: FD-OLT-MIB (proprietary), FD-SYSTEM-MIB
+// Enterprise OID: 34592 (FD MIBs), but real FD-series report
+// sysObjectID = 1.3.6.1.4.1.17409 (bare NSCRTV enterprise) — verified in
+// data/external/snmp-dumps/cdata/librenms_cdata.snmprec and LibreNMS
+// os_detection/cdata.yaml (matches on .17409).
 //
-// Collects via SNMP v2c:
-//   - ONT serial (.1.3), status (.1.11), RX/TX power (.1.36/.1.37), distance (.1.13)
-//   - OLT CPU (.1.8), temperature (.3.4), model (.1.1)
+// ONU table: FD-ONU-MIB onuBaseManageTable = 1.3.6.1.4.1.34592.1.3.4.1,
+// INDEX { ponCardSlotId (1..4), oltId (PON port 1..16), onuId (1..64) } —
+// i.e. row suffix is <slot>.<pon>.<onuId>, three components.
+// Source: https://github.com/librenms/librenms/blob/master/mibs/cdata/FD-ONU-MIB
+// (+ FD-OLT-MIB / FD-SYSTEM-MIB for the index TCs).
+//
+// onuOnLineStatus (.11) is EPON-EOC-MIB DeviceStatus:
+//   notPresent(1), offline(2), online(3), normal(4), abnormal(5)
+//
+// Optical scaling: onuLaserRxPower (.36) / onuLaserTxPower (.37) are LINEAR
+// power in 0.1 µW units — dBm = 10*log10(value * 0.0001); e.g. raw 1958 →
+// -7.08 dBm, raw 60 → -22.22 dBm. NOT a centi-dBm integer: the old /100
+// scaling reported raw 60 (= -22.2 dBm) as 0.6 dBm.
+// Source: https://www.zabbix.com/forum/zabbix-help/43323-convert-miliwatts-to-dbm
 
 use async_trait::async_trait;
 use crate::config::OltConfig;
 use crate::snmp::{SnmpPoller, oids};
 use super::*;
+use super::snmp_helper::plausible_dbm;
+
+/// FD-ONU-MIB laser power: raw is linear power in 0.1 µW units.
+/// dBm = 10*log10(raw * 0.0001 mW). raw <= 0 (no light / sentinel) → None,
+/// plus the shared plausibility window.
+pub(crate) fn cdata_optical_dbm(raw: i64) -> Option<f64> {
+    if raw <= 0 {
+        return None;
+    }
+    plausible_dbm(10.0 * (raw as f64 * 0.0001).log10())
+}
+
+/// EPON-EOC-MIB DeviceStatus (verbatim MIB enum, see module header).
+fn cdata_status(v: i64) -> OntStatus {
+    match v {
+        3 | 4 | 5 => OntStatus::Online, // online / normal / "online but abnormal"
+        2 => OntStatus::Offline,
+        1 => OntStatus::Offline, // notPresent
+        _ => OntStatus::Unknown,
+    }
+}
+
+/// Split an onuBaseManageTable row suffix "<slot>.<pon>.<onuId>" into
+/// (pon_port "slot/pon", onu_id).
+pub(crate) fn parse_cdata_index(index: &str) -> Option<(String, u32)> {
+    let parts: Vec<u32> = index.split('.').map(|s| s.parse().ok()).collect::<Option<_>>()?;
+    if parts.len() != 3 {
+        return None;
+    }
+    Some((format!("{}/{}", parts[0], parts[1]), parts[2]))
+}
 
 pub struct CdataCollector {
     config: OltConfig,
@@ -35,20 +79,33 @@ impl CdataCollector {
         let snmp = self.snmp.as_ref()
             .ok_or_else(|| anyhow::anyhow!("SNMP not configured"))?;
 
-        // Walk ONT tables via FD-ONU-MIB
-        let serials = snmp.walk_table(oids::cdata::ONT_SERIAL).await.unwrap_or_default();
-        let statuses = snmp.walk_table(oids::cdata::ONT_STATUS).await.unwrap_or_default();
-        let rx_powers = snmp.walk_table(oids::cdata::ONT_RX_POWER).await.unwrap_or_default();
-        let tx_powers = snmp.walk_table(oids::cdata::ONT_TX_POWER).await.unwrap_or_default();
-        let distances = snmp.walk_table(oids::cdata::ONT_DISTANCE).await.unwrap_or_default();
+        // Walk errors (incl. partial walks) propagate — never a silent 0.
+        let serials = snmp.walk_table(oids::cdata::ONT_SERIAL).await?;
+        let statuses = snmp.walk_table(oids::cdata::ONT_STATUS).await?;
+        let rx_powers = snmp.walk_table(oids::cdata::ONT_RX_POWER).await?;
+        let tx_powers = snmp.walk_table(oids::cdata::ONT_TX_POWER).await?;
+        let distances = snmp.walk_table(oids::cdata::ONT_DISTANCE).await?;
 
-        // Use serial OID for primary identification; fall back to status table
+        // Use serial column for enumeration; fall back to status column
         let primary = if !serials.is_empty() { &serials } else { &statuses };
+        if primary.is_empty() {
+            tracing::warn!(
+                olt = %self.olt_id,
+                "CData OLT returned no rows from onuBaseManageTable \
+                 (34592.1.3.4.1) — no ONT data collected; check MIB \
+                 exposure (older FD firmware may only speak NSCRTV .17409)"
+            );
+            return Ok(Vec::new());
+        }
 
         let mut onts = Vec::new();
-        for (idx, entry) in primary.iter().enumerate() {
-            // CDATA uses 2-component suffix: slot.onuId
-            let index = super::snmp_helper::extract_oid_suffix(&entry.oid, 2);
+        for entry in primary.iter() {
+            // INDEX { ponCardSlotId, oltId, onuId } → 3-component suffix
+            let index = super::snmp_helper::extract_oid_suffix(&entry.oid, 3);
+            let (pon_port, onu_id) = match parse_cdata_index(&index) {
+                Some(v) => v,
+                None => continue,
+            };
 
             let serial = if !serials.is_empty() {
                 match &entry.value {
@@ -59,34 +116,30 @@ impl CdataCollector {
                 format!("cdata-{}", index)
             };
 
-            // Parse slot/onuId from index
-            let parts: Vec<u32> = index.split('.').filter_map(|s| s.parse().ok()).collect();
-            let slot = parts.first().copied().unwrap_or(0);
-            let onu_id = parts.get(1).copied().unwrap_or(idx as u32);
-
             let status = super::snmp_helper::find_by_suffix(&statuses, &index)
                 .map(|v| match v {
-                    crate::snmp::SnmpData::Integer(1) => OntStatus::Online,
-                    crate::snmp::SnmpData::Integer(2) => OntStatus::Offline,
-                    _ => OntStatus::Offline,
+                    crate::snmp::SnmpData::Integer(i) => cdata_status(*i),
+                    _ => OntStatus::Unknown,
                 })
                 .unwrap_or(OntStatus::Unknown);
 
             let rx_power = super::snmp_helper::find_by_suffix(&rx_powers, &index)
                 .and_then(|v| match v {
-                    crate::snmp::SnmpData::Integer(i) => Some(*i as f64 / 100.0), // 0.01 dBm
+                    crate::snmp::SnmpData::Integer(i) => cdata_optical_dbm(*i),
                     _ => None,
                 });
 
             let tx_power = super::snmp_helper::find_by_suffix(&tx_powers, &index)
                 .and_then(|v| match v {
-                    crate::snmp::SnmpData::Integer(i) => Some(*i as f64 / 100.0),
+                    crate::snmp::SnmpData::Integer(i) => cdata_optical_dbm(*i),
                     _ => None,
                 });
 
+            // onuRangeValue: units not documented in FD-ONU-MIB (meters by
+            // common usage — unverified); reject clearly bogus values.
             let distance = super::snmp_helper::find_by_suffix(&distances, &index)
                 .and_then(|v| match v {
-                    crate::snmp::SnmpData::Integer(i) => Some(*i as u32),
+                    crate::snmp::SnmpData::Integer(i) if (0..=200_000).contains(i) => Some(*i as u32),
                     _ => None,
                 });
 
@@ -97,7 +150,7 @@ impl CdataCollector {
 
             onts.push(OntData {
                 serial_number: serial,
-                pon_port: format!("{}/{}", slot, idx / 64),
+                pon_port,
                 ont_index: onu_id,
                 status: refined_status,
                 last_down_cause: None, uptime_seconds: None,
@@ -105,7 +158,9 @@ impl CdataCollector {
                 distance_meters: distance,
                 vendor_id: None, equipment_id: None, firmware_version: None,
                 in_octets: None, out_octets: None,
+                fec_corrected: None, fec_uncorrected: None, bip_errors: None,
                 eth_speed_mbps: None,
+                extended: None,
             });
         }
         Ok(onts)
@@ -152,7 +207,7 @@ impl OltCollector for CdataCollector {
             })
             .unwrap_or_else(|| super::huawei::extract_string_pub(&sys_descr));
 
-        let onts = self.collect_onts_snmp().await.unwrap_or_default();
+        let onts = self.collect_onts_snmp().await?;
         let (cpu, mem, temp) = self.collect_system_health().await;
 
         let mut pon_ports = std::collections::HashMap::new();
@@ -189,5 +244,51 @@ impl OltCollector for CdataCollector {
         } else {
             Ok(false)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cdata_optical_linear_01uw_to_dbm() {
+        // Community-verified examples (zabbix.com/forum/zabbix-help/43323):
+        // raw 1958 (×0.1 µW) → -7.08 dBm; raw 60 → -22.22 dBm
+        let v = cdata_optical_dbm(1958).unwrap();
+        assert!((v - (-7.08)).abs() < 0.01, "got {v}");
+        let v = cdata_optical_dbm(60).unwrap();
+        assert!((v - (-22.22)).abs() < 0.01, "got {v}");
+        // The old copy-pasted /100 scaling would have called raw 60
+        // "0.6 dBm" — a healthy-looking level for a nearly-dead ONT.
+    }
+
+    #[test]
+    fn test_cdata_optical_sentinels_and_zero() {
+        assert_eq!(cdata_optical_dbm(0), None);   // no light
+        assert_eq!(cdata_optical_dbm(-1), None);  // negative linear power
+        // Huge linear values → above +10 dBm window → None
+        assert_eq!(cdata_optical_dbm(2147483647), None);
+    }
+
+    #[test]
+    fn test_parse_cdata_index_slot_pon_onu() {
+        // FD-ONU-MIB INDEX { ponCardSlotId, oltId, onuId } — e.g. row
+        // 34592.1.3.4.1.1.36.1.3.7 = slot 1, PON 3, ONU 7
+        assert_eq!(parse_cdata_index("1.3.7"), Some(("1/3".into(), 7)));
+        assert_eq!(parse_cdata_index("4.16.64"), Some(("4/16".into(), 64)));
+        // Old code assumed 2 components (slot.onuId) — must be rejected
+        assert_eq!(parse_cdata_index("1.3"), None);
+        assert_eq!(parse_cdata_index("x.y.z"), None);
+    }
+
+    #[test]
+    fn test_cdata_status_devicestatus_enum() {
+        assert_eq!(cdata_status(3), OntStatus::Online);  // online
+        assert_eq!(cdata_status(4), OntStatus::Online);  // normal
+        assert_eq!(cdata_status(5), OntStatus::Online);  // abnormal but up
+        assert_eq!(cdata_status(2), OntStatus::Offline);
+        assert_eq!(cdata_status(1), OntStatus::Offline); // notPresent
+        assert_eq!(cdata_status(99), OntStatus::Unknown);
     }
 }

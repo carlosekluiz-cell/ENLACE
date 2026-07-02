@@ -130,8 +130,73 @@ const PON_UTIL_HEALTHY: f32 = 60.0;
 const PON_UTIL_WARNING: f32 = 80.0;
 const PON_UTIL_CRITICAL: f32 = 90.0;
 
-/// Analyze OLT data and produce diagnostics
+/// An offline ONT must be seen offline for this many consecutive cycles
+/// before a Red alert fires (debounce against polling blips).
+const OFFLINE_ALERT_DEBOUNCE_CYCLES: u32 = 2;
+
+/// Cross-cycle state for offline-ONT alert debouncing/dedup.
+///
+/// Without this, every currently-offline ONT (including chronically-offline
+/// vacant homes) produces a fresh Red alert on every poll cycle. With it,
+/// an offline alert fires exactly once — after the ONT has been offline for
+/// `OFFLINE_ALERT_DEBOUNCE_CYCLES` consecutive cycles — and re-arms only
+/// after the ONT comes back online.
+#[derive(Debug, Default)]
+pub struct OfflineAlertState {
+    /// (olt_id, serial) ever seen online — chronic-offline ONTs (offline
+    /// since agent start) never alert
+    ever_online: std::collections::HashSet<(String, String)>,
+    /// (olt_id, serial) → consecutive cycles seen offline
+    consecutive_offline: std::collections::HashMap<(String, String), u32>,
+    /// (olt_id, serial) already alerted for the current offline episode
+    alerted: std::collections::HashSet<(String, String)>,
+}
+
+impl OfflineAlertState {
+    /// Returns true when a Red offline alert should fire for this ONT on
+    /// this cycle. Call once per offline ONT per cycle.
+    fn observe_offline(&mut self, olt_id: &str, serial: &str) -> bool {
+        let key = (olt_id.to_string(), serial.to_string());
+        let count = self.consecutive_offline.entry(key.clone()).or_insert(0);
+        *count += 1;
+        if *count >= OFFLINE_ALERT_DEBOUNCE_CYCLES
+            && self.ever_online.contains(&key)
+            && !self.alerted.contains(&key)
+        {
+            self.alerted.insert(key);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Re-arm the alert when the ONT is seen online again.
+    fn observe_online(&mut self, olt_id: &str, serial: &str) {
+        let key = (olt_id.to_string(), serial.to_string());
+        self.consecutive_offline.remove(&key);
+        self.alerted.remove(&key);
+        self.ever_online.insert(key);
+    }
+}
+
+/// Analyze OLT data and produce diagnostics (stateless, snapshot mode).
+///
+/// Every currently-offline ONT is reported — intended for one-shot analyses
+/// (CSV audits) where the output is a point-in-time report, not an alert
+/// stream. The polling agent must use [`analyze_olt_stateful`] instead.
 pub fn analyze_olt(data: &OltData) -> OltDiagnostics {
+    analyze_olt_impl(data, None)
+}
+
+/// Analyze OLT data with cross-cycle offline-alert debouncing.
+///
+/// Offline Red alerts fire on the offline *transition* (after the debounce
+/// window), exactly once per offline episode — not on every poll cycle.
+pub fn analyze_olt_stateful(data: &OltData, state: &mut OfflineAlertState) -> OltDiagnostics {
+    analyze_olt_impl(data, Some(state))
+}
+
+fn analyze_olt_impl(data: &OltData, mut state: Option<&mut OfflineAlertState>) -> OltDiagnostics {
     let mut alerts = Vec::new();
     let mut total_rx = 0.0_f64;
     let mut rx_count = 0u32;
@@ -142,35 +207,48 @@ pub fn analyze_olt(data: &OltData) -> OltDiagnostics {
     let offline = data.onts.iter().filter(|o| matches!(o.status, OntStatus::Offline | OntStatus::PowerFail | OntStatus::FiberCut)).count() as u32;
 
     for ont in &data.onts {
-        // Check offline ONTs
+        // Check offline ONTs. In stateful mode, alert on the offline
+        // transition only (debounced) — never every cycle for every
+        // currently-offline ONT.
         if matches!(ont.status, OntStatus::Offline | OntStatus::PowerFail | OntStatus::FiberCut) {
-            let (alert_type, support_msg, action) = match &ont.last_down_cause {
-                Some(cause) if cause.contains("power") || cause.contains("dying_gasp") => (
-                    AlertType::PowerFailure,
-                    format!("ONT {} está offline por queda de energia no local do cliente.", ont.serial_number),
-                    "Pergunte ao cliente se há energia no local. Se sim, peça para verificar se o equipamento está ligado.".into(),
-                ),
-                Some(cause) if cause.contains("los") => (
-                    AlertType::FiberCut,
-                    format!("ONT {} está offline — possível rompimento de fibra.", ont.serial_number),
-                    "Escalar para equipe técnica. Provável problema no cabo de fibra (drop ou trunk).".into(),
-                ),
-                _ => (
-                    AlertType::Offline,
-                    format!("ONT {} está offline.", ont.serial_number),
-                    "Verificar se há energia no local. Se positivo, escalar para técnico.".into(),
-                ),
+            let should_alert = match state.as_deref_mut() {
+                None => true, // snapshot mode: report all currently offline
+                Some(s) => s.observe_offline(&data.olt_id, &ont.serial_number),
             };
+            if should_alert {
+                let (alert_type, support_msg, action) = match &ont.last_down_cause {
+                    Some(cause) if cause.contains("power") || cause.contains("dying_gasp") => (
+                        AlertType::PowerFailure,
+                        format!("ONT {} está offline por queda de energia no local do cliente.", ont.serial_number),
+                        "Pergunte ao cliente se há energia no local. Se sim, peça para verificar se o equipamento está ligado.".into(),
+                    ),
+                    Some(cause) if cause.contains("los") => (
+                        AlertType::FiberCut,
+                        format!("ONT {} está offline — possível rompimento de fibra.", ont.serial_number),
+                        "Escalar para equipe técnica. Provável problema no cabo de fibra (drop ou trunk).".into(),
+                    ),
+                    _ => (
+                        AlertType::Offline,
+                        format!("ONT {} está offline.", ont.serial_number),
+                        "Verificar se há energia no local. Se positivo, escalar para técnico.".into(),
+                    ),
+                };
 
-            alerts.push(OntAlert {
-                serial_number: ont.serial_number.clone(),
-                pon_port: ont.pon_port.clone(),
-                severity: HealthLevel::Red,
-                alert_type,
-                description: format!("ONT offline: {}", ont.serial_number),
-                support_message: support_msg,
-                recommended_action: action,
-            });
+                alerts.push(OntAlert {
+                    serial_number: ont.serial_number.clone(),
+                    pon_port: ont.pon_port.clone(),
+                    severity: HealthLevel::Red,
+                    alert_type,
+                    description: format!("ONT offline: {}", ont.serial_number),
+                    support_message: support_msg,
+                    recommended_action: action,
+                });
+            }
+        } else if matches!(ont.status, OntStatus::Online | OntStatus::LowSignal | OntStatus::Dying) {
+            // Back online: re-arm the offline alert for this ONT
+            if let Some(s) = state.as_deref_mut() {
+                s.observe_online(&data.olt_id, &ont.serial_number);
+            }
         }
 
         // Check signal levels
@@ -334,6 +412,8 @@ mod tests {
             vendor_id: None, equipment_id: None, firmware_version: None,
             in_octets: None, out_octets: None,
             eth_speed_mbps: eth_speed,
+            extended: None,
+            ..Default::default()
         }
     }
 
@@ -363,5 +443,111 @@ mod tests {
         let ont = make_ont("TEST04", -20.0, None, Some(86400)); // 24h uptime
         let alerts = check_ont_extras(&ont);
         assert!(alerts.iter().all(|a| !matches!(a.alert_type, AlertType::RecentRestart)));
+    }
+
+    fn make_olt(onts: Vec<OntData>) -> crate::vendors::OltData {
+        crate::vendors::OltData {
+            olt_id: "olt-test".into(),
+            vendor: "test".into(),
+            model: "test".into(),
+            firmware: String::new(),
+            serial: String::new(),
+            uptime_seconds: 0,
+            timestamp: chrono::Utc::now(),
+            cpu_percent: None,
+            memory_percent: None,
+            temperature_celsius: None,
+            power_supply_status: None,
+            pon_ports: Vec::new(),
+            uplink_ports: Vec::new(),
+            onts,
+        }
+    }
+
+    fn make_status_ont(serial: &str, status: OntStatus) -> OntData {
+        let mut ont = make_ont(serial, -20.0, None, Some(86400));
+        if matches!(status, OntStatus::Offline | OntStatus::PowerFail | OntStatus::FiberCut) {
+            ont.rx_power_dbm = None;
+        }
+        ont.status = status;
+        ont
+    }
+
+    fn offline_alerts(diag: &OltDiagnostics) -> usize {
+        diag.alerts.iter()
+            .filter(|a| matches!(
+                a.alert_type,
+                AlertType::Offline | AlertType::PowerFailure | AlertType::FiberCut
+            ))
+            .count()
+    }
+
+    #[test]
+    fn test_snapshot_mode_reports_offline_immediately() {
+        // Stateless analyze_olt (CSV audit path) keeps point-in-time reporting
+        let olt = make_olt(vec![make_status_ont("OFF01", OntStatus::Offline)]);
+        let diag = analyze_olt(&olt);
+        assert_eq!(offline_alerts(&diag), 1);
+    }
+
+    #[test]
+    fn test_stateful_offline_alert_fires_once_after_debounce() {
+        let mut state = OfflineAlertState::default();
+
+        // Cycle 1: online (baseline)
+        let diag = analyze_olt_stateful(&make_olt(vec![make_status_ont("ONT01", OntStatus::Online)]), &mut state);
+        assert_eq!(offline_alerts(&diag), 0);
+
+        // Cycle 2: first offline observation — debounced, no alert yet
+        let offline = make_olt(vec![make_status_ont("ONT01", OntStatus::Offline)]);
+        let diag = analyze_olt_stateful(&offline, &mut state);
+        assert_eq!(offline_alerts(&diag), 0, "one offline cycle must be debounced");
+
+        // Cycle 3: second consecutive offline — alert fires exactly once
+        let diag = analyze_olt_stateful(&offline, &mut state);
+        assert_eq!(offline_alerts(&diag), 1, "alert should fire after 2 consecutive offline cycles");
+
+        // Cycles 4-6: still offline — never re-alert
+        for _ in 0..3 {
+            let diag = analyze_olt_stateful(&offline, &mut state);
+            assert_eq!(offline_alerts(&diag), 0, "must not re-alert every cycle");
+        }
+
+        // Summary still counts the ONT as offline even when not alerting
+        let diag = analyze_olt_stateful(&offline, &mut state);
+        assert_eq!(diag.summary.offline, 1);
+    }
+
+    #[test]
+    fn test_stateful_offline_alert_rearms_after_recovery() {
+        let mut state = OfflineAlertState::default();
+        let online = make_olt(vec![make_status_ont("ONT01", OntStatus::Online)]);
+        let offline = make_olt(vec![make_status_ont("ONT01", OntStatus::Offline)]);
+
+        analyze_olt_stateful(&online, &mut state);
+        analyze_olt_stateful(&offline, &mut state);
+        let diag = analyze_olt_stateful(&offline, &mut state);
+        assert_eq!(offline_alerts(&diag), 1);
+
+        // Recovery re-arms
+        analyze_olt_stateful(&online, &mut state);
+        analyze_olt_stateful(&offline, &mut state);
+        let diag = analyze_olt_stateful(&offline, &mut state);
+        assert_eq!(offline_alerts(&diag), 1, "new offline episode should alert again");
+    }
+
+    #[test]
+    fn test_stateful_chronic_offline_never_alerts() {
+        // ONTs offline since agent start (vacant homes) must not storm on
+        // startup — they were never seen online, so there is no transition.
+        let mut state = OfflineAlertState::default();
+        let olt = make_olt(vec![
+            make_status_ont("VACANT1", OntStatus::Offline),
+            make_status_ont("VACANT2", OntStatus::Offline),
+        ]);
+        for _ in 0..5 {
+            let diag = analyze_olt_stateful(&olt, &mut state);
+            assert_eq!(offline_alerts(&diag), 0, "chronic-offline ONTs must never alert");
+        }
     }
 }

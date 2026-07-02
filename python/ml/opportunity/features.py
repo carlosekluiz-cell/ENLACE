@@ -247,10 +247,10 @@ class FeatureExtractor:
             SELECT
                 ls.municipality_id,
                 SUM(ls.subscribers) AS total_subscribers,
-                SUM(CASE WHEN ls.technology = 'fiber' THEN ls.subscribers ELSE 0 END)
+                SUM(CASE WHEN LOWER(ls.technology) IN ('fiber', 'ftth', 'fttb') THEN ls.subscribers ELSE 0 END)
                     AS fiber_subscribers,
                 COUNT(DISTINCT ls.provider_id) AS provider_count,
-                BOOL_OR(ls.technology = 'fiber') = FALSE AS technology_gap
+                BOOL_OR(LOWER(ls.technology) IN ('fiber', 'ftth', 'fttb')) = FALSE AS technology_gap
             FROM latest_subs ls
             GROUP BY ls.municipality_id
         ),

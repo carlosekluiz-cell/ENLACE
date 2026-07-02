@@ -37,6 +37,8 @@ function hhiColor(hhi: number): [number, number, number, number] {
   return [239, 68, 68, 180];                    // red
 }
 
+import DisclaimerBanner from '@/components/ui/DisclaimerBanner';
+
 export default function ConcorrenciaPage() {
   const [layer, setLayer] = useState<LayerType>('hhi');
   const [layerDropdownOpen, setLayerDropdownOpen] = useState(false);
@@ -107,6 +109,11 @@ export default function ConcorrenciaPage() {
 
   return (
     <div className="relative h-full w-full">
+      {/* Legal disclaimer */}
+      <div className="absolute top-2 left-2 right-2 z-20 max-w-xl">
+        <DisclaimerBanner />
+      </div>
+
       {loading && (
         <div className="absolute top-0 left-0 right-0 z-20 overflow-hidden" style={{ height: '2px' }}>
           <div className="pulso-progress-bar w-full" />

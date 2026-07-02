@@ -3,8 +3,8 @@ import Section from '@/components/ui/Section';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Sobre — Pulso Network',
-  description: 'De Telebras a 13.534 ISPs: a história das telecomunicações brasileiras e como o Pulso Network transforma dados públicos em inteligência acionável.',
+  title: 'Sobre',
+  description: 'De Telebras a 13.534 ISPs: a história das telecomunicações brasileiras e como o Pulso Network transforma dados públicos em inteligência e telecom tech.',
   alternates: { canonical: 'https://pulso.network/sobre' },
 };
 
@@ -19,11 +19,11 @@ const timeline = [
 
 const platformStats = [
   { value: '28M+', label: 'Data points cruzados' },
-  { value: '44', label: 'Pipelines automatizados' },
-  { value: '68', label: 'Tabelas de dados' },
-  { value: '25', label: 'Módulos de inteligência' },
-  { value: '128K+', label: 'Provedores rastreados' },
-  { value: '5.572', label: 'Municípios cobertos' },
+  { value: '38+', label: 'Fontes de dados' },
+  { value: '26', label: 'Módulos de análise' },
+  { value: '13.534', label: 'ISPs ativos monitorados' },
+  { value: '5.570', label: 'Municípios cobertos' },
+  { value: '37', label: 'Períodos históricos' },
 ];
 
 export default function SobrePage() {
@@ -44,7 +44,7 @@ export default function SobrePage() {
           </h1>
           <p className="mt-5 text-base leading-relaxed max-w-2xl" style={{ color: 'var(--text-on-dark-secondary)' }}>
             O Brasil construiu o maior ecossistema de provedores regionais de internet do mundo.
-            128 mil provedores licenciados, 54 milhões de assinantes, 5.572 municípios.
+            13.534 ISPs ativos, 54 milhões de assinantes, 5.572 municípios.
             O Pulso existe para dar inteligência de dados a esse ecossistema.
           </p>
         </div>

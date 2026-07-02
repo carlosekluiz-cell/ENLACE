@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
   Map, BarChart3, Radio, Shield, CloudRain, TreePine, ArrowRight,
   Satellite, Building2, Brain, Layers, Wifi, Globe, Award, GitCompareArrows,
-  Network, Zap, FileCheck, Scale, CreditCard, Share2, FileText, MapPin,
+  Network, Zap, FileCheck, Scale, CreditCard, Share2, FileText, MapPin, Terminal,
 } from 'lucide-react';
 
 const modules = [
@@ -22,8 +22,8 @@ const modules = [
   },
   {
     icon: Radio,
-    title: 'Projeto RF',
-    description: 'Link budget terrain-aware com dados de elevação reais. Perfil de terreno e conformidade EIRP.',
+    title: 'Projeto de Rede',
+    description: 'Projeto FTTH, link budget terrain-aware, viabilidade econômica e perfil de terreno com dados reais.',
     metric: 'Resolução 30m',
   },
   {
@@ -53,7 +53,7 @@ const modules = [
   {
     icon: Building2,
     title: 'M&A',
-    description: 'Valuation de ISPs, due diligence com dívidas PGFN, grafo societário e simulação de aquisições.',
+    description: 'Valuation de ISPs, análise societária, simulação de aquisições e projeções financeiras.',
     metric: '13.534 ISPs avaliados',
   },
   {
@@ -96,7 +96,7 @@ const modules = [
     icon: GitCompareArrows,
     title: 'Análise Cruzada',
     description: 'Correlações multi-dimensionais, detecção de anomalias e scoring de prioridade de investimento.',
-    metric: '10 endpoints analíticos',
+    metric: 'Análise multi-dimensional',
   },
   {
     icon: Network,
@@ -137,7 +137,7 @@ const modules = [
   {
     icon: FileText,
     title: 'Raio-X do Provedor',
-    description: 'Relatório gratuito com posição competitiva, selos Anatel, dívidas fiscais, estrutura societária e diário oficial.',
+    description: 'Relatório gratuito com posição competitiva, selos Anatel, estrutura societária e diário oficial.',
     metric: 'Grátis + Premium',
   },
   {
@@ -148,9 +148,15 @@ const modules = [
   },
   {
     icon: Shield,
-    title: 'Due Diligence',
-    description: 'Dívidas fiscais federais (PGFN), sanções CEIS/CNEP, reclamações de consumidores e grafo de propriedade cruzada.',
-    metric: '1M+ registros',
+    title: 'Compliance',
+    description: 'Monitoramento regulatório, alertas de prazo, RGST 777, obrigações 5G e indicadores de qualidade.',
+    metric: '25+ módulos',
+  },
+  {
+    icon: Terminal,
+    title: 'Pulso Agent',
+    description: 'Agente open-source que coleta telemetria de OLTs, MikroTik e RADIUS. Diagnósticos locais e previsões em tempo real.',
+    metric: 'Open-source (Rust)',
   },
 ];
 
@@ -158,7 +164,7 @@ const steps = [
   {
     number: '01',
     title: 'Integramos dados públicos',
-    description: 'Anatel, IBGE, PGFN, Receita Federal, Portal da Transparência, BNDES, PeeringDB e mais. 38+ fontes normalizadas e cruzadas por código IBGE.',
+    description: 'Anatel, IBGE, Receita Federal, BNDES, PeeringDB e mais. 38+ fontes normalizadas e cruzadas por código IBGE.',
   },
   {
     number: '02',
@@ -194,9 +200,9 @@ export default function HomePage() {
             <span style={{ color: 'var(--text-muted)' }}>merece ferramentas à altura.</span>
           </h2>
           <p className="mt-5 text-base leading-relaxed mx-auto max-w-2xl" style={{ color: 'var(--text-secondary)' }}>
-            28 milhões de data points. 38 fontes públicas. 128 mil provedores.
-            A maior base de inteligência do setor ISP do mundo — concorrência, due diligence
-            fiscal, grafo societário, reclamações — tudo cruzado automaticamente.
+            28 milhões de data points. 38 fontes públicas. 13.534 ISPs ativos.
+            A maior base de inteligência do setor ISP do mundo — concorrência, M&A,
+            planejamento de rede, conformidade — tudo cruzado automaticamente.
           </p>
         </div>
 
@@ -260,6 +266,50 @@ export default function HomePage() {
         </div>
       </Section>
 
+      {/* Pulso Agent teaser */}
+      <Section background="primary">
+        <div className="grid grid-cols-1 gap-12 md:grid-cols-2 md:items-center">
+          <div>
+            <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
+              Pulso Agent
+            </div>
+            <h2
+              className="font-serif text-3xl font-bold tracking-tight md:text-4xl"
+              style={{ color: 'var(--text-primary)', lineHeight: 1.1 }}
+            >
+              Dados da sua rede.{' '}
+              <span style={{ color: 'var(--text-muted)' }}>Direto na plataforma.</span>
+            </h2>
+            <p className="mt-4 text-base leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              Agente open-source que coleta telemetria de OLTs, MikroTik e RADIUS a cada 60 segundos.
+              Diagnósticos por ONT, previsão de degradação de sinal e alerta de capacidade.
+              Credenciais nunca saem da sua rede.
+            </p>
+            <div className="mt-6">
+              <Link href="/agente" className="pulso-btn inline-flex items-center gap-2">
+                Conhecer o agente <ArrowRight size={14} />
+              </Link>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-0" style={{ border: '1px solid var(--border)' }}>
+            {[
+              { value: '6.3 MB', label: 'Binário Rust' },
+              { value: '10+', label: 'Fabricantes' },
+              { value: '<1%', label: 'CPU' },
+            ].map((stat) => (
+              <div key={stat.label} className="p-5 text-center" style={{ borderRight: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
+                <div className="font-mono text-xl font-bold tabular-nums" style={{ color: 'var(--accent)' }}>
+                  {stat.value}
+                </div>
+                <div className="mt-1 text-xs uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Section>
+
       {/* Cross-Reference Intelligence — Surface section */}
       <Section background="surface">
         <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
@@ -280,16 +330,10 @@ export default function HomePage() {
         <div className="mt-12 grid grid-cols-1 gap-0 md:grid-cols-3" style={{ border: '1px solid var(--border)' }}>
           {[
             {
-              sources: 'PGFN × Base de Provedores',
-              value: '10.740',
-              unit: 'provedores com exposição fiscal',
-              detail: 'R$ 582 bi em dívida ativa federal cruzada com 128K provedores licenciados pela Anatel.',
-            },
-            {
-              sources: 'Receita Federal × Provedores',
-              value: '777',
-              unit: 'sócios controlam múltiplos ISPs',
-              detail: '783K vínculos societários analisados. Maior grupo: 16 provedores sob um mesmo controlador.',
+              sources: 'Anatel × IBGE × Ookla',
+              value: '318',
+              unit: 'municípios com monopólio de banda larga',
+              detail: 'HHI &gt; 0.8 em 318 municípios. Oportunidades mapeadas com speedtest e cobertura.',
             },
             {
               sources: 'consumidor.gov.br × Telecom',
@@ -328,10 +372,10 @@ export default function HomePage() {
               detail: '52 operações de crédito com taxas, prazos e valores. Histórico desde 2002.',
             },
             {
-              sources: 'PGFN × CEIS/CNEP × Receita',
-              value: '6 fontes',
-              unit: 'de due diligence cruzadas',
-              detail: 'Dívida fiscal, sanções federais, reclamações, sócios, espectro e compliance — em um dossier.',
+              sources: 'Anatel × IBGE × INMET',
+              value: '38+',
+              unit: 'fontes oficiais cruzadas',
+              detail: 'Assinantes, qualidade, emprego, clima, speedtest, espectro e compliance — normalizados.',
             },
           ].map((item) => (
             <div
@@ -412,6 +456,46 @@ export default function HomePage() {
           ))}
         </div>
 
+        {/* Featured cities for internal linking */}
+        <div className="mt-8">
+          <div className="mb-4 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+            Cidades em destaque
+          </div>
+          <div className="grid grid-cols-2 gap-0 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5" style={{ border: '1px solid var(--border)' }}>
+            {[
+              { uf: 'sp', slug: 'sao-paulo', name: 'São Paulo' },
+              { uf: 'rj', slug: 'rio-de-janeiro', name: 'Rio de Janeiro' },
+              { uf: 'mg', slug: 'belo-horizonte', name: 'Belo Horizonte' },
+              { uf: 'pr', slug: 'curitiba', name: 'Curitiba' },
+              { uf: 'rs', slug: 'porto-alegre', name: 'Porto Alegre' },
+              { uf: 'ce', slug: 'fortaleza', name: 'Fortaleza' },
+              { uf: 'ba', slug: 'salvador', name: 'Salvador' },
+              { uf: 'pe', slug: 'recife', name: 'Recife' },
+              { uf: 'df', slug: 'brasilia', name: 'Brasília' },
+              { uf: 'go', slug: 'goiania', name: 'Goiânia' },
+              { uf: 'sp', slug: 'campinas', name: 'Campinas' },
+              { uf: 'am', slug: 'manaus', name: 'Manaus' },
+              { uf: 'sc', slug: 'florianopolis', name: 'Florianópolis' },
+              { uf: 'pa', slug: 'belem', name: 'Belém' },
+              { uf: 'ma', slug: 'sao-luis', name: 'São Luís' },
+            ].map((c) => (
+              <Link
+                key={`${c.uf}-${c.slug}`}
+                href={`/mercado/${c.uf}/${c.slug}`}
+                className="block p-3 text-sm transition-colors"
+                style={{
+                  borderRight: '1px solid var(--border)',
+                  borderBottom: '1px solid var(--border)',
+                  color: 'var(--text-secondary)',
+                  textDecoration: 'none',
+                }}
+              >
+                {c.name} <span style={{ color: 'var(--text-muted)' }}>({c.uf.toUpperCase()})</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+
         <div className="mt-6">
           <Link href="/mercado" className="pulso-btn inline-flex items-center gap-2">
             Ver panorama nacional <ArrowRight size={14} />
@@ -428,7 +512,7 @@ export default function HomePage() {
           className="font-serif text-3xl font-bold tracking-tight md:text-4xl max-w-2xl"
           style={{ color: 'var(--text-on-dark)', lineHeight: 1.1 }}
         >
-          25 módulos integrados.{' '}
+          26 módulos integrados.{' '}
           <span style={{ color: 'var(--text-on-dark-muted)' }}>Uma base integrada.</span>
         </h2>
 

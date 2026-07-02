@@ -20,6 +20,7 @@ import {
   DollarSign,
   Building2,
 } from 'lucide-react';
+import DisclaimerBanner from '@/components/ui/DisclaimerBanner';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -697,6 +698,9 @@ export default function ProvedorPage() {
 
   return (
     <div className="space-y-6 p-6">
+      {/* Legal disclaimer */}
+      <DisclaimerBanner />
+
       {/* Page Header */}
       <div>
         <h1

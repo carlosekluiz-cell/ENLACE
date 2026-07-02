@@ -29,16 +29,16 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL('https://pulso.network'),
   title: {
-    default: 'Pulso Network — Inteligência Telecom para o Brasil',
+    default: 'Pulso Network — Telecom Tech para o Brasil',
     template: '%s — Pulso Network',
   },
-  description: 'Plataforma de inteligência de mercado para provedores de internet brasileiros. 38+ fontes de dados, 69 tabelas, motor RF em Rust. Expansão, M&A, conformidade e projeto RF.',
-  keywords: ['provedor de internet', 'ISP', 'inteligência telecom', 'Anatel', 'banda larga', 'Brasil', 'telecomunicações', 'M&A telecom', 'expansão ISP', 'Pulso Network'],
+  description: 'Telecom tech e inteligência de mercado para provedores de internet brasileiros. 38+ fontes de dados, 26 módulos. Expansão, M&A, conformidade e projeto RF.',
+  keywords: ['provedor de internet', 'ISP', 'telecom tech', 'inteligência telecom', 'Anatel', 'banda larga', 'Brasil', 'telecomunicações', 'M&A telecom', 'expansão ISP', 'Pulso Network'],
   authors: [{ name: 'Pulso Network' }],
   alternates: { canonical: 'https://pulso.network' },
   openGraph: {
-    title: 'Pulso Network — Inteligência Telecom para o Brasil',
-    description: 'Plataforma de inteligência de mercado para 13.534 provedores de internet brasileiros. 38+ fontes de dados integradas.',
+    title: 'Pulso Network — Telecom Tech para o Brasil',
+    description: 'Telecom tech e inteligência de mercado para 13.534 provedores de internet brasileiros. 38+ fontes de dados integradas.',
     url: 'https://pulso.network',
     siteName: 'Pulso Network',
     type: 'website',
@@ -47,8 +47,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Pulso Network — Inteligência Telecom para o Brasil',
-    description: 'Plataforma de inteligência de mercado para provedores de internet brasileiros.',
+    title: 'Pulso Network — Telecom Tech para o Brasil',
+    description: 'Telecom tech e inteligência de mercado para provedores de internet brasileiros.',
     images: ['/og-image.png'],
   },
   robots: {
@@ -75,7 +75,7 @@ export default function RootLayout({
     '@type': 'Organization',
     name: 'Pulso Network',
     url: 'https://pulso.network',
-    description: 'Plataforma de inteligência de mercado para provedores de internet brasileiros.',
+    description: 'Telecom tech e inteligência de mercado para provedores de internet brasileiros.',
     foundingDate: '2025',
     sameAs: [],
     contactPoint: {
@@ -93,17 +93,19 @@ export default function RootLayout({
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web',
     offers: {
-      '@type': 'AggregateOffer',
+      '@type': 'Offer',
+      price: '0',
       priceCurrency: 'BRL',
-      lowPrice: '0',
-      highPrice: '5000',
-      offerCount: '5',
+      description: 'Lista de espera — acesso gratuito disponível no lançamento',
     },
-    description: 'Inteligência de mercado para provedores de internet brasileiros. 38+ fontes de dados, 69 tabelas, 25 módulos.',
+    description: 'Telecom tech e inteligência de mercado para provedores de internet brasileiros. 38+ fontes de dados, 26 módulos de análise.',
   };
 
   return (
     <html lang="pt-BR" className={`${dmSans.variable} ${fraunces.variable} ${jetbrainsMono.variable}`}>
+      <head>
+        <script defer src="https://api.pulso.network/umami/script.js" data-website-id="590e0207-73f7-46c2-ba72-7dc18030decb" />
+      </head>
       <body>
         <script
           type="application/ld+json"

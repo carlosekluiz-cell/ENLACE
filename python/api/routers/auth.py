@@ -58,6 +58,7 @@ class RegisterRequest(BaseModel):
     name: str = Field(..., min_length=1, description="User display name")
     organization: str = Field(..., min_length=1, description="Organization / ISP name")
     state_code: Optional[str] = Field(None, min_length=2, max_length=2)
+    country_code: str = Field("BR", min_length=2, max_length=2, description="Country code (BR or CO)")
 
 
 class RegisterResponse(BaseModel):
@@ -172,7 +173,7 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
     try:
         tenant = create_tenant(
             name=request.organization,
-            country_code="BR",
+            country_code=request.country_code,
             primary_state=request.state_code,
             plan="free",
         )

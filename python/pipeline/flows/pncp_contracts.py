@@ -42,15 +42,11 @@ logger = logging.getLogger(__name__)
 PNCP_BASE_URL = "https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao"
 
 # Keywords passed via the q= parameter as a server-side hint.
-# The API does not reliably filter on q=, so we cycle through these keywords
-# to maximise the chance of surfacing telecom results in the first pages.
-# Local regex filtering (see _TELECOM_RE below) is the authoritative filter.
+# The API does not reliably filter on q=, so we use only a few high-yield
+# keywords.  Local regex filtering (see _TELECOM_RE below) is authoritative.
 SEARCH_KEYWORDS = [
     "telecomunicacao",
-    "fibra optica",
-    "banda larga",
     "internet",
-    "conectividade",
 ]
 
 # Patterns for LOCAL filtering on objetoCompra (case-insensitive).
@@ -84,16 +80,27 @@ SPHERE_MAP = {
 }
 
 # Procurement modality codes to search (the API requires one per request).
-# 4=Concorrencia Eletronica, 6=Pregao Eletronico, 8=Dispensa,
-# 9=Inexigibilidade, 12=Credenciamento
-MODALITY_CODES = ["6", "8", "9", "4", "12"]
+# 6=Pregao Eletronico, 8=Dispensa, 9=Inexigibilidade
+# (dropped 4=Concorrencia and 12=Credenciamento — very few telecom results)
+MODALITY_CODES = ["6", "8", "9"]
 
 # Maximum pages to fetch per (modality, month, keyword) combination.
-# The API returns 10 results per page.
-MAX_PAGES = 500
+# The API returns 10 results per page.  50 pages = 500 records per chunk,
+# more than enough for telecom-specific contracts per month.
+MAX_PAGES = 50
+
+# Stop paginating a chunk after this many consecutive pages with 0 telecom hits.
+# Telecom contracts are ~1 per 30 general results, so 10 empty pages (100 items)
+# is a reasonable signal that no more telecom hits remain in this chunk.
+EMPTY_PAGE_LIMIT = 10
+
+# Number of days to look back.  90 days balances coverage with runtime.
+# The PNCP API is very slow (2s/page) and most pages have no telecom contracts,
+# so longer windows make the pipeline unfinishable within cron timeouts.
+LOOKBACK_DAYS = 90
 
 # Polite delay between paginated requests (seconds)
-REQUEST_DELAY = 0.3
+REQUEST_DELAY = 0.2
 
 
 def _is_telecom(objeto: str) -> bool:
@@ -136,6 +143,7 @@ class PNCPContractsPipeline(BasePipeline):
 
     def __init__(self):
         super().__init__("pncp_contracts")
+        self._is_initial_load = True
 
     def check_for_updates(self) -> bool:
         """Create the government_contracts table if needed and check for staleness."""
@@ -176,6 +184,17 @@ class PNCPContractsPipeline(BasePipeline):
                 cur.execute("RELEASE SAVEPOINT alter_sp")
             except Exception:
                 cur.execute("ROLLBACK TO SAVEPOINT alter_sp")
+        # Ensure unique constraint on pncp_control_number exists (may be missing on old tables)
+        try:
+            cur.execute("SAVEPOINT idx_sp")
+            cur.execute("""
+                ALTER TABLE government_contracts
+                ADD CONSTRAINT government_contracts_pncp_control_unique
+                UNIQUE (pncp_control_number)
+            """)
+            cur.execute("RELEASE SAVEPOINT idx_sp")
+        except Exception:
+            cur.execute("ROLLBACK TO SAVEPOINT idx_sp")
         conn.commit()
 
         # Check if we have recent data (within last 1 day)
@@ -188,84 +207,89 @@ class PNCPContractsPipeline(BasePipeline):
         conn.close()
 
         if not latest:
+            self._is_initial_load = True
             return True
+        self._is_initial_load = False
         return (datetime.utcnow().date() - latest).days >= 1
 
-    def download(self) -> list[dict]:
-        """Fetch telecom-related government contracts from the PNCP publicacao API.
+    def run(self, force: bool = False) -> dict:
+        """Override BasePipeline.run to do incremental download+load per modality.
 
-        Iterates over modality codes and monthly date windows.  For each
-        (modality, month) pair, cycles through SEARCH_KEYWORDS as the q=
-        parameter and paginates through all available pages.  Applies local
-        keyword filtering on objetoCompra and deduplicates by
-        numeroControlePNCP.
-
-        Raises RuntimeError if the API is unreachable or returns no telecom contracts.
+        The PNCP API is very slow (~2s/page with frequent timeouts), so we
+        transform and load after each modality to ensure partial results are
+        saved even if the pipeline is killed by a timeout.
         """
-        end_date = datetime.utcnow().date()
-        start_date = end_date - timedelta(days=365)
-        months = _month_ranges(start_date, end_date)
+        self._start_run()
+        try:
+            if not force and not self.check_for_updates():
+                logger.info(f"[{self.name}] No updates available")
+                self._complete_run("skipped")
+                return {"status": "skipped", "reason": "no_updates"}
 
-        all_contracts = []
-        seen_control_numbers = set()
-        total_api_calls = 0
-        total_scanned = 0
-        errors = []
+            end_date = datetime.utcnow().date()
+            start_date = end_date - timedelta(days=LOOKBACK_DAYS)
+            months = _month_ranges(start_date, end_date)
+            logger.info(f"PNCP crawl: {LOOKBACK_DAYS}-day lookback, {len(months)} months, "
+                         f"{len(MODALITY_CODES)} modalities, {len(SEARCH_KEYWORDS)} keywords")
 
-        with PipelineHTTPClient(timeout=120) as http:
-            for modality_code in MODALITY_CODES:
-                modality_contracts = 0
-                for data_inicial, data_final in months:
-                    # Cycle through keywords as server-side hints.
-                    # The API doesn't reliably filter on q=, so results overlap
-                    # heavily between keywords.  We deduplicate via control number.
-                    for keyword in SEARCH_KEYWORDS:
-                        try:
-                            contracts, scanned, calls = self._fetch_chunk(
-                                http,
-                                modality_code,
-                                data_inicial,
-                                data_final,
-                                keyword,
-                                seen_control_numbers,
-                            )
-                            all_contracts.extend(contracts)
-                            total_api_calls += calls
-                            total_scanned += scanned
-                            modality_contracts += len(contracts)
-                            if contracts:
-                                logger.info(
-                                    f"Modality {modality_code}, {data_inicial}-{data_final}, "
-                                    f"q='{keyword}': {len(contracts)} new telecom contracts "
-                                    f"(scanned {scanned})"
+            # Pre-populate seen control numbers from DB to avoid re-processing
+            conn = self._get_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT pncp_control_number FROM government_contracts "
+                        "WHERE pncp_control_number IS NOT NULL")
+            seen_control_numbers = {row[0] for row in cur.fetchall()}
+            cur.close()
+            conn.close()
+            logger.info(f"Pre-loaded {len(seen_control_numbers)} existing control numbers")
+
+            total_loaded = 0
+            total_scanned = 0
+
+            with PipelineHTTPClient(timeout=30, max_retries=2) as http:
+                for modality_code in MODALITY_CODES:
+                    modality_raw = []
+                    modality_scanned = 0
+                    for data_inicial, data_final in months:
+                        for keyword in SEARCH_KEYWORDS:
+                            try:
+                                contracts, scanned, _ = self._fetch_chunk(
+                                    http, modality_code, data_inicial,
+                                    data_final, keyword, seen_control_numbers,
                                 )
-                        except Exception as e:
-                            msg = (
-                                f"modality={modality_code}, "
-                                f"{data_inicial}-{data_final}, "
-                                f"q='{keyword}': {e}"
-                            )
-                            logger.warning(f"PNCP chunk failed: {msg}")
-                            errors.append(msg)
+                                modality_raw.extend(contracts)
+                                modality_scanned += scanned
+                                if contracts:
+                                    logger.info(
+                                        f"Modality {modality_code}, {data_inicial}-{data_final}, "
+                                        f"q='{keyword}': {len(contracts)} telecom (scanned {scanned})"
+                                    )
+                            except Exception as e:
+                                logger.warning(f"PNCP chunk failed: modality={modality_code}, "
+                                               f"{data_inicial}-{data_final}, q='{keyword}': {e}")
 
-                logger.info(
-                    f"Modality {modality_code} complete: {modality_contracts} telecom contracts"
-                )
+                    total_scanned += modality_scanned
+                    if modality_raw:
+                        df = self.transform(modality_raw)
+                        self.load(df)
+                        total_loaded += len(df)
+                    logger.info(f"Modality {modality_code} done: {len(modality_raw)} found, "
+                                 f"{total_loaded} total loaded")
 
-        if not all_contracts:
-            error_detail = "; ".join(errors[:10]) if errors else "No telecom results matched"
-            raise RuntimeError(
-                f"PNCP API returned no telecom contracts for the last 12 months. "
-                f"Scanned {total_scanned} total records across {total_api_calls} API calls. "
-                f"Errors ({len(errors)} total): {error_detail}"
-            )
+            self.rows_processed = total_scanned
+            self.rows_inserted = total_loaded
+            logger.info(f"PNCP complete: {total_loaded} contracts loaded "
+                         f"(scanned {total_scanned} records)")
+            self._complete_run("success")
+            return {"status": "success", "rows_processed": total_scanned,
+                    "rows_inserted": total_loaded}
+        except Exception as e:
+            logger.error(f"[{self.name}] Failed: {e}")
+            self._complete_run("failed", str(e))
+            raise
 
-        logger.info(
-            f"Total PNCP telecom contracts: {len(all_contracts)} "
-            f"(scanned {total_scanned} records in {total_api_calls} API calls, "
-            f"{len(MODALITY_CODES)} modalities x {len(months)} months)"
-        )
-        return all_contracts
+    def download(self) -> list[dict]:
+        """Not used — run() handles download+load incrementally."""
+        return []
 
     def _fetch_chunk(
         self,
@@ -284,6 +308,7 @@ class PNCPContractsPipeline(BasePipeline):
         scanned = 0
         page = 1
         api_calls = 0
+        consecutive_empty = 0
 
         while page <= MAX_PAGES:
             params = {
@@ -315,6 +340,7 @@ class PNCPContractsPipeline(BasePipeline):
 
             total_paginas = data.get("totalPaginas") or 0
 
+            page_hits = 0
             for item in items:
                 scanned += 1
 
@@ -337,6 +363,19 @@ class PNCPContractsPipeline(BasePipeline):
                     continue
                 seen_control_numbers.add(control_number)
                 contracts.append(item)
+                page_hits += 1
+
+            # Early exit: stop if too many consecutive pages have no telecom hits
+            if page_hits == 0:
+                consecutive_empty += 1
+                if consecutive_empty >= EMPTY_PAGE_LIMIT:
+                    logger.debug(
+                        f"Stopping chunk modality={modality_code}, q='{keyword}': "
+                        f"{EMPTY_PAGE_LIMIT} consecutive empty pages at page {page}"
+                    )
+                    break
+            else:
+                consecutive_empty = 0
 
             # Stop if we've reached the last page
             if total_paginas and page >= total_paginas:
@@ -512,7 +551,8 @@ class PNCPContractsPipeline(BasePipeline):
                      state_code, municipality_code, l2_id, published_date, source,
                      pncp_control_number, modality, status)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (pncp_control_number) DO UPDATE SET
+                    ON CONFLICT ON CONSTRAINT government_contracts_pncp_control_unique
+                    DO UPDATE SET
                         contracting_entity_name = EXCLUDED.contracting_entity_name,
                         object_description = EXCLUDED.object_description,
                         value_brl = EXCLUDED.value_brl,

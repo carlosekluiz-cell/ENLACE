@@ -102,12 +102,13 @@ class PipelineHTTPClient:
         url: str,
         dest: Path,
         resume: bool = True,
+        extra_headers: dict | None = None,
     ) -> Path:
         """Download a file with optional resume support. Returns path to file."""
         dest = Path(dest)
         dest.parent.mkdir(parents=True, exist_ok=True)
 
-        headers = {}
+        headers = dict(extra_headers) if extra_headers else {}
         mode = "wb"
         if resume and dest.exists():
             existing_size = dest.stat().st_size

@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Calculadora de ROI',
-  description: 'Retorno sobre investimento para provedores de internet: 3 casos de uso com ROI de 3,3x a 111x.',
+  description: 'Retorno sobre investimento para provedores de internet: 3 casos de uso reais com expansão, conformidade e M&A.',
   alternates: { canonical: 'https://pulso.network/recursos/roi' },
 };
 
@@ -25,7 +25,7 @@ export default function ROIPage() {
             <span style={{ color: 'var(--text-on-dark-muted)' }}>3 casos de uso reais.</span>
           </h1>
           <p className="mt-5 text-base leading-relaxed max-w-2xl" style={{ color: 'var(--text-on-dark-secondary)' }}>
-            Cada caso compara o custo da assinatura com o valor gerado ou perda evitada.
+            Cada caso compara o investimento com o valor gerado ou perda evitada.
             Dados reais: 13.534 provedores, 5.572 municípios, 28M+ registros de 30+ fontes públicas.
           </p>
         </div>
@@ -70,13 +70,13 @@ export default function ROIPage() {
           {/* With Pulso */}
           <div className="p-6" style={{ background: 'var(--bg-surface)', border: '1px solid var(--accent)' }}>
             <h3 className="text-base font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-              Com Pulso (Tier Provedor — R$1.500/mes)
+              Com Pulso (Tier Provedor)
             </h3>
             <ul className="space-y-3">
               {[
                 { step: 'Ranking de municípios', detail: '5.572 municípios por composite score + Pulso Score' },
                 { step: 'Validação de mercado', detail: 'HHI, shares, tendência, risco climático — confirmar oportunidade' },
-                { step: 'Rota de fibra', detail: 'Dijkstra sobre 6,4M segmentos + BOM' },
+                { step: 'Rota de fibra', detail: 'Rota otimizada sobre 6,4M segmentos + BOM' },
                 { step: 'Análise financeira', detail: 'NPV, IRR, payback com 3 cenários' },
               ].map((item) => (
                 <li key={item.step} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -96,11 +96,8 @@ export default function ROIPage() {
           <table className="w-full text-sm">
             <tbody>
               {[
-                { metric: 'Custo anual (Provedor)', value: 'R$18.000', highlight: false },
                 { metric: 'Perda evitada (CAPEX em município errado)', value: 'R$2.000.000', highlight: false },
-                { metric: 'ROI máximo', value: '111x', highlight: true },
-                { metric: 'ROI conservador (10% do CAPEX)', value: '11x', highlight: true },
-                { metric: 'ROI ultra-conservador (3% do CAPEX)', value: '3,3x', highlight: true },
+                { metric: 'ROI conservador (3% do CAPEX protegido)', value: 'R$60.000+', highlight: true },
               ].map((row) => (
                 <tr key={row.metric} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{row.metric}</td>
@@ -192,7 +189,7 @@ export default function ROIPage() {
 
           <div className="p-6" style={{ background: 'var(--bg-surface)', border: '1px solid var(--accent)' }}>
             <h3 className="text-base font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-              Prevenção com Pulso (Provedor — R$1.500/mes)
+              Prevenção com Pulso (Tier Provedor)
             </h3>
             <ul className="space-y-3">
               {[
@@ -215,10 +212,9 @@ export default function ROIPage() {
           <table className="w-full text-sm">
             <tbody>
               {[
-                { metric: 'Custo anual (Provedor)', value: 'R$18.000', highlight: false },
                 { metric: 'Multa evitada (cenário base)', value: 'R$100.000', highlight: false },
-                { metric: 'ROI (multa evitada)', value: '5,5x', highlight: true },
-                { metric: 'ROI total (multa + ICMS + tempo)', value: '7,5x', highlight: true },
+                { metric: 'Exposição total anual evitada', value: 'R$100K - R$260K', highlight: false },
+                { metric: 'ROI', value: 'R$100K+ em multas evitadas', highlight: true },
               ].map((row) => (
                 <tr key={row.metric} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{row.metric}</td>
@@ -272,7 +268,7 @@ export default function ROIPage() {
 
           <div className="p-6" style={{ background: 'var(--bg-surface)', border: '1px solid var(--accent)' }}>
             <h3 className="text-base font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-              Com Pulso (Profissional — R$5.000/mes)
+              Com Pulso (Tier Profissional)
             </h3>
             <ul className="space-y-3">
               {[
@@ -297,10 +293,8 @@ export default function ROIPage() {
           <table className="w-full text-sm">
             <tbody>
               {[
-                { metric: 'Custo anual (Profissional)', value: 'R$60.000', highlight: false },
                 { metric: 'Due diligence manual (10 targets)', value: 'R$1.500.000', highlight: false },
-                { metric: 'Economia direta', value: 'R$1.439.500', highlight: false },
-                { metric: 'Múltiplo de retorno', value: '24x', highlight: true },
+                { metric: 'Economia', value: 'Fração do custo de consultoria tradicional', highlight: true },
               ].map((row) => (
                 <tr key={row.metric} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{row.metric}</td>
@@ -358,21 +352,19 @@ export default function ROIPage() {
               <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
                 <th className="px-4 py-3 text-left font-medium" style={{ color: 'var(--text-primary)' }}>Caso de uso</th>
                 <th className="px-4 py-3 text-left font-medium" style={{ color: 'var(--text-primary)' }}>Tier</th>
-                <th className="px-4 py-3 text-right font-mono font-medium" style={{ color: 'var(--text-primary)' }}>Custo anual</th>
                 <th className="px-4 py-3 text-right font-mono font-medium" style={{ color: 'var(--text-primary)' }}>Valor protegido</th>
-                <th className="px-4 py-3 text-right font-mono font-medium" style={{ color: 'var(--accent)' }}>ROI</th>
+                <th className="px-4 py-3 text-right font-mono font-medium" style={{ color: 'var(--accent)' }}>Benefício</th>
               </tr>
             </thead>
             <tbody>
               {[
-                { case: 'Expansão', tier: 'Provedor', cost: 'R$18K', value: 'R$60K - R$2M', roi: '3,3x - 111x' },
-                { case: 'Conformidade', tier: 'Provedor', cost: 'R$18K', value: 'R$100K - R$136K', roi: '5,5x - 7,5x' },
-                { case: 'M&A', tier: 'Profissional', cost: 'R$60K', value: 'R$1.440K', roi: '24x' },
+                { case: 'Expansão', tier: 'Provedor', value: 'R$60K - R$2M', roi: 'CAPEX protegido' },
+                { case: 'Conformidade', tier: 'Provedor', value: 'R$100K - R$260K', roi: 'Multas evitadas' },
+                { case: 'M&A', tier: 'Profissional', value: 'R$1.500.000', roi: 'DD tradicional substituída' },
               ].map((row) => (
                 <tr key={row.case} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{row.case}</td>
                   <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{row.tier}</td>
-                  <td className="px-4 py-3 text-right font-mono" style={{ color: 'var(--text-primary)' }}>{row.cost}</td>
                   <td className="px-4 py-3 text-right font-mono" style={{ color: 'var(--text-primary)' }}>{row.value}</td>
                   <td className="px-4 py-3 text-right font-mono font-bold" style={{ color: 'var(--accent)' }}>{row.roi}</td>
                 </tr>
@@ -385,8 +377,8 @@ export default function ROIPage() {
           <h3 className="text-base font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Payback period</h3>
           <div className="space-y-2">
             {[
-              { tier: 'Provedor (R$1.500/mes)', payback: '< 1 mes (evitando 1 erro de R$60K)' },
-              { tier: 'Profissional (R$5.000/mes)', payback: '< 1 mes (substituindo 1 consultoria de R$150K)' },
+              { tier: 'Provedor', payback: '< 1 mes (evitando 1 erro de R$60K em expansão)' },
+              { tier: 'Profissional', payback: '< 1 mes (substituindo 1 consultoria de R$150K)' },
             ].map((row) => (
               <div key={row.tier} className="flex items-baseline gap-3 text-sm">
                 <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{row.tier}:</span>

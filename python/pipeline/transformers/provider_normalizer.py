@@ -4,6 +4,10 @@ Brazilian provider names have many variations:
 - "VIVO S.A." / "TELEFONICA BRASIL S.A." / "TELEFONICA BRASIL" -> "telefonica brasil sa vivo"
 - "CLARO S.A." / "NET SERVICOS" / "EMBRATEL" -> "claro sa" (same group)
 - "OI S.A." / "OI MOVEL" / "TELEMAR" -> "oi sa"
+
+Colombian ISPs have similar grouping needs:
+- "COMCEL S.A." / "CLARO" -> "claro co"
+- "COLOMBIA TELECOMUNICACIONES" / "MOVISTAR" -> "movistar co"
 """
 from unidecode import unidecode
 import re
@@ -53,23 +57,53 @@ PROVIDER_GROUPS = {
 }
 
 
-def normalize_provider_name(name: str) -> str:
+# Colombian ISP corporate group mappings
+COLOMBIA_PROVIDER_GROUPS = {
+    # Claro Colombia (America Movil)
+    "comcel": "claro co",
+    "claro": "claro co",
+    "telmex colombia": "claro co",
+    "america movil": "claro co",
+
+    # Movistar Colombia (Telefonica)
+    "colombia telecomunicaciones": "movistar co",
+    "movistar": "movistar co",
+    "telefonica": "movistar co",
+
+    # Tigo-UNE (Millicom)
+    "tigo": "tigo une",
+    "une": "tigo une",
+    "tigo une": "tigo une",
+    "millicom": "tigo une",
+    "colombia movil": "tigo une",
+    "edatel": "tigo une",
+
+    # ETB (Empresa de Telecomunicaciones de Bogota)
+    "etb": "etb",
+    "empresa de telecomunicaciones de bogota": "etb",
+}
+
+
+def normalize_provider_name(name: str, country_code: str = "BR") -> str:
     """Normalize a provider name for matching and deduplication."""
     # Lowercase
     normalized = name.lower().strip()
     # Remove accents
     normalized = unidecode(normalized)
     # Remove common suffixes
-    for suffix in [" ltda", " eireli", " me", " epp", " s.a.", " s/a", " s.a"]:
+    for suffix in [" ltda", " eireli", " me", " epp", " s.a.", " s/a", " s.a", " sas"]:
         normalized = normalized.replace(suffix, "")
     # Remove special characters except spaces
     normalized = re.sub(r"[^a-z0-9\s]", "", normalized)
     # Collapse whitespace
     normalized = re.sub(r"\s+", " ", normalized).strip()
 
+    # Select the right group mapping based on country
+    groups = COLOMBIA_PROVIDER_GROUPS if country_code == "CO" else PROVIDER_GROUPS
+
     # Check against known groups using word-boundary matching
     # to avoid false positives like "brisanet servicos" matching "net servicos"
-    for pattern, canonical in PROVIDER_GROUPS.items():
+    for pattern, canonical in groups.items():
         if re.search(r"(?:^|\s)" + re.escape(pattern) + r"(?:\s|$)", normalized):
             return canonical
 

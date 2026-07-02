@@ -1,19 +1,22 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/enlace-terrain",
-    "crates/enlace-propagation",
-    "crates/enlace-optimizer",
-    "crates/enlace-raster",
-    "crates/enlace-service",
-    "enlace-tiles",
+    "crates/pulso-terrain",
+    "crates/pulso-propagation",
+    "crates/pulso-optimizer",
+    "crates/pulso-raster",
+    "crates/pulso-service",
+    "crates/pulso-iot-planner",
+    "crates/pulso-connectivity-planner",
+    "pulso-tiles",
+    "crates/pulso-uk-schematic",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 license = "GPL-2.0"
-authors = ["Enlace Platform"]
+authors = ["Pulso Platform"]
 
 [workspace.dependencies]
 # Geospatial

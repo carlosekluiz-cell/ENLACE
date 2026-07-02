@@ -57,6 +57,10 @@ from python.api.routers import (
     ixp,
     # Wave 3 — cross-reference analytics
     cross_analytics,
+    # Wave 4 — LATAM dashboard
+    latam_stats,
+    # Wave 5 — UK topology
+    uk_topology,
     # Public (no auth)
     public,
 )
@@ -155,6 +159,12 @@ app.include_router(ixp.router)
 
 # Wave 3 — cross-reference analytics
 app.include_router(cross_analytics.router)
+
+# Wave 4 — LATAM dashboard
+app.include_router(latam_stats.router)
+
+# Wave 5 — UK topology
+app.include_router(uk_topology.router)
 
 # Public (no auth required)
 app.include_router(public.router)

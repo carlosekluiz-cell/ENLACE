@@ -1,0 +1,369 @@
+# Source: https://github.com/openwrt/mt76/issues/732
+# Title: SFP1 Port of Mediatek MT7986 / Banana Pi BPI-R3 not receiving traffic
+# Retrieved: 2026-07-02
+# License: user-posted content on GitHub, unclear
+# Note: extracted from issue page embedded JSON
+
+Banana Pi BPI-R3 has 2 SFP Ports. One (sfp2 - LAN) is connected via MT7531E and the other one (sfp1 - WAN) is connected directly via MT7986. Im running Openwrt Snapshot git-22.361.69865-deed682 (Build date 11.1.2023).
+
+I inserted a SFP Fibre Transceiver Modul. Everything looks ok. Link is up. All debug messages (details see below) looks ok too. It is sending DHCP requests via this interface, but it is not receiving any packages back.
+
+The firbre connection itself works fine. I confirmed this by inserting the cable in my Mikrotik Hex S, running openwrt 22.03.03 and using the same SFP Module. Here I get traffic back and getting a IP Adress via DHCP.
+
+Below are my logs and ethtool outputs
+
+btw. I'm getting the message "Host does not support 2.0W modules, module left in power mode 1" on my Mikrotik Hex S too. So I guess this is not relevant for the problem.
+
+--------------
+root@gateway:~# logread | grep -E "eth1|wan|sfp"
+    Sun Jan 22 10:21:22 2023 kern.info kernel: [    1.092141] mtk_soc_eth 15100000.ethernet eth1: mediatek frame engine at 0xffffffc009780000, irq 132
+    Sun Jan 22 10:21:22 2023 kern.info kernel: [    1.479966] mt7530 mdio-bus:1f wan (uninitialized): PHY [mt7530-0:00] driver [MediaTek MT7531 PHY] (irq=140)
+    Sun Jan 22 10:21:22 2023 kern.info kernel: [    9.107304] sfp sfp1: Host maximum power 1.0W
+    Sun Jan 22 10:21:22 2023 kern.info kernel: [    9.112401] sfp sfp2: Host maximum power 1.0W
+    Sun Jan 22 10:21:22 2023 kern.info kernel: [    9.446979] sfp sfp1: module FS               SFP-GE-BX        rev      sn G2210498264      dc 220426
+    Sun Jan 22 10:21:22 2023 kern.warn kernel: [    9.456406] sfp sfp1: Host does not support 2.0W modules, module left in power mode 1
+    Sun Jan 22 10:21:22 2023 kern.info kernel: [    9.464303] mtk_soc_eth 15100000.ethernet eth1: switched to inband/1000base-x link mode
+    Sun Jan 22 10:21:23 2023 kern.info kernel: [   10.959765] mt7530 mdio-bus:1f sfp2: configuring for inband/2500base-x link mode
+    Sun Jan 22 10:21:23 2023 kern.info kernel: [   10.968688] br-lan: port 2(sfp2) entered blocking state
+    Sun Jan 22 10:21:23 2023 kern.info kernel: [   10.973927] br-lan: port 2(sfp2) entered disabled state
+    Sun Jan 22 10:21:24 2023 kern.info kernel: [   10.981882] device sfp2 entered promiscuous mode
+    Sun Jan 22 10:21:24 2023 kern.info kernel: [   10.997818] mtk_soc_eth 15100000.ethernet eth1: configuring for inband/1000base-x link mode
+    Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.008215] br-wan: port 1(eth1) entered blocking state
+    Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.013462] br-wan: port 1(eth1) entered disabled state
+    Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.018985] device eth1 entered promiscuous mode
+    Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.025481] br-wan: port 1(eth1) entered blocking state
+    Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.030771] br-wan: port 1(eth1) entered forwarding state
+    Sun Jan 22 10:21:24 2023 daemon.notice netifd: Interface 'wan' is enabled
+    Sun Jan 22 10:21:24 2023 daemon.notice netifd: Interface 'wan6' is enabled
+    Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.038104] mt7530 mdio-bus:1f wan: configuring for phy/gmii link mode
+    Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.047938] br-wan: port 2(wan) entered blocking state
+    Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.053093] br-wan: port 2(wan) entered disabled state
+    Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.059972] device wan entered promiscuous mode
+    Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.066776] mtk_soc_eth 15100000.ethernet eth1: Link is Up - 1Gbps/Full - flow control off
+    Sun Jan 22 10:21:24 2023 daemon.notice netifd: bridge 'br-wan' link is up
+    Sun Jan 22 10:21:24 2023 daemon.notice netifd: Interface 'wan' has link connectivity
+    Sun Jan 22 10:21:24 2023 daemon.notice netifd: Interface 'wan' is setting up now
+    Sun Jan 22 10:21:24 2023 daemon.notice netifd: Interface 'wan6' has link connectivity
+    Sun Jan 22 10:21:24 2023 daemon.notice netifd: Interface 'wan6' is setting up now
+    Sun Jan 22 10:21:24 2023 daemon.notice netifd: Network device 'eth1' link is up
+    Sun Jan 22 10:21:24 2023 daemon.notice netifd: wan (2516): udhcpc: started, v1.36.0
+    Sun Jan 22 10:21:24 2023 daemon.notice netifd: wan (2516): udhcpc: broadcasting discover
+    Sun Jan 22 10:21:27 2023 daemon.notice netifd: wan (2516): udhcpc: broadcasting discover
+    Sun Jan 22 10:21:30 2023 daemon.notice netifd: wan (2516): udhcpc: broadcasting discovercover
+
+--------------
+root@gateway:~# ethtool eth1
+Settings for eth1:
+    Supported ports: [ FIBRE ]
+    Supported link modes:   1000baseX/Full
+    Supported pause frame use: Symmetric Receive-only
+    Supports auto-negotiation: Yes
+    Supported FEC modes: Not reported
+    Advertised link modes:  1000baseX/Full
+    Advertised pause frame use: Symmetric Receive-only
+    Advertised auto-negotiation: Yes
+    Advertised FEC modes: Not reported
+    Speed: 1000Mb/s
+    Duplex: Full
+    Auto-negotiation: on
+    Port: FIBRE
+    PHYAD: 0
+    Transceiver: internal
+    Current message level: 0x000000ff (255)
+                           drv probe link timer ifdown ifup rx_err tx_err
+    Link detected: yes
+
+--------------
+root@gateway:~# ethtool -S eth1
+NIC statistics:
+    tx_bytes: 32166
+    tx_packets: 109
+    tx_skip: 0
+    tx_collisions: 0
+    rx_bytes: 0
+    rx_packets: 0
+    rx_overflow: 0
+    rx_fcs_errors: 0
+    rx_short_errors: 0
+    rx_long_errors: 0
+    rx_checksum_errors: 0
+    rx_flow_control_packets: 0
+    rx_xdp_redirect: 0
+    rx_xdp_pass: 0
+    rx_xdp_drop: 0
+    rx_xdp_tx: 0
+    rx_xdp_tx_errors: 0
+    tx_xdp_xmit: 0
+    tx_xdp_xmit_errors: 0
+    rx_pp_alloc_fast: 11709698
+    rx_pp_alloc_slow: 29198
+    rx_pp_alloc_slow_ho: 0
+    rx_pp_alloc_empty: 29198
+    rx_pp_alloc_refill: 256545
+    rx_pp_alloc_waive: 0
+    rx_pp_recycle_cached: 0
+    rx_pp_recycle_cache_full: 0
+    rx_pp_recycle_ring: 10126839
+    rx_pp_recycle_ring_full: 0
+    rx_pp_recycle_released_ref: 1868090
+
+--------------
+root@gateway:~# ethtool -m eth1
+    Identifier                                : 0x03 (SFP)
+    Extended identifier                       : 0x04 (GBIC/SFP defined by 2-wire interface ID)
+    Connector                                 : 0x07 (LC)
+    Transceiver codes                         : 0x00 0x00 0x00 0x40 0x00 0x00 0x00 0x00 0x00
+    Transceiver type                          : Ethernet: BASE-BX10
+    Encoding                                  : 0x01 (8B/10B)
+    BR, Nominal                               : 1300MBd
+    Rate identifier                           : 0x00 (unspecified)
+    Length (SMF,km)                           : 20km
+    Length (SMF)                              : 20000m
+    Length (50um)                             : 0m
+    Length (62.5um)                           : 0m
+    Length (Copper)                           : 0m
+    Length (OM3)                              : 0m
+    Laser wavelength                          : 1310nm
+    Vendor name                               : FS
+    Vendor OUI                                : 64:9d:99
+    Vendor PN                                 : SFP-GE-BX
+    Vendor rev                                :
+    Option values                             : 0x20 0x0a
+    Option                                    : RX_LOS implemented
+    Option                                    : TX_FAULT implemented
+    Option                                    : Power level 3 requirement
+    BR margin, max                            : 0%
+    BR margin, min                            : 0%
+    Vendor SN                                 : G2210498264
+    Date code                                 : 220426
+    Optical diagnostics support               : Yes
+    Laser bias current                        : 11.450 mA
+    Laser output power                        : 0.2348 mW / -6.29 dBm
+    Receiver signal average optical power     : 0.1520 mW / -8.18 dBm
+    Module temperature                        : 35.48 degrees C / 95.86 degrees F
+    Module voltage                            : 3.3125 V
+    Alarm/warning flags implemented           : Yes
+    Laser bias current high alarm             : Off
+    Laser bias current low alarm              : Off
+    Laser bias current high warning           : Off
+    Laser bias current low warning            : Off
+    Laser output power high alarm             : Off
+    Laser output power low alarm              : Off
+    Laser output power high warning           : Off
+    Laser output power low warning            : Off
+    Module temperature high alarm             : Off
+    Module temperature low alarm              : Off
+    Module temperature high warning           : Off
+    Module temperature low warning            : Off
+    Module voltage high alarm                 : Off
+    Module voltage low alarm                  : Off
+    Module voltage high warning               : Off
+    Module voltage low warning                : Off
+    Laser rx power high alarm                 : Off
+    Laser rx power low alarm                  : Off
+    Laser rx power high warning               : Off
+    Laser rx power low warning                : Off
+    Laser bias current high alarm threshold   : 100.000 mA
+    Laser bias current low alarm threshold    : 1.000 mA
+    Laser bias current high warning threshold : 90.000 mA
+    Laser bias current low warning threshold  : 2.000 mA
+    Laser output power high alarm threshold   : 0.6310 mW / -2.00 dBm
+    Laser output power low alarm threshold    : 0.1000 mW / -10.00 dBm
+    Laser output power high warning threshold : 0.5012 mW / -3.00 dBm
+    Laser output power low warning threshold  : 0.1259 mW / -9.00 dBm
+    Module temperature high alarm threshold   : 80.00 degrees C / 176.00 degrees F
+    Module temperature low alarm threshold    : -10.00 degrees C / 14.00 degrees F
+    Module temperature high warning threshold : 75.00 degrees C / 167.00 degrees F
+    Module temperature low warning threshold  : -5.00 degrees C / 23.00 degrees F
+    Module voltage high alarm threshold       : 3.6300 V
+    Module voltage low alarm threshold        : 2.9700 V
+    Module voltage high warning threshold     : 3.4700 V
+    Module voltage low warning threshold      : 3.1276 V
+    Laser rx power high alarm threshold       : 0.6310 mW / -2.00 dBm
+    Laser rx power low alarm threshold        : 0.0040 mW / -23.98 dBm
+    Laser rx power high warning threshold     : 0.5012 mW / -3.00 dBm
+    Laser rx power low warning threshold      : 0.0050 mW / -23.01 dBm
+
+
+
+
+
+
+
+
+============================================================
+
+<p dir="auto">Banana Pi BPI-R3 has 2 SFP Ports. One (sfp2 - LAN) is connected via MT7531E and the other one (sfp1 - WAN) is connected directly via MT7986. Im running Openwrt Snapshot git-22.361.69865-deed682 (Build date 11.1.2023).</p>
+<p dir="auto">I inserted a SFP Fibre Transceiver Modul. Everything looks ok. Link is up. All debug messages (details see below) looks ok too. It is sending DHCP requests via this interface, but it is not receiving any packages back.</p>
+<p dir="auto">The firbre connection itself works fine. I confirmed this by inserting the cable in my Mikrotik Hex S, running openwrt 22.03.03 and using the same SFP Module. Here I get traffic back and getting a IP Adress via DHCP.</p>
+<p dir="auto">Below are my logs and ethtool outputs</p>
+<p dir="auto">btw. I'm getting the message "Host does not support 2.0W modules, module left in power mode 1" on my Mikrotik Hex S too. So I guess this is not relevant for the problem.</p>
+<hr>
+<p dir="auto">root@gateway:~# logread | grep -E "eth1|wan|sfp"
+Sun Jan 22 10:21:22 2023 kern.info kernel: [    1.092141] mtk_soc_eth 15100000.ethernet eth1: mediatek frame engine at 0xffffffc009780000, irq 132
+Sun Jan 22 10:21:22 2023 kern.info kernel: [    1.479966] mt7530 mdio-bus:1f wan (uninitialized): PHY [mt7530-0:00] driver [MediaTek MT7531 PHY] (irq=140)
+Sun Jan 22 10:21:22 2023 kern.info kernel: [    9.107304] sfp sfp1: Host maximum power 1.0W
+Sun Jan 22 10:21:22 2023 kern.info kernel: [    9.112401] sfp sfp2: Host maximum power 1.0W
+Sun Jan 22 10:21:22 2023 kern.info kernel: [    9.446979] sfp sfp1: module FS               SFP-GE-BX        rev      sn G2210498264      dc 220426
+Sun Jan 22 10:21:22 2023 kern.warn kernel: [    9.456406] sfp sfp1: Host does not support 2.0W modules, module left in power mode 1
+Sun Jan 22 10:21:22 2023 kern.info kernel: [    9.464303] mtk_soc_eth 15100000.ethernet eth1: switched to inband/1000base-x link mode
+Sun Jan 22 10:21:23 2023 kern.info kernel: [   10.959765] mt7530 mdio-bus:1f sfp2: configuring for inband/2500base-x link mode
+Sun Jan 22 10:21:23 2023 kern.info kernel: [   10.968688] br-lan: port 2(sfp2) entered blocking state
+Sun Jan 22 10:21:23 2023 kern.info kernel: [   10.973927] br-lan: port 2(sfp2) entered disabled state
+Sun Jan 22 10:21:24 2023 kern.info kernel: [   10.981882] device sfp2 entered promiscuous mode
+Sun Jan 22 10:21:24 2023 kern.info kernel: [   10.997818] mtk_soc_eth 15100000.ethernet eth1: configuring for inband/1000base-x link mode
+Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.008215] br-wan: port 1(eth1) entered blocking state
+Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.013462] br-wan: port 1(eth1) entered disabled state
+Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.018985] device eth1 entered promiscuous mode
+Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.025481] br-wan: port 1(eth1) entered blocking state
+Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.030771] br-wan: port 1(eth1) entered forwarding state
+Sun Jan 22 10:21:24 2023 daemon.notice netifd: Interface 'wan' is enabled
+Sun Jan 22 10:21:24 2023 daemon.notice netifd: Interface 'wan6' is enabled
+Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.038104] mt7530 mdio-bus:1f wan: configuring for phy/gmii link mode
+Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.047938] br-wan: port 2(wan) entered blocking state
+Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.053093] br-wan: port 2(wan) entered disabled state
+Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.059972] device wan entered promiscuous mode
+Sun Jan 22 10:21:24 2023 kern.info kernel: [   11.066776] mtk_soc_eth 15100000.ethernet eth1: Link is Up - 1Gbps/Full - flow control off
+Sun Jan 22 10:21:24 2023 daemon.notice netifd: bridge 'br-wan' link is up
+Sun Jan 22 10:21:24 2023 daemon.notice netifd: Interface 'wan' has link connectivity
+Sun Jan 22 10:21:24 2023 daemon.notice netifd: Interface 'wan' is setting up now
+Sun Jan 22 10:21:24 2023 daemon.notice netifd: Interface 'wan6' has link connectivity
+Sun Jan 22 10:21:24 2023 daemon.notice netifd: Interface 'wan6' is setting up now
+Sun Jan 22 10:21:24 2023 daemon.notice netifd: Network device 'eth1' link is up
+Sun Jan 22 10:21:24 2023 daemon.notice netifd: wan (2516): udhcpc: started, v1.36.0
+Sun Jan 22 10:21:24 2023 daemon.notice netifd: wan (2516): udhcpc: broadcasting discover
+Sun Jan 22 10:21:27 2023 daemon.notice netifd: wan (2516): udhcpc: broadcasting discover
+Sun Jan 22 10:21:30 2023 daemon.notice netifd: wan (2516): udhcpc: broadcasting discovercover</p>
+<hr>
+<p dir="auto">root@gateway:~# ethtool eth1
+Settings for eth1:
+Supported ports: [ FIBRE ]
+Supported link modes:   1000baseX/Full
+Supported pause frame use: Symmetric Receive-only
+Supports auto-negotiation: Yes
+Supported FEC modes: Not reported
+Advertised link modes:  1000baseX/Full
+Advertised pause frame use: Symmetric Receive-only
+Advertised auto-negotiation: Yes
+Advertised FEC modes: Not reported
+Speed: 1000Mb/s
+Duplex: Full
+Auto-negotiation: on
+Port: FIBRE
+PHYAD: 0
+Transceiver: internal
+Current message level: 0x000000ff (255)
+drv probe link timer ifdown ifup rx_err tx_err
+Link detected: yes</p>
+<hr>
+<p dir="auto">root@gateway:~# ethtool -S eth1
+NIC statistics:
+tx_bytes: 32166
+tx_packets: 109
+tx_skip: 0
+tx_collisions: 0
+rx_bytes: 0
+rx_packets: 0
+rx_overflow: 0
+rx_fcs_errors: 0
+rx_short_errors: 0
+rx_long_errors: 0
+rx_checksum_errors: 0
+rx_flow_control_packets: 0
+rx_xdp_redirect: 0
+rx_xdp_pass: 0
+rx_xdp_drop: 0
+rx_xdp_tx: 0
+rx_xdp_tx_errors: 0
+tx_xdp_xmit: 0
+tx_xdp_xmit_errors: 0
+rx_pp_alloc_fast: 11709698
+rx_pp_alloc_slow: 29198
+rx_pp_alloc_slow_ho: 0
+rx_pp_alloc_empty: 29198
+rx_pp_alloc_refill: 256545
+rx_pp_alloc_waive: 0
+rx_pp_recycle_cached: 0
+rx_pp_recycle_cache_full: 0
+rx_pp_recycle_ring: 10126839
+rx_pp_recycle_ring_full: 0
+rx_pp_recycle_released_ref: 1868090</p>
+<hr>
+<p dir="auto">root@gateway:~# ethtool -m eth1
+Identifier                                : 0x03 (SFP)
+Extended identifier                       : 0x04 (GBIC/SFP defined by 2-wire interface ID)
+Connector                                 : 0x07 (LC)
+Transceiver codes                         : 0x00 0x00 0x00 0x40 0x00 0x00 0x00 0x00 0x00
+Transceiver type                          : Ethernet: BASE-BX10
+Encoding                                  : 0x01 (8B/10B)
+BR, Nominal                               : 1300MBd
+Rate identifier                           : 0x00 (unspecified)
+Length (SMF,km)                           : 20km
+Length (SMF)                              : 20000m
+Length (50um)                             : 0m
+Length (62.5um)                           : 0m
+Length (Copper)                           : 0m
+Length (OM3)                              : 0m
+Laser wavelength                          : 1310nm
+Vendor name                               : FS
+Vendor OUI                                : 64:9d:99
+Vendor PN                                 : SFP-GE-BX
+Vendor rev                                :
+Option values                             : 0x20 0x0a
+Option                                    : RX_LOS implemented
+Option                                    : TX_FAULT implemented
+Option                                    : Power level 3 requirement
+BR margin, max                            : 0%
+BR margin, min                            : 0%
+Vendor SN                                 : G2210498264
+Date code                                 : 220426
+Optical diagnostics support               : Yes
+Laser bias current                        : 11.450 mA
+Laser output power                        : 0.2348 mW / -6.29 dBm
+Receiver signal average optical power     : 0.1520 mW / -8.18 dBm
+Module temperature                        : 35.48 degrees C / 95.86 degrees F
+Module voltage                            : 3.3125 V
+Alarm/warning flags implemented           : Yes
+Laser bias current high alarm             : Off
+Laser bias current low alarm              : Off
+Laser bias current high warning           : Off
+Laser bias current low warning            : Off
+Laser output power high alarm             : Off
+Laser output power low alarm              : Off
+Laser output power high warning           : Off
+Laser output power low warning            : Off
+Module temperature high alarm             : Off
+Module temperature low alarm              : Off
+Module temperature high warning           : Off
+Module temperature low warning            : Off
+Module voltage high alarm                 : Off
+Module voltage low alarm                  : Off
+Module voltage high warning               : Off
+Module voltage low warning                : Off
+Laser rx power high alarm                 : Off
+Laser rx power low alarm                  : Off
+Laser rx power high warning               : Off
+Laser rx power low warning                : Off
+Laser bias current high alarm threshold   : 100.000 mA
+Laser bias current low alarm threshold    : 1.000 mA
+Laser bias current high warning threshold : 90.000 mA
+Laser bias current low warning threshold  : 2.000 mA
+Laser output power high alarm threshold   : 0.6310 mW / -2.00 dBm
+Laser output power low alarm threshold    : 0.1000 mW / -10.00 dBm
+Laser output power high warning threshold : 0.5012 mW / -3.00 dBm
+Laser output power low warning threshold  : 0.1259 mW / -9.00 dBm
+Module temperature high alarm threshold   : 80.00 degrees C / 176.00 degrees F
+Module temperature low alarm threshold    : -10.00 degrees C / 14.00 degrees F
+Module temperature high warning threshold : 75.00 degrees C / 167.00 degrees F
+Module temperature low warning threshold  : -5.00 degrees C / 23.00 degrees F
+Module voltage high alarm threshold       : 3.6300 V
+Module voltage low alarm threshold        : 2.9700 V
+Module voltage high warning threshold     : 3.4700 V
+Module voltage low warning threshold      : 3.1276 V
+Laser rx power high alarm threshold       : 0.6310 mW / -2.00 dBm
+Laser rx power low alarm threshold        : 0.0040 mW / -23.98 dBm
+Laser rx power high warning threshold     : 0.5012 mW / -3.00 dBm
+Laser rx power low warning threshold      : 0.0050 mW / -23.01 dBm</p>
+
+============================================================
+

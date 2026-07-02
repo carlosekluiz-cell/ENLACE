@@ -1,0 +1,37 @@
+[Unit]
+Description=Pulso Agent — ISP Network Intelligence Collector
+Documentation=https://enlace.network/docs/agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Type=notify: the agent sends READY=1 after startup and WATCHDOG=1 pings
+# at half the WatchdogSec interval (sd_notify implemented in src/systemd.rs)
+Type=notify
+ExecStart=/usr/local/bin/pulso-agent -v --config /etc/pulso-agent/agent.toml
+Restart=on-failure
+RestartSec=10
+WatchdogSec=300
+
+# Non-root service user (created by install.sh)
+User=pulso-agent
+Group=pulso-agent
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pulso-agent
+PrivateTmp=true
+
+# Resource limits
+LimitNOFILE=4096
+MemoryMax=256M
+
+# Logging (tracing writes to stderr; stdout is reserved for data output)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pulso-agent
+
+[Install]
+WantedBy=multi-user.target

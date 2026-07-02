@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+/* ── ENLACE Design System (cloned from enlace-site) ──
+   Operations app runs dark by default: NOC screens live in dark rooms. */
+
+:root {
+  --bg-primary: #fafaf9;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f5f5f4;
+  --bg-dark: #0c0a09;
+  --bg-dark-surface: #1c1917;
+  --bg-dark-subtle: #292524;
+
+  --text-primary: #0c0a09;
+  --text-secondary: #57534e;
+  --text-muted: #a8a29e;
+  --text-on-dark: #fafaf9;
+  --text-on-dark-secondary: #d6d3d1;
+  --text-on-dark-muted: #78716c;
+
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --accent-deep: #4f46e5;
+  --accent-subtle: #eef2ff;
+  --accent-glow: rgba(99, 102, 241, 0.15);
+
+  --border: #e7e5e4;
+  --border-strong: #d6d3d1;
+  --border-dark: rgba(255, 255, 255, 0.06);
+  --border-dark-strong: rgba(255, 255, 255, 0.12);
+
+  --danger: #dc2626;
+  --warning: #d97706;
+  --success: #059669;
+
+  /* ── Operational status scale ──
+     Unknown is ITS OWN color (violet). It is never Offline's red: an
+     unrecognized status value is not evidence of an outage. */
+  --status-online: #22c55e;
+  --status-warn: #f59e0b;
+  --status-offline: #ef4444;
+  --status-unknown: #a78bfa;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-on-dark);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Shared operational chrome ── */
+
+.op-card {
+  background-color: var(--bg-dark-surface);
+  border: 1px solid var(--border-dark-strong);
+}
+
+.op-label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-on-dark-muted);
+}
+
+.op-table th {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-on-dark-muted);
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-dark-strong);
+  white-space: nowrap;
+}
+
+.op-table td {
+  font-size: 13px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-dark);
+  color: var(--text-on-dark-secondary);
+  white-space: nowrap;
+}
+
+.op-table tr:hover td {
+  background-color: var(--bg-dark-subtle);
+}
+
+@layer components {
+  .enlace-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 42px;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 0;
+    background-color: var(--accent);
+    color: #ffffff;
+    transition: all 150ms ease;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+  }
+
+  .enlace-btn-primary:hover {
+    background-color: var(--accent-deep);
+  }
+
+  .enlace-btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 42px;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 0;
+    background-color: transparent;
+    color: var(--text-on-dark-secondary);
+    border: 1px solid var(--border-dark-strong);
+    transition: all 150ms ease;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .enlace-btn-ghost:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .enlace-input-dark {
+    display: block;
+    width: 100%;
+    height: 42px;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    font-size: 0.875rem;
+    background-color: var(--bg-dark-surface);
+    color: var(--text-on-dark);
+    border: 1px solid var(--border-dark-strong);
+    border-radius: 0;
+    outline: none;
+    transition: border-color 150ms ease;
+  }
+
+  .enlace-input-dark:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+
+  .enlace-input-dark::placeholder {
+    color: var(--text-on-dark-muted);
+  }
+}

@@ -361,7 +361,7 @@ async def weather_quality_correlation(
             FROM quality_indicators qi
             JOIN admin_level_2 a2 ON a2.id = qi.l2_id
             JOIN admin_level_1 a1 ON a2.l1_id = a1.id
-            WHERE qi.metric_type = 'download_speed'
+            WHERE qi.metric_type = 'download_speed_mbps'
             {"AND a1.abbrev = :state" if state else ""}
             GROUP BY a1.abbrev, qi.year_month
         )
@@ -374,7 +374,7 @@ async def weather_quality_correlation(
         FROM quality_monthly qm
         JOIN weather_agg wa ON wa.month_str = qm.month_str
         GROUP BY qm.state
-        HAVING COUNT(*) >= 3
+        HAVING COUNT(*) >= 2
         ORDER BY CORR(wa.avg_precip, qm.avg_quality) ASC NULLS LAST
     """)
 
@@ -419,6 +419,12 @@ async def employment_broadband_correlation(
             FROM broadband_subscribers
             WHERE year_month = (SELECT MAX(year_month) FROM broadband_subscribers)
             GROUP BY l2_id
+        ),
+        latest_employment AS (
+            SELECT DISTINCT ON (l2_id)
+                l2_id, formal_jobs_total, avg_salary_brl
+            FROM employment_indicators
+            ORDER BY l2_id, year DESC, month DESC
         )
         SELECT
             a2.id AS l2_id,
@@ -426,10 +432,10 @@ async def employment_broadband_correlation(
             a1.abbrev AS state,
             a2.population,
             ei.formal_jobs_total,
-            ei.avg_salary_brl,
+            CASE WHEN ei.avg_salary_brl < 50000 THEN ei.avg_salary_brl ELSE NULL END AS avg_salary_brl,
             COALESCE(ls.total_subs, 0) AS subscribers,
             ROUND((COALESCE(ls.total_subs, 0)::numeric / a2.population * 100), 2) AS penetration_pct
-        FROM employment_indicators ei
+        FROM latest_employment ei
         JOIN admin_level_2 a2 ON a2.id = ei.l2_id
         JOIN admin_level_1 a1 ON a2.l1_id = a1.id
         LEFT JOIN latest_subs ls ON ls.l2_id = a2.id

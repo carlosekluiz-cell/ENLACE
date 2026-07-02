@@ -7,6 +7,7 @@ import { clsx } from 'clsx';
 const LANGUAGES = [
   { code: 'pt-BR', label: 'Português (BR)', flag: '🇧🇷' },
   { code: 'en', label: 'English', flag: '🇺🇸' },
+  { code: 'es', label: 'Español', flag: '🇨🇴' },
 ];
 
 export default function LanguageSwitcher() {

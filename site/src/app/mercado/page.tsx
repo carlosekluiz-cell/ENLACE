@@ -6,7 +6,7 @@ import { getNationalData, formatSubscribers, getStateName } from '@/lib/market-d
 export const metadata: Metadata = {
   title: 'Mercado de Banda Larga no Brasil — Dados Atualizados',
   description:
-    'Panorama completo do mercado de banda larga brasileiro: 54M+ assinantes, 13.500+ provedores em 5.570 municípios. Dados Anatel atualizados por estado e cidade.',
+    'Panorama completo do mercado de banda larga brasileiro: 54M+ assinantes, 13.534 ISPs ativos em 5.570 municípios. Dados Anatel atualizados por estado e cidade.',
   alternates: { canonical: 'https://pulso.network/mercado' },
 };
 
@@ -60,7 +60,7 @@ export default function MercadoPage() {
         >
           {[
             { value: formatSubscribers(data.subscribers), label: 'Assinantes' },
-            { value: '13.500+', label: 'Provedores' },
+            { value: '13.534', label: 'ISPs ativos' },
             { value: data.municipalities.toLocaleString('pt-BR'), label: 'Municípios' },
             { value: '27', label: 'Estados' },
           ].map((stat) => (
@@ -177,7 +177,7 @@ export default function MercadoPage() {
             <span style={{ color: 'var(--text-on-dark-muted)' }}>Disponíveis na plataforma.</span>
           </h2>
           <p className="mt-3 text-sm" style={{ color: 'var(--text-on-dark-secondary)' }}>
-            Nomes dos provedores, market share, análise de M&A, due diligence e 25+ módulos de inteligência.
+            Nomes dos provedores, market share, concorrência, qualidade e 25+ módulos de inteligência.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <Link href="/precos" className="pulso-btn-dark">

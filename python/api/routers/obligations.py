@@ -19,16 +19,6 @@ async def get_5g_obligations(
     return await coverage_obligations.get_obligations(db)
 
 
-@router.get("/5g/{provider_name}")
-async def get_provider_obligations(
-    provider_name: str,
-    db: AsyncSession = Depends(get_db),
-    user: dict = Depends(require_auth),
-):
-    """Get 5G obligations for a specific operator."""
-    return await coverage_obligations.get_obligations(db, provider_name=provider_name)
-
-
 @router.get("/5g/gap-analysis")
 async def get_gap_analysis(
     provider_name: Optional[str] = Query(None),
@@ -37,3 +27,13 @@ async def get_gap_analysis(
 ):
     """Analyze gaps in 5G coverage obligation fulfillment."""
     return await coverage_obligations.gap_analysis(db, provider_name=provider_name)
+
+
+@router.get("/5g/{provider_name}")
+async def get_provider_obligations(
+    provider_name: str,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_auth),
+):
+    """Get 5G obligations for a specific operator."""
+    return await coverage_obligations.get_obligations(db, provider_name=provider_name)

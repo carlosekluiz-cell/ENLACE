@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { formatDecimal } from '@/lib/format';
+import DisclaimerBanner from '@/components/ui/DisclaimerBanner';
 import type {
   ComplianceCheck,
   ComplianceStatus,
@@ -247,6 +248,9 @@ export default function CompliancePage() {
 
   return (
     <div className="space-y-6 p-6">
+      {/* Legal disclaimer */}
+      <DisclaimerBanner />
+
       {/* Main tab bar */}
       <div className="flex gap-2">
         {[

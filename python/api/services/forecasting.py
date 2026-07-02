@@ -49,7 +49,7 @@ async def forecast_subscribers(
         SELECT
             TRIM(bs.year_month) AS year_month,
             SUM(bs.subscribers) AS total_subscribers,
-            SUM(CASE WHEN LOWER(bs.technology) = 'fiber' THEN bs.subscribers ELSE 0 END)
+            SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END)
                 AS fiber_subscribers
         FROM broadband_subscribers bs
         WHERE bs.l2_id = :municipality_id

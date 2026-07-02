@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
+import Script from 'next/script';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './globals.css';
 import Sidebar from '@/components/layout/Sidebar';
@@ -38,6 +39,12 @@ export default function RootLayout({
         className={`${ibmPlexSans.variable} ${ibmPlexMono.variable} font-sans`}
         style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
       >
+        <Script
+          defer
+          src="https://api.pulso.network/umami/script.js"
+          data-website-id="ecfe3a7c-1795-44a5-af9d-a15851765c05"
+          strategy="afterInteractive"
+        />
         <Providers>
           <div className="flex h-screen overflow-hidden">
             <Sidebar />

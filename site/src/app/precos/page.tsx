@@ -60,7 +60,7 @@ export default function WaitlistPage() {
             <span style={{ color: 'var(--text-on-dark-muted)' }}>como nunca existiu no Brasil.</span>
           </h1>
           <p className="mt-5 text-base leading-relaxed max-w-xl mx-auto" style={{ color: 'var(--text-on-dark-secondary)' }}>
-            38+ fontes de dados cruzadas. 5.570 municípios. 13.500+ provedores mapeados.
+            38+ fontes de dados cruzadas. 5.570 municípios. 13.534 ISPs ativos monitorados.
             Entre na lista de espera para acesso antecipado.
           </p>
         </div>
@@ -203,8 +203,8 @@ export default function WaitlistPage() {
               desc: 'Saiba exatamente quem são seus concorrentes em cada cidade — assinantes, tecnologias e tendências.',
             },
             {
-              title: 'Due diligence automatizada',
-              desc: 'Dívida fiscal, sócios, reclamações, sanções e selos de qualidade de qualquer provedor em segundos.',
+              title: 'Valuation e M&A',
+              desc: 'Valuation por 3 metodologias, análise de sinergias e identificação de alvos de aquisição.',
             },
             {
               title: 'Expansão baseada em dados',

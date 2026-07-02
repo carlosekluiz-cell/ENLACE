@@ -92,6 +92,50 @@ async def require_admin(user: dict = Depends(require_auth)) -> dict:
     return user
 
 
+async def require_due_diligence_access(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict:
+    """Require explicit due diligence access — always enforced (no dev-mode bypass).
+
+    Users must have a valid JWT AND ``due_diligence_access: true`` in their
+    token claims.  This gates all PGFN, ownership-graph, and dossier endpoints.
+    """
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Autenticação obrigatória para acesso a due diligence",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = credentials.credentials
+    payload = verify_token(token)
+
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido ou expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = {
+        "user_id": payload.get("sub", payload.get("user_id", "unknown")),
+        "email": payload.get("email", ""),
+        "tenant_id": payload.get("tenant_id", "default"),
+        "role": payload.get("role", "viewer"),
+        "full_name": payload.get("full_name", ""),
+        "anonymous": False,
+        "due_diligence_access": payload.get("due_diligence_access", False),
+    }
+
+    if not user["due_diligence_access"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Due diligence requer contrato Pulso Due Diligence.",
+        )
+
+    return user
+
+
 def require_role(min_role: str):
     """Factory that returns a dependency requiring at least `min_role` privilege.
 

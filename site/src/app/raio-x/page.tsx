@@ -280,7 +280,7 @@ export default function RaioXPage() {
     setContracts(null);
 
     try {
-      const res = await fetch(`${API_URL}?q=${encodeURIComponent(searchTerm.trim())}`);
+      const res = await fetch(`${API_URL}?q=${encodeURIComponent(searchTerm.trim())}&country=BR`);
       if (!res.ok) throw new Error('Erro ao buscar dados');
       const json = await res.json();
       const newState = parseResponse(json);
@@ -1251,7 +1251,7 @@ export default function RaioXPage() {
                 style={{ border: '2px solid var(--accent)', background: 'var(--bg-surface)' }}
               >
                 <div className="font-mono text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--accent)' }}>
-                  Valor estimado: R$2.000+ em consultoria
+                  Analise completa disponivel em breve
                 </div>
                 <h2 className="font-serif text-2xl font-bold tracking-tight md:text-3xl" style={{ color: 'var(--text-primary)', lineHeight: 1.15 }}>
                   Desbloqueie o relatorio completo
@@ -1262,14 +1262,11 @@ export default function RaioXPage() {
                 </p>
                 <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                   <Link href="/precos" className="pulso-btn-primary inline-flex items-center gap-2 px-8 py-3">
-                    A partir de R$99/mes <ArrowRight size={14} />
-                  </Link>
-                  <Link href="/precos" className="pulso-btn-outline px-6 py-3">
-                    Relatorio avulso R$49
+                    Entrar na lista de espera <ArrowRight size={14} />
                   </Link>
                 </div>
                 <p className="mt-4 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Ou assine o plano Starter com 3 relatorios/mes inclusos.
+                  Estamos em fase de acesso antecipado. Entre na lista para ser notificado.
                 </p>
               </div>
             </Section>

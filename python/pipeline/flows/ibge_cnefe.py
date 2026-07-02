@@ -171,7 +171,7 @@ class IBGECNEFEPipeline(BasePipeline):
         # Get urbanization rate from broadband data (fiber implies urban)
         cur.execute("""
             SELECT a2.code,
-                   COALESCE(SUM(CASE WHEN bs.technology = 'fiber' THEN bs.subscribers ELSE 0 END), 0) AS fiber_subs,
+                   COALESCE(SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END), 0) AS fiber_subs,
                    COALESCE(SUM(bs.subscribers), 0) AS total_subs
             FROM admin_level_2 a2
             LEFT JOIN broadband_subscribers bs ON bs.l2_id = a2.id

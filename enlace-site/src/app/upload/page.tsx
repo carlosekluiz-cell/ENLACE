@@ -91,7 +91,11 @@ const modules = [
   },
 ];
 
-const AUDIT_SERVER = "http://localhost:8080";
+// Uploads go to our own Next.js API route, which proxies to the Enlace audit
+// engine server-side (the audit server requires a token that never ships to
+// the browser).
+const AUDIT_ENDPOINT = "/api/audit";
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -104,13 +108,21 @@ export default function UploadPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalysing, setIsAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  const log = (msg: string) => {
+    const ts = new Date().toISOString().split("T")[1].split(".")[0];
+    setLogs((prev) => [...prev, `[${ts}] ${msg}`]);
+  };
 
   const handleFile = useCallback((f: File) => {
     const name = f.name.toLowerCase();
     if (name.endsWith(".csv") || name.endsWith(".tsv") || name.endsWith(".txt")) {
       setFile(f);
+      setLogs([]);
+      setError(null);
     }
   }, []);
 
@@ -147,35 +159,81 @@ export default function UploadPage() {
 
     setIsAnalysing(true);
     setError(null);
+    setLogs([]);
+
+    log(`File: ${file.name} (${formatFileSize(file.size)})`);
+    log(`API endpoint: ${AUDIT_ENDPOINT}`);
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      log("ERROR: File exceeds the 50 MB upload limit");
+      setError("File exceeds the 50 MB upload limit");
+      setIsAnalysing(false);
+      return;
+    }
+
+    log("Preparing upload...");
 
     try {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch(`${AUDIT_SERVER}/audit`, {
+      log("Sending POST request...");
+      const startTime = Date.now();
+
+      const response = await fetch(AUDIT_ENDPOINT, {
         method: "POST",
         body: formData,
       });
 
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      log(`Response received in ${elapsed}s — HTTP ${response.status}`);
+
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || `Server error: ${response.status}`);
+        let message = `Server error: ${response.status}`;
+        try {
+          const errBody = await response.json();
+          if (errBody?.message) message = errBody.message;
+        } catch {
+          // non-JSON error body — keep the generic message
+        }
+        log(`ERROR: ${message}`);
+        throw new Error(message);
       }
 
+      log("Parsing JSON response...");
       const data = await response.json();
 
       if (!data.audit_id) {
+        log("ERROR: No audit_id in response");
         throw new Error("No audit_id in response");
       }
 
+      log(`Audit ID: ${data.audit_id}`);
+      log(`Health Score: ${data.result?.summary?.health_score ?? "N/A"}`);
+      log(`Total ONTs: ${data.result?.summary?.total_onts ?? "N/A"}`);
+      log(`Total Readings: ${data.result?.summary?.total_readings ?? "N/A"}`);
+      log(`Faults: ${data.result?.faults?.length ?? 0}`);
+      log(`Ghosts: ${data.result?.ghosts?.length ?? 0}`);
+      log(`Capacity warnings: ${data.result?.capacity?.length ?? 0}`);
+
       // Store the audit result in sessionStorage
-      sessionStorage.setItem(`audit:${data.audit_id}`, JSON.stringify(data));
+      const jsonStr = JSON.stringify(data);
+      log(`Result size: ${formatFileSize(jsonStr.length)}`);
+      try {
+        sessionStorage.setItem(`audit:${data.audit_id}`, jsonStr);
+        log("Stored in sessionStorage");
+      } catch (storageErr) {
+        log(`sessionStorage failed (too large?) — will fetch from API`);
+      }
+
+      log("Redirecting to dashboard...");
 
       // Redirect to platform audit page
       router.push(`/platform/audit/${data.audit_id}`);
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to upload file";
+      log(`FAILED: ${errorMessage}`);
       setError(errorMessage);
       setIsAnalysing(false);
     }
@@ -300,6 +358,31 @@ export default function UploadPage() {
             </div>
           )}
 
+          {/* Debug log */}
+          {logs.length > 0 && (
+            <div
+              className="mt-4 p-4 font-mono text-[11px] leading-relaxed overflow-y-auto"
+              style={{
+                backgroundColor: "var(--bg-dark)",
+                border: "1px solid var(--border-dark-strong)",
+                color: "var(--text-on-dark-secondary)",
+                maxHeight: "300px",
+              }}
+            >
+              {logs.map((line, i) => (
+                <div key={i} style={{
+                  color: line.includes("ERROR") || line.includes("FAILED")
+                    ? "#ef4444"
+                    : line.includes("Health Score") || line.includes("Redirecting")
+                    ? "#22c55e"
+                    : "var(--text-on-dark-secondary)",
+                }}>
+                  {line}
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Error message */}
           {error && (
             <div
@@ -307,7 +390,6 @@ export default function UploadPage() {
               style={{
                 backgroundColor: "rgba(239, 68, 68, 0.1)",
                 border: "1px solid rgb(239, 68, 68)",
-                borderRadius: "4px",
               }}
             >
               <p
@@ -379,13 +461,14 @@ export default function UploadPage() {
             className="font-serif text-2xl md:text-3xl font-bold mb-4"
             style={{ color: "var(--text-primary)" }}
           >
-            Your data stays yours.
+            What happens to your data.
           </h2>
           <div className="flex flex-col gap-3">
             {[
-              "CSV is processed in your browser. Nothing is uploaded to our servers.",
+              "Your CSV is uploaded to and processed server-side by the Enlace audit engine.",
+              "Your file is not retained beyond the analysis window — results expire after about 1 hour, then everything is gone.",
+              "No customer PII required. Serial numbers, optical readings and port data are all the audit needs.",
               "No account required. No email required. Completely free.",
-              "No tracking. Your data stays private.",
             ].map((line) => (
               <p
                 key={line}

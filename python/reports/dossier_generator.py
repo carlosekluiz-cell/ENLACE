@@ -30,6 +30,21 @@ try:
 except ImportError:
     _generate_fiber_bom = None
 
+try:
+    from python.api.services.ftth_design import (
+        calculate_optical_budget as _calculate_optical_budget,
+        design_splitter_cascade as _design_splitter_cascade,
+        size_olt as _size_olt,
+        generate_ftth_bom as _generate_ftth_bom,
+        PON_SPECS,
+    )
+except ImportError:
+    _calculate_optical_budget = None
+    _design_splitter_cascade = None
+    _size_olt = None
+    _generate_ftth_bom = None
+    PON_SPECS = None
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -906,6 +921,38 @@ class DossierGenerator:
             logger.warning(f"quality_by_state failed: {e}")
             d["quality_by_state"] = []
 
+        # --- FTTH Design: live optical budget + BOM ---
+        d["ftth_optical"] = None
+        d["ftth_cascade"] = None
+        d["ftth_olt"] = None
+        d["ftth_bom"] = None
+        if _calculate_optical_budget is not None:
+            try:
+                # Example: GPON 1:32, 5 km trunk, 1000 subscribers, aerial
+                d["ftth_optical"] = _calculate_optical_budget(
+                    fiber_km=5.0, splices=3, connectors=4,
+                    splitter_ratios=[4, 8], technology="GPON",
+                )
+                d["ftth_cascade"] = _design_splitter_cascade(32, 2)
+                d["ftth_olt"] = _size_olt(1000, "GPON", 32)
+                # BOM needs cascade + olt + distance estimates
+                trunk_km = 5.0
+                dist_km = trunk_km * 2.5  # distribution tree
+                drop_km = 1000 * 0.05  # 50m avg drop per sub
+                d["ftth_bom"] = _generate_ftth_bom(
+                    subscribers=1000, technology="GPON",
+                    split_ratio=32,
+                    cascade=d["ftth_cascade"],
+                    olt=d["ftth_olt"],
+                    trunk_km=trunk_km,
+                    distribution_km=dist_km,
+                    drop_total_km=drop_km,
+                    deployment_type="aerial",
+                )
+                logger.info("FTTH design calculations complete for dossier")
+            except Exception as e:
+                logger.warning(f"FTTH design failed: {e}")
+
         # --- RF Engine: live path loss + terrain profile ---
         d["rf_result"] = None
         d["rf_terrain"] = None
@@ -1193,6 +1240,7 @@ class DossierGenerator:
             self._page_rf_1(),
             self._page_rf_2(),
             self._page_rf_3(),
+            self._page_ftth_design(),
             self._page_prova_rf(),
             self._page_prova_srtm(),
             self._page_prova_sentinel(),
@@ -1264,7 +1312,7 @@ class DossierGenerator:
 
     <p class="body-text">
         O Brasil possui o maior ecossistema de provedores regionais de internet do mundo.
-        São {_fmt_num(d['total_providers'])} empresas licenciadas pela Anatel, servindo
+        São {_fmt_num(d['active_isps'])} ISPs ativos no Brasil, servindo
         {_fmt_num(d['total_subs'])} assinantes em 5.570 municípios do país. Um
         mercado de R$ 50 bilhões por ano, construído não pelas grandes operadoras, mas por
         milhares de empreendedores locais que levaram fibra óptica a cidades onde ninguém
@@ -1305,7 +1353,7 @@ class DossierGenerator:
     def _page_ecossistema(self):
         d = self.data
         total_subs = _fmt_num(d["total_subs"])
-        total_providers = _fmt_num(d["total_providers"])
+        active_isps = _fmt_num(d["active_isps"])
         n_states = len(d["state_breakdown"])
 
         # Calcular FTTH %
@@ -1340,7 +1388,7 @@ class DossierGenerator:
         pelas grandes operadoras, mas por esses provedores regionais.
     </p>
     <p class="body-text">
-        Hoje, o resultado é um ecossistema sem paralelo: {total_providers} provedores licenciados
+        Hoje, o resultado é um ecossistema sem paralelo: {active_isps} ISPs ativos
         atendendo {total_subs} assinantes em 5.570 municípios, com {ftth_pct:.1f}% dos acessos já
         em fibra óptica. Um mercado de R$&nbsp;50 bilhões por ano. Nenhum outro país tem essa
         densidade e diversidade de operadores regionais.
@@ -1369,14 +1417,14 @@ class DossierGenerator:
         </div>
         <div class="timeline-item">
             <span class="timeline-year">2026</span>
-            <span class="timeline-text"><strong>{total_providers} provedores licenciados</strong> — {total_subs} assinantes. {ftth_pct:.1f}% em fibra. R$ 50 bi/ano.</span>
+            <span class="timeline-text"><strong>{active_isps} ISPs ativos</strong> — {total_subs} assinantes. {ftth_pct:.1f}% em fibra. R$ 50 bi/ano.</span>
         </div>
     </div>
 
     <div class="stats-grid">
         <div class="stat-box">
-            <div class="stat-value">{total_providers}</div>
-            <div class="stat-label">Provedores licenciados</div>
+            <div class="stat-value">{active_isps}</div>
+            <div class="stat-label">ISPs ativos</div>
         </div>
         <div class="stat-box">
             <div class="stat-value">{total_subs}</div>
@@ -1980,7 +2028,7 @@ class DossierGenerator:
             ("Anatel STEL", "Acessos de banda larga por município e provedor", "Mensal"),
             ("Anatel MOSAICO", "ERBs e licenças de espectro georreferenciadas", "Mensal"),
             ("Anatel RQUAL", "Selos de qualidade por provedor e município", "Mensal"),
-            ("Anatel Outorgas", "Cadastro de 128K+ prestadoras com licenças", "Diária"),
+            ("Anatel Outorgas", "Cadastro de prestadoras — 13.534 ISPs ativos", "Diária"),
             ("Anatel Backhaul", "Presença de backhaul de fibra por município", "Mensal"),
             ("IBGE Censo", "Demografia, renda e domicílios (5.570 municípios)", "Anual"),
             ("IBGE MUNIC", "Perfil municipal: plano diretor, governança digital", "Anual"),
@@ -2443,6 +2491,194 @@ Exemplo (900 MHz, enlace de 10 km, ponto médio):
         <strong>Segurança:</strong> Servidor gRPC com TLS mútuo (certificados X.509, CA própria com validade de 10 anos).
         Chave RSA de 2.048 bits. Porta 50051 com binding configurável via variáveis de ambiente.
     </div>
+
+    <div class="highlight-box" style="margin-top:6mm; border-left:3px solid #f59e0b; background:#fffbeb">
+        <strong>⚠ Ferramenta de apoio à decisão.</strong>
+        Os cálculos de propagação RF, link budget e otimização de torres são referências técnicas para
+        planejamento preliminar. Projetos de telecomunicações devem ser elaborados e assinados por
+        engenheiro habilitado com registro ativo no CREA, conforme Lei 5.194/66 e Resolução CONFEA 218/73.
+    </div>
+</div>"""
+
+    # ---- FTTH Design ----
+    def _page_ftth_design(self):
+        d = self.data
+        ob = d.get("ftth_optical")
+        cascade = d.get("ftth_cascade")
+        olt = d.get("ftth_olt")
+        bom = d.get("ftth_bom")
+
+        # If FTTH calculations are not available, show a static page
+        if not ob:
+            return """
+<div class="page">
+    <div class="dark-section">
+        <div class="section-tag">Projeto FTTH</div>
+        <div class="section-title">Projeto de Rede Fiber-to-the-Home</div>
+        <div class="section-subtitle">
+            Orçamento óptico, dimensionamento de OLT, cascata de splitters e BOM
+            detalhado — engenharia FTTH com aritmética de dB em Python puro.
+        </div>
+    </div>
+    <p class="body-text">
+        O módulo de Projeto FTTH calcula orçamento óptico completo para redes GPON e XGS-PON,
+        incluindo perdas por fibra (0,35 dB/km @1310nm), emendas (0,1 dB), conectores (0,5 dB)
+        e splitters. Gera BOM detalhado com custos unitários em R$ e dimensionamento de OLT.
+    </p>
+    <p class="body-text"><em>Módulo FTTH não disponível nesta execução.</em></p>
+</div>"""
+
+        # Optical budget details
+        total_loss = ob.get("total_loss_db", 0)
+        budget = ob.get("link_budget_db", 33)
+        margin = ob.get("margin_db", 0)
+        viable = ob.get("viable", False)
+        max_dist = ob.get("max_distance_km", 0)
+        breakdown = ob.get("breakdown", {})
+
+        # Loss breakdown rows
+        loss_rows = ""
+        for component, val in breakdown.items():
+            label = {
+                "fiber_loss_db": "Atenuação da fibra",
+                "splice_loss_db": "Perdas em emendas",
+                "connector_loss_db": "Perdas em conectores",
+                "splitter_loss_db": "Perdas nos splitters",
+            }.get(component, component)
+            loss_rows += f"""<tr>
+                <td>{label}</td>
+                <td class="right mono accent">{val:.2f} dB</td>
+            </tr>"""
+
+        # Cascade
+        cascade_str = ""
+        if cascade:
+            stages = cascade.get("stages", [])
+            cascade_str = " → ".join(
+                f"1:{s.get('ratio', '?')} ({s.get('location', '?')}, {s.get('loss_db', 0):.1f} dB)"
+                for s in stages
+            )
+            cascade_str = f"<strong>{cascade_str}</strong> = 1:{cascade.get('total_split', '?')}"
+
+        # OLT sizing
+        olt_html = ""
+        if olt:
+            olt_html = f"""
+    <div class="stats-grid">
+        <div class="stat-box">
+            <div class="stat-value">{olt.get('pon_ports', 0)}</div>
+            <div class="stat-label">Portas PON necessárias</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">{olt.get('boards', 0)}</div>
+            <div class="stat-label">Line cards ({olt.get('ports_per_board', 8)} portas/placa)</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">{olt.get('chassis', 0)}</div>
+            <div class="stat-label">Chassis OLT</div>
+        </div>
+    </div>"""
+
+        # BOM table
+        bom_rows = ""
+        bom_total = 0
+        if bom:
+            for item in bom.get("items", []):
+                cost = item.get("total_cost_brl", 0)
+                bom_total += cost
+                bom_rows += f"""<tr>
+                    <td class="small">{item.get('category', '')}</td>
+                    <td><strong>{item.get('item', '')}</strong></td>
+                    <td class="mono small">{item.get('unit', '')}</td>
+                    <td class="right mono">{_fmt_num(item.get('quantity', 0))}</td>
+                    <td class="right mono">{_fmt_brl(item.get('unit_cost_brl', 0))}</td>
+                    <td class="right mono accent">{_fmt_brl(cost)}</td>
+                </tr>"""
+
+        viable_label = '<span style="color:#059669;font-weight:bold">VIÁVEL</span>' if viable else '<span style="color:#dc2626;font-weight:bold">INVIÁVEL</span>'
+
+        return f"""
+<div class="page">
+    <div class="dark-section">
+        <div class="section-tag">Projeto FTTH</div>
+        <div class="section-title">Projeto de Rede Fiber-to-the-Home</div>
+        <div class="section-subtitle">
+            Cálculo real: rede GPON 1:32 com 1.000 assinantes, trunk de 5 km,
+            implantação aérea. Orçamento óptico, OLT e BOM gerados ao vivo.
+        </div>
+    </div>
+
+    <p class="body-text">
+        O módulo de Projeto FTTH realiza engenharia óptica completa para redes PON (GPON e XGS-PON).
+        A partir de parâmetros de rede (distância, divisão, tecnologia), calcula perdas por
+        componente, verifica viabilidade contra o link budget do transceiver e dimensiona
+        equipamentos ativos e passivos com BOM detalhado em Reais.
+    </p>
+    <p class="body-text">
+        O exemplo abaixo é calculado ao vivo — todos os valores refletem as constantes ópticas
+        reais (ITU-T G.984 para GPON, ITU-T G.9807.1 para XGS-PON).
+    </p>
+
+    <div class="section-tag" style="margin-top:4mm">Orçamento óptico — GPON C+ (link budget: {budget:.0f} dB)</div>
+    <table>
+        <thead><tr><th>Componente</th><th class="right">Perda</th></tr></thead>
+        <tbody>
+            {loss_rows}
+            <tr style="border-top:2px solid #6366f1">
+                <td><strong>Perda total</strong></td>
+                <td class="right mono" style="font-size:13pt;color:#6366f1"><strong>{total_loss:.2f} dB</strong></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="stats-grid">
+        <div class="stat-box">
+            <div class="stat-value">{margin:.1f} dB</div>
+            <div class="stat-label">Margem óptica</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">{max_dist:.1f} km</div>
+            <div class="stat-label">Distância máxima</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">{viable_label}</div>
+            <div class="stat-label">Viabilidade do enlace</div>
+        </div>
+    </div>
+
+    <div class="section-tag" style="margin-top:4mm">Cascata de splitters</div>
+    <div class="highlight-box">
+        {cascade_str}
+    </div>
+
+    <div class="section-tag" style="margin-top:4mm">Dimensionamento OLT</div>
+    {olt_html}
+
+    <div class="section-tag" style="margin-top:4mm">BOM — Bill of Materials (1.000 assinantes, GPON 1:32, aéreo)</div>
+    <table>
+        <thead>
+            <tr><th>Categoria</th><th>Item</th><th>Unidade</th><th class="right">Qtd.</th><th class="right">Unit.</th><th class="right">Total</th></tr>
+        </thead>
+        <tbody>{bom_rows}</tbody>
+    </table>
+    <div class="highlight-box" style="margin-top:2mm">
+        <strong>CAPEX total estimado:</strong> {_fmt_brl(bom_total)}
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <strong>Custo por assinante:</strong> {_fmt_brl(bom_total / 1000 if bom_total else 0)}
+    </div>
+
+    <p class="small muted" style="margin-top:2mm">
+        Custos de referência atualizados para mar/2026. Valores podem variar ±15% por região
+        e volume de compra. Inclui OLT, splitters, cabos (tronco/distribuição/drop), ONTs e obra civil.
+    </p>
+
+    <div class="highlight-box" style="margin-top:6mm; border-left:3px solid #f59e0b; background:#fffbeb">
+        <strong>⚠ Ferramenta de apoio à decisão.</strong>
+        Os cálculos e estimativas apresentados são referências técnicas para planejamento preliminar.
+        Projetos de telecomunicações devem ser elaborados e assinados por engenheiro habilitado com
+        registro ativo no CREA, conforme Lei 5.194/66 e Resolução CONFEA 218/73. A Pulso Network
+        não se responsabiliza pelo uso dos resultados sem validação por profissional competente.
+    </div>
 </div>"""
 
     # ---- Cruzamentos p.1 ----
@@ -2480,7 +2716,7 @@ Exemplo (900 MHz, enlace de 10 km, ponto médio):
             <div class="cross-sources">PGFN × Anatel</div>
             <div class="cross-value">{_fmt_num(d['tax_debt_isps'])}</div>
             <div class="cross-label">provedores com exposição fiscal</div>
-            <div class="cross-detail">{_fmt_brl(d['tax_debt_total'])} em dívida ativa federal cruzada com {_fmt_num(d['total_providers'])} provedores.</div>
+            <div class="cross-detail">{_fmt_brl(d['tax_debt_total'])} em dívida ativa federal cruzada com {_fmt_num(d['tax_debt_isps'])} ISPs.</div>
         </div>
         <div class="cross-card">
             <div class="cross-sources">Receita Federal × ISPs</div>

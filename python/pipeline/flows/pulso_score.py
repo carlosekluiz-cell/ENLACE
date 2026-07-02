@@ -144,7 +144,7 @@ class PulsoScorePipeline(BasePipeline):
                 bs.provider_id,
                 bs.year_month,
                 SUM(bs.subscribers) AS total,
-                SUM(CASE WHEN LOWER(bs.technology) = 'fiber' THEN bs.subscribers ELSE 0 END) AS fiber
+                SUM(CASE WHEN LOWER(bs.technology) IN ('fiber', 'ftth', 'fttb') THEN bs.subscribers ELSE 0 END) AS fiber
             FROM broadband_subscribers bs
             GROUP BY bs.provider_id, bs.year_month
             ORDER BY bs.provider_id, bs.year_month DESC

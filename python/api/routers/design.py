@@ -1,8 +1,8 @@
 """
-ENLACE Design Router — RF Coverage, Optimization, and Link Budget endpoints.
+ENLACE Design Router — Network Design endpoints.
 
-These endpoints proxy requests to the Rust RF Engine gRPC service.
-If the RF Engine is unavailable, mock responses are returned with a warning.
+RF Coverage & Link Budget endpoints proxy to the Rust RF Engine gRPC service.
+FTTH Design and Viability endpoints use pure-Python services (no Rust needed).
 """
 
 import asyncio
@@ -10,14 +10,54 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from python.api.auth.dependencies import require_auth
+from python.api.database import get_db
 from python.api.models.schemas import CoverageRequest, DesignJobStatus
 from python.api.services.rf_client import RfEngineClient
+from python.api.services.ftth_design import (
+    calculate_optical_budget,
+    design_ftth_network,
+)
+from python.api.services.fwa_fiber import viability_analysis
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/design", tags=["design"])
+
+
+# ---------------------------------------------------------------------------
+# Request models for new endpoints
+# ---------------------------------------------------------------------------
+
+class FtthDesignRequest(BaseModel):
+    lat: float
+    lon: float
+    radius_km: float = Field(default=3.0, ge=0.1, le=50)
+    subscribers: int = Field(default=1000, ge=10, le=100000)
+    technology: str = Field(default="GPON", pattern="^(GPON|XGS-PON)$")
+    split_ratio: int = Field(default=32)
+    cascade_levels: int = Field(default=2, ge=1, le=2)
+    deployment_type: str = Field(default="aerial", pattern="^(aerial|underground|mixed)$")
+    l2_id: Optional[int] = None
+
+
+class OpticalBudgetRequest(BaseModel):
+    fiber_km: float = Field(default=5.0, ge=0.1, le=100)
+    splices: int = Field(default=3, ge=0, le=100)
+    connectors: int = Field(default=4, ge=1, le=50)
+    splitter_ratios: list[int] = Field(default=[4, 8])
+    technology: str = Field(default="GPON", pattern="^(GPON|XGS-PON)$")
+
+
+class ViabilityRequest(BaseModel):
+    l2_id: int
+    technology: str = Field(default="FTTH", pattern="^(FTTH|FWA|Hibrido)$")
+    subscribers: int = Field(default=1000, ge=10, le=100000)
+    arpu: float = Field(default=89.90, ge=10, le=1000)
+    capex_override: Optional[float] = None
 
 
 def _get_client() -> RfEngineClient:
@@ -213,3 +253,77 @@ async def terrain_profile(
     except Exception as e:
         logger.error("Terrain profile extraction failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# ---------------------------------------------------------------------------
+# FTTH & Viability endpoints (pure Python — no Rust engine)
+# ---------------------------------------------------------------------------
+
+@router.post("/ftth")
+async def ftth_design(
+    request: FtthDesignRequest,
+    user: dict = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    """Design a complete FTTH network with optical budget, splitter cascade,
+    OLT sizing, and itemized BOM."""
+    try:
+        result = await design_ftth_network(
+            db=db,
+            lat=request.lat,
+            lon=request.lon,
+            radius_km=request.radius_km,
+            subscribers=request.subscribers,
+            technology=request.technology,
+            split_ratio=request.split_ratio,
+            cascade_levels=request.cascade_levels,
+            deployment_type=request.deployment_type,
+            l2_id=request.l2_id,
+        )
+        return result
+    except Exception as e:
+        logger.error("FTTH design failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/optical-budget")
+async def optical_budget(
+    request: OpticalBudgetRequest,
+    user: dict = Depends(require_auth),
+):
+    """Standalone optical budget calculator — no DB required."""
+    try:
+        result = calculate_optical_budget(
+            fiber_km=request.fiber_km,
+            splices=request.splices,
+            connectors=request.connectors,
+            splitter_ratios=request.splitter_ratios,
+            technology=request.technology,
+        )
+        return result
+    except Exception as e:
+        logger.error("Optical budget calculation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/viability")
+async def viability(
+    request: ViabilityRequest,
+    user: dict = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    """Economic viability analysis with 3 scenarios (optimistic/realistic/conservative),
+    NPV, IRR, payback, and market context."""
+    try:
+        result = await viability_analysis(
+            db=db,
+            l2_id=request.l2_id,
+            technology=request.technology,
+            subscribers=request.subscribers,
+            arpu=request.arpu,
+            capex_override=request.capex_override,
+        )
+        return result
+    except Exception as e:
+        logger.error("Viability analysis failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

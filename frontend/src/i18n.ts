@@ -2,7 +2,7 @@
  * Pulso i18n — lightweight client-side translation system.
  *
  * Uses inline message dictionaries to avoid JSON import path issues.
- * Supports pt-BR and en locales with localStorage persistence.
+ * Supports pt-BR, en, and es locales with localStorage persistence.
  */
 
 const ptBR: Record<string, Record<string, string>> = {
@@ -101,14 +101,71 @@ const en: Record<string, Record<string, string>> = {
   },
 };
 
+const es: Record<string, Record<string, string>> = {
+  common: {
+    loading: 'Cargando...',
+    error: 'Ocurrió un error',
+    save: 'Guardar',
+    cancel: 'Cancelar',
+    delete: 'Eliminar',
+    edit: 'Editar',
+    create: 'Crear',
+    search: 'Buscar',
+    export: 'Exportar',
+    back: 'Volver',
+    next: 'Siguiente',
+    previous: 'Anterior',
+    close: 'Cerrar',
+    noData: 'No hay datos disponibles',
+    showing: 'Mostrando',
+  },
+  sidebar: {
+    map: 'Mapa',
+    expansion: 'Expansión',
+    competition: 'Competencia',
+    design: 'Diseño RF',
+    compliance: 'Cumplimiento',
+    health: 'Salud',
+    rural: 'Rural',
+    reports: 'Reportes',
+    admin: 'Admin',
+    settings: 'Configuración',
+    logout: 'Salir',
+    platform: 'Pulso',
+    subtitle: 'Inteligencia Telecom Colombia',
+  },
+  pages: {
+    dashboard: 'Panel',
+    coverageMap: 'Mapa de Cobertura',
+    expansion: 'Expansión',
+    competition: 'Competencia',
+    rfDesign: 'Diseño de Cobertura RF',
+    regulatoryCompliance: 'Cumplimiento Regulatorio',
+    networkHealth: 'Salud de la Red',
+    ruralConnectivity: 'Conectividad Rural',
+    reportGenerator: 'Generador de Reportes',
+    settings: 'Configuración',
+    adminPanel: 'Panel Administrativo',
+  },
+};
+
 const messages: Record<string, Record<string, Record<string, string>>> = {
   'pt-BR': ptBR,
   en,
+  es,
+  'es-CO': es,
 };
+
+export const SUPPORTED_LOCALES = ['pt-BR', 'en', 'es'] as const;
 
 export function getLocale(): string {
   if (typeof window === 'undefined') return 'pt-BR';
   return localStorage.getItem('pulso_language') || 'pt-BR';
+}
+
+export function setLocale(locale: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('pulso_language', locale);
 }
 
 export function t(key: string): string {

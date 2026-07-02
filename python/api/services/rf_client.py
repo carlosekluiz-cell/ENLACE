@@ -470,11 +470,12 @@ class RfEngineClient:
         fspl = _fspl_db(frequency_ghz, distance_km)
         atmos = _itu_r_p676_absorption(frequency_ghz, distance_km)
         rain = _itu_r_p838_rain_attenuation(frequency_ghz, distance_km, rain_rate_mmh)
-        total_loss = fspl + atmos
+        total_loss = fspl + atmos + rain
         rx_power = tx_power_dbm + tx_antenna_gain_dbi + rx_antenna_gain_dbi - total_loss
         fade_margin = rx_power - rx_threshold_dbm
-        # Availability: ITU-R P.530 flat-fade margin to availability
-        availability = _fade_margin_to_availability(fade_margin, rain, frequency_ghz, distance_km)
+        # Availability: clear-sky margin for multipath + rain outage
+        clear_sky_margin = tx_power_dbm + tx_antenna_gain_dbi + rx_antenna_gain_dbi - (fspl + atmos) - rx_threshold_dbm
+        availability = _fade_margin_to_availability(clear_sky_margin, rain, frequency_ghz, distance_km)
 
         return {
             "free_space_loss_db": round(fspl, 2),
@@ -573,6 +574,18 @@ class RfEngineClient:
 # ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
+
+
+_singleton_client: "RfEngineClient | None" = None
+
+
+def get_rf_client() -> "RfEngineClient":
+    """Return a module-level singleton RfEngineClient, connecting on first use."""
+    global _singleton_client
+    if _singleton_client is None:
+        _singleton_client = RfEngineClient()
+        _singleton_client.connect()
+    return _singleton_client
 
 
 def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

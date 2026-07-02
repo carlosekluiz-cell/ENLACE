@@ -38,11 +38,15 @@ impl OltCollector for GenericCollector {
         let sys_descr = snmp.get(crate::snmp::oids::SYS_DESCR).await.ok();
         let sys_uptime = snmp.get(crate::snmp::oids::SYS_UPTIME).await.ok();
 
-        // Collect standard IF-MIB interface data
-        let if_descrs = snmp.walk_table(crate::snmp::oids::IF_DESCR).await.unwrap_or_default();
-        let if_statuses = snmp.walk_table(crate::snmp::oids::IF_OPER_STATUS).await.unwrap_or_default();
-        let if_in = snmp.walk_table(crate::snmp::oids::IF_HC_IN_OCTETS).await.unwrap_or_default();
-        let if_out = snmp.walk_table(crate::snmp::oids::IF_HC_OUT_OCTETS).await.unwrap_or_default();
+        // Collect standard IF-MIB interface data. Walk failures propagate:
+        // swallowing them (`unwrap_or_default`) turned SNMP outages into a
+        // clean "device with zero interfaces" (audit finding 13/16 pattern).
+        // HC octet counters legitimately don't exist on some devices, so an
+        // empty *successful* walk of those is fine — but errors are not.
+        let if_descrs = snmp.walk_table(crate::snmp::oids::IF_DESCR).await?;
+        let if_statuses = snmp.walk_table(crate::snmp::oids::IF_OPER_STATUS).await?;
+        let if_in = snmp.walk_table(crate::snmp::oids::IF_HC_IN_OCTETS).await?;
+        let if_out = snmp.walk_table(crate::snmp::oids::IF_HC_OUT_OCTETS).await?;
 
         let mut uplinks = Vec::new();
         for descr_entry in &if_descrs {

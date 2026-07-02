@@ -222,6 +222,7 @@ class CNPJEnrichmentPipeline(BasePipeline):
                     if source == "brasilapi" and data.get("cnpj"):
                         rows.append({
                             "provider_id": provider_id,
+                            "trade_name": (data.get("nome_fantasia") or "").strip() or None,
                             "status": data.get("descricao_situacao_cadastral", ""),
                             "capital_social": str(data.get("capital_social", "0")),
                             "founding_date": data.get("data_inicio_atividade", ""),
@@ -240,6 +241,7 @@ class CNPJEnrichmentPipeline(BasePipeline):
                     elif source == "receitaws" and data.get("status") != "ERROR":
                         rows.append({
                             "provider_id": provider_id,
+                            "trade_name": (data.get("fantasia") or "").strip() or None,
                             "status": data.get("situacao", ""),
                             "capital_social": data.get("capital_social", "0"),
                             "founding_date": data.get("abertura", ""),
@@ -328,6 +330,14 @@ class CNPJEnrichmentPipeline(BasePipeline):
                     bool(row.get("simples_nacional", False)),
                     str(row.get("cnae_primary", ""))[:20],
                 ))
+                # Update trade_name on the providers table
+                trade_name = row.get("trade_name")
+                if trade_name and isinstance(trade_name, str) and trade_name.strip():
+                    cur.execute("""
+                        UPDATE providers SET trade_name = %s
+                        WHERE id = %s AND (trade_name IS NULL OR trade_name = '')
+                    """, (trade_name.strip()[:300], int(row["provider_id"])))
+
                 cur.execute("RELEASE SAVEPOINT row_sp")
                 loaded += 1
             except Exception as e:

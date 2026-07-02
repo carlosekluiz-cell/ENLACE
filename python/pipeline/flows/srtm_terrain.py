@@ -72,7 +72,7 @@ class SRTMTerrainPipeline(BasePipeline):
         cur.execute("""
             SELECT ST_X(centroid::geometry) as lon, ST_Y(centroid::geometry) as lat
             FROM admin_level_2
-            WHERE country_code = 'BR' AND centroid IS NOT NULL
+            WHERE centroid IS NOT NULL
         """)
         centroids = cur.fetchall()
         cur.close()
