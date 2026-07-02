@@ -1,25 +1,29 @@
 "use client";
 
-// /field — mobile-first ticket list for a field engineer. Tickets come
-// straight from the agent's audit output. Assignment isn't wired yet, so
-// this is honestly labeled as the unassigned queue.
+// /field — mobile-first "my jobs" list for a field engineer: tickets
+// ASSIGNED TO THE LOGGED-IN USER from the server-side field projection
+// (rows are filtered server-side; evidence and assumptions never are).
 
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { RoleGuard } from "@/lib/auth";
-import { useAuditFeed } from "@/lib/useAuditFeed";
-import { daysUntil, severityColor, slaDue } from "@/lib/format";
+import { severityColor } from "@/lib/format";
+import type { FieldProjection } from "@/lib/opsTypes";
+import { useProjection } from "@/lib/useOps";
 import AppShell from "@/components/AppShell";
 import ImportReportBanner from "@/components/ImportReportBanner";
+import NoAuditState from "@/components/NoAuditState";
+import TicketStatusPill from "@/components/TicketStatusPill";
 
 function FieldQueue() {
-  const { feed, loading, error } = useAuditFeed();
+  const { data, unavailable, meta, loading, error } =
+    useProjection<FieldProjection>("field");
 
   return (
-    <AppShell title="My Tickets" feed={feed}>
+    <AppShell title="My Tickets" meta={meta}>
       {loading && (
         <p className="font-mono text-sm" style={{ color: "var(--text-on-dark-muted)" }}>
-          loading tickets…
+          loading my tickets…
         </p>
       )}
       {error && (
@@ -27,26 +31,28 @@ function FieldQueue() {
           {error}
         </p>
       )}
-      {feed && (
+      {unavailable && <NoAuditState reason={unavailable.reason} />}
+      {data && (
         <>
-          <ImportReportBanner report={feed.audit.import_report} />
-          <p className="font-mono text-[11px]" style={{ color: "var(--text-on-dark-muted)" }}>
-            showing the unassigned queue — per-engineer assignment isn&apos;t wired yet
-          </p>
-          {feed.audit.tickets.length === 0 ? (
-            <p className="text-sm" style={{ color: "var(--text-on-dark-muted)" }}>
-              No tickets generated from this audit.
-            </p>
+          <ImportReportBanner report={data.import_report ?? undefined} />
+          {data.tickets.length === 0 ? (
+            <div className="op-card p-5 max-w-xl">
+              <p className="text-sm mb-1" style={{ color: "var(--text-on-dark-secondary)" }}>
+                No tickets assigned to you in this audit.
+              </p>
+              <p className="text-xs" style={{ color: "var(--text-on-dark-muted)" }}>
+                Jobs land here when a supervisor dispatches a ticket to you
+                from the dispatch board.
+              </p>
+            </div>
           ) : (
             <div className="flex flex-col gap-3 max-w-xl">
-              {feed.audit.tickets.map((ticket) => {
-                const due = slaDue(ticket.generated_at, ticket.sla_days);
-                const days = daysUntil(due);
-                const overdue = days < 0;
+              {data.tickets.map(({ ticket, ticket_ref, state, days_to_sla, sla_due }) => {
+                const overdue = days_to_sla < 0;
                 return (
                   <Link
-                    key={ticket.ticket_id}
-                    href={`/field/ticket/${encodeURIComponent(ticket.ticket_id)}`}
+                    key={ticket_ref}
+                    href={`/field/ticket/${encodeURIComponent(ticket_ref)}`}
                     className="op-card p-4 flex items-center gap-3"
                     style={{
                       borderLeft: `3px solid ${severityColor(ticket.priority)}`,
@@ -61,8 +67,9 @@ function FieldQueue() {
                           {ticket.priority}
                         </span>
                         <span className="font-mono text-xs" style={{ color: "var(--text-on-dark)" }}>
-                          {ticket.ticket_id}
+                          {ticket_ref}
                         </span>
+                        <TicketStatusPill status={state.status} />
                       </div>
                       <p className="text-sm mb-1" style={{ color: "var(--text-on-dark-secondary)" }}>
                         {ticket.fault_type} · {ticket.affected_ont_count} ONT
@@ -75,8 +82,8 @@ function FieldQueue() {
                         }}
                       >
                         SLA {ticket.sla_days}d ·{" "}
-                        {overdue ? `${-days}d overdue` : `due in ${days}d`} (
-                        {due.toLocaleDateString("en-GB")})
+                        {overdue ? `${-days_to_sla}d overdue` : `due in ${days_to_sla}d`} (
+                        {new Date(sla_due).toLocaleDateString("en-GB")})
                       </p>
                     </div>
                     <ChevronRight size={16} style={{ color: "var(--text-on-dark-muted)" }} />

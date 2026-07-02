@@ -1,22 +1,26 @@
 "use client";
 
-// /noc/onts — the ONT fleet table. Filter by status (Unknown included as a
-// first-class filter), search, rx-power coloring.
+// /noc/onts — the ONT fleet table, from the server-side NOC projection of
+// the persisted audit. Filter by status (Unknown included as a first-class
+// filter), search, rx-power coloring.
 
 import { RoleGuard } from "@/lib/auth";
-import { useAuditFeed } from "@/lib/useAuditFeed";
+import type { NocProjection } from "@/lib/opsTypes";
+import { useProjection } from "@/lib/useOps";
 import AppShell from "@/components/AppShell";
 import ImportReportBanner from "@/components/ImportReportBanner";
+import NoAuditState from "@/components/NoAuditState";
 import OntTable from "@/components/OntTable";
 
 function OntFleet() {
-  const { feed, loading, error } = useAuditFeed();
+  const { data, unavailable, meta, loading, error } =
+    useProjection<NocProjection>("noc");
 
   return (
-    <AppShell title="ONT Fleet" feed={feed}>
+    <AppShell title="ONT Fleet" meta={meta}>
       {loading && (
         <p className="font-mono text-sm" style={{ color: "var(--text-on-dark-muted)" }}>
-          loading audit feed…
+          loading NOC projection…
         </p>
       )}
       {error && (
@@ -24,10 +28,11 @@ function OntFleet() {
           {error}
         </p>
       )}
-      {feed && (
+      {unavailable && <NoAuditState reason={unavailable.reason} />}
+      {data && (
         <>
-          <ImportReportBanner report={feed.audit.import_report} />
-          <OntTable onts={feed.audit.onts} />
+          <ImportReportBanner report={data.import_report ?? undefined} />
+          <OntTable onts={data.onts} />
         </>
       )}
     </AppShell>

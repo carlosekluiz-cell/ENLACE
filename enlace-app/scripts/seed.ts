@@ -6,6 +6,7 @@
 // README.md. Source of truth: src/lib/demoCredentials.ts.
 
 import { db, tables } from "../src/db";
+import { DEMO_AUDIT_ID, insertDemoAudit } from "../src/lib/auditStore";
 import { DEMO_TENANT, DEMO_USERS } from "../src/lib/demoCredentials";
 import { hashPassword } from "../src/lib/password";
 
@@ -60,6 +61,14 @@ async function main() {
       `user    ${u.email.padEnd(38)} ${u.password.padEnd(24)} role=${u.role.padEnd(7)} persona=${u.persona}`,
     );
   }
+
+  // Persist the bundled demo fixture (real agent output) as an audits row
+  // with source='demo', so every view runs on persisted data out of the box.
+  // Idempotent — the (tenant_id, audit_id) unique index keeps one row.
+  const { row, created } = insertDemoAudit(DEMO_TENANT.id, null);
+  console.log(
+    `audit   ${DEMO_AUDIT_ID} source=demo row=${row.id} ${created ? "(inserted)" : "(already present)"}`,
+  );
 
   console.log("\nseed complete — demo credentials above (also in README.md).");
 }

@@ -1,7 +1,8 @@
 "use client";
 
 // App chrome: role-filtered sidebar (desktop) / top bar (mobile), session
-// info, locale toggle, and the always-visible data-source badge.
+// info, locale toggle, the audit picker (current-audit selection from the
+// tenant's persisted list) and the always-visible data-source badge.
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -11,16 +12,17 @@ import { NAV_ITEMS } from "@/lib/navigation";
 import { roleAtLeast } from "@/lib/roles";
 import { useAuth } from "@/lib/auth";
 import { useI18n, type Locale } from "@/lib/i18n";
-import type { AuditFeed } from "@/lib/api";
+import type { FeedMeta } from "@/lib/useOps";
+import AuditPicker from "@/components/AuditPicker";
 import SourceBadge from "@/components/SourceBadge";
 
 export default function AppShell({
   title,
-  feed,
+  meta,
   children,
 }: {
   title: string;
-  feed: AuditFeed | null;
+  meta: FeedMeta | null;
   children: ReactNode;
 }) {
   const { session, logout } = useAuth();
@@ -144,7 +146,10 @@ export default function AppShell({
           >
             {title}
           </h1>
-          {feed && <SourceBadge feed={feed} />}
+          <div className="flex items-center gap-3">
+            <AuditPicker />
+            {meta && <SourceBadge meta={meta} />}
+          </div>
         </header>
         <main className="p-4 md:p-6 flex flex-col gap-4">{children}</main>
       </div>

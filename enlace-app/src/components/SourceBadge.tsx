@@ -1,27 +1,28 @@
 "use client";
 
 // Data provenance badge — always on screen (honesty rule 4). Says exactly
-// where the numbers came from, and why the live feed is absent when it is.
+// where the numbers came from (stored DB provenance, not a UI guess), and
+// why the live feed is absent when it is.
 
-import type { AuditFeed } from "@/lib/api";
 import { DEMO_PROVENANCE } from "@/lib/api";
+import type { FeedMeta } from "@/lib/useOps";
 import { useI18n } from "@/lib/i18n";
 
-export default function SourceBadge({ feed }: { feed: AuditFeed }) {
+export default function SourceBadge({ meta }: { meta: FeedMeta }) {
   const { t } = useI18n();
 
   const color =
-    feed.source === "live"
+    meta.source === "live"
       ? "var(--status-online)"
-      : feed.source === "audit"
+      : meta.source === "audit"
         ? "var(--accent)"
         : "var(--status-warn)";
 
   const title =
-    feed.source === "demo"
-      ? `Real agent output, bundled sample. Generated ${DEMO_PROVENANCE.generatedAt} by: ${DEMO_PROVENANCE.command}`
-      : feed.source === "audit"
-        ? `Audit ${feed.auditId ?? ""} from the pulso-agent audit server`
+    meta.source === "demo"
+      ? `Real agent output, bundled sample, persisted with source=demo. Generated ${DEMO_PROVENANCE.generatedAt} by: ${DEMO_PROVENANCE.command}`
+      : meta.source === "audit"
+        ? `Audit ${meta.auditId ?? ""} — uploaded CSV, persisted in the app DB`
         : "Live Elasticsearch feed connected";
 
   return (
@@ -34,14 +35,14 @@ export default function SourceBadge({ feed }: { feed: AuditFeed }) {
           className="w-1.5 h-1.5 rounded-full"
           style={{ backgroundColor: color }}
         />
-        {t(`source.${feed.source}`)}
+        {t(`source.${meta.source}`)}
       </span>
-      {!feed.live.available && (
+      {!meta.live.available && (
         <span
           className="font-mono text-[10px]"
           style={{ color: "var(--text-on-dark-muted)" }}
         >
-          {t("source.liveDown")} ({feed.live.reason})
+          {t("source.liveDown")} ({meta.live.reason})
         </span>
       )}
     </div>

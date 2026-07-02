@@ -1,8 +1,11 @@
 "use client";
 
-// /exec — executive KPI dashboard. Every money figure is an ESTIMATE and is
-// badged as such; KPIs the pipeline does not measure yet (uptime,
-// truck-rolls avoided) are shown as "not measured", never as zero.
+// /exec — executive KPI dashboard on the server-side exec projection.
+// Every money figure is an ESTIMATE and is badged as such with the agent's
+// declared assumptions (carried through the projection, never stripped);
+// KPIs the pipeline does not measure yet (uptime, truck-rolls avoided) are
+// "not measured", never zero; the health trend is an HONEST empty state
+// until multi-audit trending exists.
 
 import { useMemo } from "react";
 import {
@@ -16,11 +19,13 @@ import {
   YAxis,
 } from "recharts";
 import { RoleGuard } from "@/lib/auth";
-import { useAuditFeed } from "@/lib/useAuditFeed";
 import { fmtDbm, fmtMoney, rxColor, severityColor } from "@/lib/format";
+import type { ExecProjection } from "@/lib/opsTypes";
+import { useProjection } from "@/lib/useOps";
 import AppShell from "@/components/AppShell";
 import AssumptionBadge from "@/components/AssumptionBadge";
 import ImportReportBanner from "@/components/ImportReportBanner";
+import NoAuditState from "@/components/NoAuditState";
 import StatCard from "@/components/StatCard";
 
 function capacityColor(pct: number): string {
@@ -30,24 +35,12 @@ function capacityColor(pct: number): string {
 }
 
 function ExecDashboard() {
-  const { feed, loading, error } = useAuditFeed();
-
-  const revenueAtRisk = useMemo(
-    () =>
-      feed?.audit.tickets.reduce(
-        (sum, t) => sum + t.estimated_revenue_at_risk_annual,
-        0,
-      ) ?? 0,
-    [feed],
-  );
-  const revenueAssumptions = useMemo(
-    () => [...new Set(feed?.audit.tickets.flatMap((t) => t.assumptions) ?? [])],
-    [feed],
-  );
+  const { data, unavailable, meta, loading, error } =
+    useProjection<ExecProjection>("exec");
 
   const capacityData = useMemo(
     () =>
-      [...(feed?.audit.capacity ?? [])]
+      [...(data?.capacity ?? [])]
         .sort((a, b) => b.utilisation_pct - a.utilisation_pct)
         .map((c) => ({
           port: c.port,
@@ -55,13 +48,13 @@ function ExecDashboard() {
           detail: `${c.active_onts}/${c.max_ports} on ${c.splitter_type}${c.splitter_assumed ? " (assumed)" : ""}`,
           monthsToFull: c.months_to_full,
         })),
-    [feed],
+    [data],
   );
 
-  const anySplitterAssumed = feed?.audit.capacity.some((c) => c.splitter_assumed) ?? false;
+  const anySplitterAssumed = data?.capacity.some((c) => c.splitter_assumed) ?? false;
 
   return (
-    <AppShell title="Executive KPIs" feed={feed}>
+    <AppShell title="Executive KPIs" meta={meta}>
       {loading && (
         <p className="font-mono text-sm" style={{ color: "var(--text-on-dark-muted)" }}>
           loading KPIs…
@@ -72,43 +65,52 @@ function ExecDashboard() {
           {error}
         </p>
       )}
-      {feed && (
+      {unavailable && <NoAuditState reason={unavailable.reason} />}
+      {data && (
         <>
-          <ImportReportBanner report={feed.audit.import_report} />
+          <ImportReportBanner report={data.import_report ?? undefined} />
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <StatCard
               label="health score"
-              value={feed.audit.summary.health_score}
+              value={data.summary.health_score}
               color={
-                feed.audit.summary.health_score >= 80
+                data.summary.health_score >= 80
                   ? "var(--status-online)"
-                  : feed.audit.summary.health_score >= 50
+                  : data.summary.health_score >= 50
                     ? "var(--status-warn)"
                     : "var(--status-offline)"
               }
-              sub={`${feed.audit.summary.analysis_period_days}-day window`}
+              sub={`${data.summary.analysis_period_days}-day window`}
             />
-            <StatCard label="online" value={feed.audit.summary.online} color="var(--status-online)" />
-            <StatCard label="offline" value={feed.audit.summary.offline} color="var(--status-offline)" />
+            <StatCard label="online" value={data.summary.online} color="var(--status-online)" />
+            <StatCard label="offline" value={data.summary.offline} color="var(--status-offline)" />
             <StatCard
               label="unknown"
-              value={feed.audit.summary.unknown}
+              value={data.summary.unknown}
               color="var(--status-unknown)"
               sub="not an outage"
             />
             <StatCard
               label="rev at risk /yr"
-              value={fmtMoney(revenueAtRisk)}
+              value={fmtMoney(data.revenue_at_risk.estimated_total_annual)}
               color="var(--status-warn)"
-              badge={<AssumptionBadge assumptions={revenueAssumptions} />}
-              sub={`across ${feed.audit.tickets.length} ticket${feed.audit.tickets.length === 1 ? "" : "s"}`}
+              badge={<AssumptionBadge assumptions={data.revenue_at_risk.assumptions} />}
+              sub={`${data.revenue_at_risk.label} across ${data.revenue_at_risk.ticket_count} ticket${data.revenue_at_risk.ticket_count === 1 ? "" : "s"}`}
             />
             <StatCard
               label="avg rx"
-              value={fmtDbm(feed.audit.summary.avg_rx_dbm)}
-              color={rxColor(feed.audit.summary.avg_rx_dbm)}
+              value={fmtDbm(data.summary.avg_rx_dbm)}
+              color={rxColor(data.summary.avg_rx_dbm)}
             />
+          </div>
+
+          {/* Ticket lifecycle rollup (persisted state) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl">
+            <StatCard label="tickets open" value={data.ticket_counts.by_status.open} color="var(--status-warn)" />
+            <StatCard label="acked" value={data.ticket_counts.by_status.acked} color="var(--accent)" />
+            <StatCard label="dispatched" value={data.ticket_counts.by_status.dispatched} color="var(--status-unknown)" />
+            <StatCard label="closed" value={data.ticket_counts.by_status.closed} color="var(--status-online)" />
           </div>
 
           {/* KPIs the pipeline does not measure yet — shown honestly */}
@@ -124,6 +126,16 @@ function ExecDashboard() {
               sub="not measured — needs closed-ticket history"
             />
           </div>
+
+          {/* Health trend — honest empty state */}
+          <section>
+            <h2 className="op-label mb-2">health-score trend</h2>
+            <div className="op-card p-4">
+              <p className="text-sm" style={{ color: "var(--text-on-dark-muted)" }}>
+                {data.trend.reason}
+              </p>
+            </div>
+          </section>
 
           {/* Capacity hotspots */}
           <section>
@@ -179,9 +191,9 @@ function ExecDashboard() {
           {/* Churn cohort */}
           <section>
             <h2 className="op-label mb-2">
-              churn-risk cohort — {feed.audit.churn_risk.length} degrading ONTs
+              churn-risk cohort — {data.churn_risk.length} degrading ONTs
             </h2>
-            {feed.audit.churn_risk.length === 0 ? (
+            {data.churn_risk.length === 0 ? (
               <p className="text-sm" style={{ color: "var(--text-on-dark-muted)" }}>
                 No ONTs met the degradation criteria in this window.
               </p>
@@ -200,7 +212,7 @@ function ExecDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {feed.audit.churn_risk.map((risk) => (
+                    {data.churn_risk.map((risk) => (
                       <tr key={risk.ont_serial}>
                         <td className="font-mono">{risk.ont_serial}</td>
                         <td
