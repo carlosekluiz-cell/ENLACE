@@ -42,6 +42,20 @@ pub struct AuditResult {
     pub reflectance: serde_json::Value,
     pub optical_budget: serde_json::Value,
     pub sfp_health: serde_json::Value,
+    /// Pre-FEC degradation report: `{ onts_with_fec_data, total_onts,
+    /// coverage_note, findings: [...] }` — coverage counters stay present
+    /// even when no ONT trips a finding, so reports can state how much of
+    /// the estate the FEC analysis actually covered.
+    pub fec_health: serde_json::Value,
+    /// Laser end-of-life report from bias-current drift: `{ predictions:
+    /// [...], coverage: { onts_total, onts_with_bias, onts_analyzed,
+    /// onts_gated_out, onts_temperature_detrended, onts_flagged } }` —
+    /// like `fec_health`, the full report object (coverage included) is
+    /// always present, so reports can state how much of the estate had
+    /// assessable bias data. Absence of bias data is never "healthy".
+    pub laser_health: serde_json::Value,
+    /// Passive rogue-ONT findings (hypotheses with confirmation steps).
+    pub rogue: serde_json::Value,
     pub churn_risk: serde_json::Value,
     pub tickets: serde_json::Value,
     pub diagnostics: serde_json::Value,
@@ -231,6 +245,9 @@ pub fn run_audit_with_options(
         options.topology.as_ref(),
     );
     let sfp_health = crate::detection::sfp_health::analyze_sfp_health(&readings);
+    let fec_health = crate::detection::fec_health::analyze_fec_health(&readings);
+    let laser_health = crate::predictions::laser_health::analyze_laser_health(&readings);
+    let rogue = crate::detection::rogue::detect_rogue_onts(&readings);
 
     // Reflectance: run per unique port
     let unique_ports: Vec<String> = {
@@ -269,6 +286,9 @@ pub fn run_audit_with_options(
         ghost_customers: ghosts.clone(),
         splitter_capacity: capacity.clone(),
         weather_correlations: weather.clone(),
+        fec_findings: fec_health.findings.clone(),
+        rogue_findings: rogue.clone(),
+        laser_predictions: laser_health.predictions.clone(),
     };
     let tickets = generate_fault_tickets(&detection_results, DEFAULT_ARPU);
 
@@ -362,6 +382,9 @@ pub fn run_audit_with_options(
         reflectance: serde_json::to_value(&reflectance_events)?,
         optical_budget: serde_json::to_value(&optical_budget)?,
         sfp_health: serde_json::to_value(&sfp_health)?,
+        fec_health: serde_json::to_value(&fec_health)?,
+        laser_health: serde_json::to_value(&laser_health)?,
+        rogue: serde_json::to_value(&rogue)?,
         churn_risk: serde_json::to_value(&churn_risks)?,
         tickets: serde_json::to_value(&tickets)?,
         diagnostics: serde_json::to_value(&diag)?,
@@ -809,6 +832,158 @@ mod tests {
         // Readings without DDM detail must NOT emit an empty extended block.
         let bare = make_reading("ONT002", "0/1/0", now, OntReadingStatus::Online, Some(-20.0));
         assert!(reading_to_ont_data(&bare).extended.is_none());
+    }
+
+    #[test]
+    fn test_audit_includes_fec_health_and_rogue_sections() {
+        // 3 ONTs with FEC counters, 7 without: the fec_health section must
+        // be present with an honest coverage note, and the rogue section
+        // must be present (empty array — no multi-victim event here).
+        let now = Utc::now();
+        let mut readings = Vec::new();
+        for day in 0..7 {
+            for i in 0..10 {
+                let serial = format!("ONT{:03}", i);
+                let ts = now - Duration::days(7 - day);
+                let rx = -20.0 + (day as f64 * 0.05) + (i as f64 * 0.02);
+                let mut r =
+                    make_reading(&serial, "0/1/0", ts, OntReadingStatus::Online, Some(rx));
+                if i < 3 {
+                    // Sporadic healthy corrections only — must NOT produce
+                    // a finding, but must count as covered.
+                    r.fec_corrected = Some(day as u64);
+                }
+                readings.push(r);
+            }
+        }
+
+        let result = run_audit(readings).unwrap();
+
+        let fec = &result.fec_health;
+        assert!(!fec.is_null(), "fec_health section must always be present");
+        assert_eq!(fec["onts_with_fec_data"], 3);
+        assert_eq!(fec["total_onts"], 10);
+        assert!(
+            fec["coverage_note"]
+                .as_str()
+                .unwrap()
+                .contains("3 of 10"),
+            "coverage note must say how many ONTs the FEC analysis covered: {}",
+            fec["coverage_note"]
+        );
+        assert_eq!(
+            fec["findings"].as_array().unwrap().len(),
+            0,
+            "sporadic corrections must not trip a finding"
+        );
+
+        assert!(result.rogue.is_array(), "rogue section must be an array");
+        assert_eq!(result.rogue.as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_audit_includes_laser_health_section_with_coverage() {
+        // No ONT carries bias data: the laser_health section must still be
+        // present, with the coverage counters saying WHY nothing could be
+        // assessed (absence of bias data is not "healthy").
+        let now = Utc::now();
+        let mut readings = Vec::new();
+        for day in 0..7 {
+            for i in 0..10 {
+                let serial = format!("ONT{:03}", i);
+                let ts = now - Duration::days(7 - day);
+                let rx = -20.0 + (day as f64 * 0.05) + (i as f64 * 0.02);
+                readings.push(make_reading(&serial, "0/1/0", ts, OntReadingStatus::Online, Some(rx)));
+            }
+        }
+
+        let result = run_audit(readings).unwrap();
+        let lh = &result.laser_health;
+        assert!(!lh.is_null(), "laser_health section must always be present");
+        assert_eq!(lh["coverage"]["onts_total"], 10);
+        assert_eq!(lh["coverage"]["onts_with_bias"], 0);
+        assert_eq!(lh["coverage"]["onts_analyzed"], 0);
+        assert_eq!(
+            lh["predictions"].as_array().unwrap().len(),
+            0,
+            "no bias data must never fabricate a prediction"
+        );
+    }
+
+    #[test]
+    fn test_csv_bias_drift_produces_actively_failing_laser_ticket() {
+        use std::io::Write;
+        // Synthetic 30-day CSV series: ONT ADTN-LSR1 has bias current
+        // rising ~5%/month while tx power falls 0.05 dB/day — the
+        // APC-out-of-headroom signature. ADTN-OK2 has no bias data at all.
+        let now = Utc::now();
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(
+            f,
+            "timestamp,ont_serial,pon_port,rx_power_dbm,tx_power_dbm,bias_current_ma,status,distance"
+        )
+        .unwrap();
+        let base_bias = 20.0_f64;
+        let drift_ma_per_day = base_bias * 0.05 / 30.44; // 5%/month
+        for day in 0..30 {
+            for s in 0..4 {
+                let ts = now - Duration::days(30 - day) + Duration::hours(s * 6);
+                let bias = base_bias + drift_ma_per_day * day as f64;
+                let tx = ((2.0 - 0.05 * day as f64) * 10.0).round() / 10.0;
+                writeln!(
+                    f,
+                    "{},ADTN-LSR1,CTP-0/1,-21.0,{:.1},{:.3},online,1000",
+                    ts.to_rfc3339(),
+                    tx,
+                    bias
+                )
+                .unwrap();
+                writeln!(
+                    f,
+                    "{},ADTN-OK2,CTP-0/1,-20.5,2.0,,online,1100",
+                    ts.to_rfc3339()
+                )
+                .unwrap();
+            }
+        }
+
+        let result = run_csv_audit(f.path(), None, None).unwrap();
+
+        // The laser_health section carries the prediction + honest coverage.
+        let lh = &result.laser_health;
+        assert_eq!(lh["coverage"]["onts_total"], 2);
+        assert_eq!(lh["coverage"]["onts_with_bias"], 1);
+        assert_eq!(lh["coverage"]["onts_flagged"], 1);
+        let preds = lh["predictions"].as_array().unwrap();
+        assert_eq!(preds.len(), 1);
+        assert_eq!(preds[0]["serial_number"], "ADTN-LSR1");
+        assert_eq!(preds[0]["urgency"], "ActivelyFailing");
+        assert_eq!(
+            preds[0]["temperature_detrended"], false,
+            "no temperature column → 24h-mean fallback must be flagged"
+        );
+
+        // ...and the ticket pipeline turns it into an urgent Customer ticket.
+        let tickets = result.tickets.as_array().unwrap();
+        let laser_ticket = tickets
+            .iter()
+            .find(|t| t["fault_type"] == "LaserFailing")
+            .expect("ActivelyFailing laser must produce a LaserFailing ticket");
+        assert_eq!(laser_ticket["team"], "Customer");
+        assert!(
+            laser_ticket["priority"] == "P1" || laser_ticket["priority"] == "P2",
+            "laser-failing ticket must be urgent, got {}",
+            laser_ticket["priority"]
+        );
+        assert_eq!(laser_ticket["affected_ont_serials"][0], "ADTN-LSR1");
+        assert!(
+            laser_ticket["evidence"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|e| e.as_str().unwrap().contains("heuristic")),
+            "EOL ETA evidence must be labelled a heuristic"
+        );
     }
 
     #[test]

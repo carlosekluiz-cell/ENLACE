@@ -8,6 +8,8 @@ pub mod locator;
 pub use detector::{
     FaultDetector, FaultEvent, FaultType, AffectedOnt,
     IncidentUpdate, IncidentAction, IncidentScope,
+    ClassificationEvidence, ClassificationConfidence, OnsetPattern,
+    correlate_cycle,
 };
 pub use topology::FibreTopology;
 pub use locator::{FaultLocator, FaultLocation};

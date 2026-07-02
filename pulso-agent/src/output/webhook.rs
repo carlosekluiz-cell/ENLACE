@@ -200,9 +200,30 @@ fn summary_for(update: &IncidentUpdate) -> String {
 }
 
 /// Format an incident update as a Slack incoming webhook payload.
-/// Uses Block Kit with a mrkdwn section for rich formatting.
+/// Uses Block Kit with a mrkdwn section for rich formatting. The
+/// classification evidence one-liner (gasp ratio, onset, confidence — and
+/// the area-power note when the cross-OLT pass set it) renders alongside
+/// the fault type so responders see WHY the call was made, not just the label.
 pub fn format_slack(update: &IncidentUpdate) -> String {
     let summary = summary_for(update);
+
+    let mut text = format!(
+        "*{}*\n\n*Incident:* `{}`\n*Fault Type:* {}\n*PON Port(s):* `{}`\n*OLT:* `{}`\n*Affected ONTs:* {}\n*Severity:* {}\n*Detection Latency:* {}s",
+        summary,
+        update.incident_id,
+        update.event.fault_type,
+        update.event.pon_port,
+        update.event.olt_id,
+        update.event.affected_onts.len(),
+        update.event.severity,
+        update.event.detection_latency_seconds
+    );
+    if !update.classification.summary.is_empty() {
+        text.push_str(&format!(
+            "\n*Classification:* {}",
+            update.classification.summary
+        ));
+    }
 
     let payload = serde_json::json!({
         "text": &summary,
@@ -211,17 +232,7 @@ pub fn format_slack(update: &IncidentUpdate) -> String {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": format!(
-                        "*{}*\n\n*Incident:* `{}`\n*Fault Type:* {}\n*PON Port(s):* `{}`\n*OLT:* `{}`\n*Affected ONTs:* {}\n*Severity:* {}\n*Detection Latency:* {}s",
-                        summary,
-                        update.incident_id,
-                        update.event.fault_type,
-                        update.event.pon_port,
-                        update.event.olt_id,
-                        update.event.affected_onts.len(),
-                        update.event.severity,
-                        update.event.detection_latency_seconds
-                    )
+                    "text": text
                 }
             }
         ]
@@ -272,7 +283,10 @@ pub fn format_pagerduty(update: &IncidentUpdate, routing_key: &str) -> String {
                 "affected_onts_count": update.event.affected_onts.len(),
                 "detection_latency_seconds": update.event.detection_latency_seconds,
                 "pon_port": &update.event.pon_port,
-                "olt_id": &update.event.olt_id
+                "olt_id": &update.event.olt_id,
+                "classification_summary": &update.classification.summary,
+                "classification_confidence": update.classification.confidence.to_string(),
+                "area_power_suspected": update.area_power_suspected
             }
         }
     });
@@ -338,6 +352,8 @@ mod tests {
                 IncidentAction::Resolve => Some(opened_at),
             },
             ports: vec!["0/3/0".into()],
+            classification: Default::default(),
+            area_power_suspected: false,
             event,
         }
     }
@@ -398,6 +414,65 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
         let text = parsed["text"].as_str().unwrap();
         assert!(text.contains("RESOLVED"), "expected RESOLVED in: {}", text);
+    }
+
+    #[test]
+    fn test_classification_summary_renders_in_slack_and_pagerduty() {
+        use crate::fault::detector::{
+            ClassificationConfidence, ClassificationEvidence, OnsetPattern,
+        };
+        let mut update = make_update(
+            IncidentAction::Open, IncidentScope::Port, FaultType::PowerOutage, "major",
+        );
+        update.classification = ClassificationEvidence {
+            dying_gasp_count: 7,
+            hard_offline_count: 1,
+            dying_gasp_ratio: 0.875,
+            onset: OnsetPattern::Simultaneous,
+            onset_spread_seconds: 12,
+            confidence: ClassificationConfidence::High,
+            summary: "power_outage: 7/8 dying gasps (ratio 0.88); area power event \
+                      suspected — 2 OLTs opened power-classified incidents in the \
+                      same pass"
+                .into(),
+        };
+        update.area_power_suspected = true;
+
+        let slack: serde_json::Value =
+            serde_json::from_str(&format_slack(&update)).unwrap();
+        let text = slack["blocks"][0]["text"]["text"].as_str().unwrap();
+        assert!(
+            text.contains("*Classification:*") && text.contains("7/8 dying gasps"),
+            "Slack must render the classification evidence line: {}",
+            text
+        );
+        assert!(
+            text.contains("area power event suspected"),
+            "area-power note must reach Slack: {}",
+            text
+        );
+
+        let pd: serde_json::Value =
+            serde_json::from_str(&format_pagerduty(&update, "RKEY")).unwrap();
+        let details = &pd["payload"]["custom_details"];
+        assert!(
+            details["classification_summary"]
+                .as_str()
+                .unwrap()
+                .contains("7/8 dying gasps"),
+            "PagerDuty custom_details must carry the classification summary"
+        );
+        assert_eq!(details["classification_confidence"], "high");
+        assert_eq!(details["area_power_suspected"], true);
+
+        // Default (empty) classification must not render a dangling line.
+        let bare = make_update(
+            IncidentAction::Open, IncidentScope::Port, FaultType::FibreCut, "critical",
+        );
+        let slack: serde_json::Value =
+            serde_json::from_str(&format_slack(&bare)).unwrap();
+        let text = slack["blocks"][0]["text"]["text"].as_str().unwrap();
+        assert!(!text.contains("*Classification:*"));
     }
 
     #[test]

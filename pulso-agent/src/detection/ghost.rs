@@ -9,8 +9,14 @@
 // Detection criteria:
 //   1. ONT consistently online (uptime > 90% of Online/Offline observations)
 //   2. Rx power healthy (avg > -25 dBm) — rules out degraded/dead ONTs
-//   3. Ethernet port shows no link: eth_speed always 0 or None
-//      (no cable connected — the only usage signal available today)
+//   3. Evidence of non-use, in order of strength:
+//      a. Traffic octet counters present with ≥ 7 days of valid coverage
+//         and total bytes below the background floor → NoTraffic (or NoLink
+//         when the ethernet port also never linked).
+//      b. No octet data (or too little coverage) AND ethernet port never
+//         linked (eth_speed always 0 or None) → NoLink.
+//      c. No octet data but an ethernet link exists → insufficient data;
+//         counted, never guessed.
 //
 // PHYSICS NOTE (why there is no Rx-variance check): GPON downstream is a
 // CONTINUOUS broadcast — the OLT transmits at constant power to every ONT
@@ -18,9 +24,9 @@
 // ONT Rx power is exactly as stable as a busy customer's, so "flat Rx
 // variance" carries zero information about usage and previously flagged
 // perfectly healthy paying customers as revenue leakage. Usage detection
-// for eth-linked ONTs requires traffic octet counters, which are not yet
-// present in `OntReading`; until they are, those ONTs are honestly
-// reported as insufficient-data instead of being guessed at.
+// for eth-linked ONTs requires traffic octet counters — `OntReading` now
+// carries `in_octets`/`out_octets` (cumulative), so the NoTraffic class is
+// evidence-based. ONTs without octet data remain insufficient-data.
 
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
@@ -46,12 +52,23 @@ pub struct GhostCustomer {
 pub enum GhostEthStatus {
     /// Ethernet speed always 0 or None — no cable connected.
     NoLink,
+    /// Ethernet link exists, but octet counters prove near-zero traffic:
+    /// fewer than `GHOST_TRAFFIC_FLOOR_BYTES_PER_WEEK` (pro-rated) moved
+    /// across ≥ `MIN_OCTET_COVERAGE_DAYS` of valid counter coverage. This is
+    /// the physically-sound revenue-leakage signal.
+    NoTraffic {
+        /// Total measured bytes (in + out) over the valid coverage.
+        total_bytes: u64,
+        /// Days of valid octet-counter coverage the total was measured over.
+        coverage_days: f64,
+    },
 }
 
 impl std::fmt::Display for GhostEthStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NoLink => write!(f, "no_link"),
+            Self::NoTraffic { .. } => write!(f, "no_traffic"),
         }
     }
 }
@@ -59,13 +76,14 @@ impl std::fmt::Display for GhostEthStatus {
 /// Full ghost-detection output, including the honest "cannot tell" bucket.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GhostDetection {
-    /// ONTs confirmed unused (no ethernet link ever seen).
+    /// ONTs confirmed unused: either no ethernet link ever seen (`NoLink`)
+    /// or measured near-zero traffic over ≥ a week (`NoTraffic`).
     pub ghosts: Vec<GhostCustomer>,
     /// ONT serials that are online and healthy with an ethernet link, whose
-    /// actual usage CANNOT be determined: traffic octet counters are not
-    /// available in the current data model, and GPON downstream Rx power
-    /// carries no usage information (continuous broadcast). These are NOT
-    /// ghosts — they are unknowns.
+    /// actual usage CANNOT be determined: no traffic octet data (or less
+    /// than `MIN_OCTET_COVERAGE_DAYS` of valid coverage), and GPON
+    /// downstream Rx power carries no usage information (continuous
+    /// broadcast). These are NOT ghosts — they are unknowns.
     pub insufficient_data_serials: Vec<String>,
 }
 
@@ -74,6 +92,81 @@ const MIN_UPTIME_RATIO: f64 = 0.90;
 
 /// Minimum average Rx power (dBm) for a healthy ONT.
 const MIN_HEALTHY_RX_DBM: f64 = -25.0;
+
+/// Weekly traffic floor below which an online ONT is not a using household.
+///
+/// Justification: an idle-but-connected CPE still generates background
+/// traffic — DHCP renewals, ARP/ND chatter, NTP, TR-069/ACS heartbeats,
+/// router firmware phone-home, smart-TV and phone keepalives — typically
+/// hundreds of KB to a few MB per day. Any human use blows straight past
+/// this: one app update or a few minutes of SD video is tens of MB. An ONT
+/// that moves < 10 MiB in a whole week has nothing (or nothing powered)
+/// behind it.
+const GHOST_TRAFFIC_FLOOR_BYTES_PER_WEEK: u64 = 10 * 1024 * 1024;
+
+/// Minimum days of valid octet-counter coverage before a no-traffic claim
+/// is made. One quiet weekend is not abandonment; a full week spans
+/// weekday/weekend usage patterns and short trips. Below this, the ONT is
+/// reported as insufficient data, never guessed.
+const MIN_OCTET_COVERAGE_DAYS: f64 = 7.0;
+
+/// Measured traffic totals from cumulative octet counters.
+struct OctetUsage {
+    /// Sum of in+out deltas across all valid intervals.
+    total_bytes: u64,
+    /// Days covered by valid intervals (resets and gaps excluded).
+    coverage_days: f64,
+}
+
+/// Sum octet deltas across consecutive reading pairs.
+///
+/// Counters are cumulative, so honesty requires:
+///   - Reset handling: a negative delta in EITHER direction means the
+///     counter restarted (ONT reboot / 64-bit wrap) — the whole interval is
+///     skipped, its bytes and its duration. Never fabricate a delta.
+///   - Gap handling: readings where a direction is `None` simply cannot
+///     pair; an interval where NO direction is computable contributes
+///     nothing to totals or coverage.
+///
+/// Returns `None` when there is no usable octet data or when valid coverage
+/// is under `MIN_OCTET_COVERAGE_DAYS` — too little evidence for any claim.
+fn octet_usage(readings: &[&OntReading]) -> Option<OctetUsage> {
+    let mut total_bytes: u64 = 0;
+    let mut coverage = chrono::Duration::zero();
+    let mut valid_intervals = 0usize;
+
+    for pair in readings.windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        let mut interval_bytes: u64 = 0;
+        let mut computed = false;
+        let mut reset = false;
+        for (prev, curr) in [(a.in_octets, b.in_octets), (a.out_octets, b.out_octets)] {
+            if let (Some(p), Some(c)) = (prev, curr) {
+                if c < p {
+                    reset = true;
+                } else {
+                    interval_bytes += c - p;
+                    computed = true;
+                }
+            }
+        }
+        if reset || !computed {
+            continue;
+        }
+        total_bytes += interval_bytes;
+        coverage = coverage + (b.timestamp - a.timestamp);
+        valid_intervals += 1;
+    }
+
+    if valid_intervals == 0 {
+        return None;
+    }
+    let coverage_days = coverage.num_seconds() as f64 / 86400.0;
+    if coverage_days < MIN_OCTET_COVERAGE_DAYS {
+        return None;
+    }
+    Some(OctetUsage { total_bytes, coverage_days })
+}
 
 /// Detect ghost customers from ONT readings (confirmed no-link ghosts only).
 ///
@@ -92,9 +185,15 @@ pub fn detect_ghost_customers(readings: &[OntReading], arpu: f64) -> Vec<GhostCu
 ///   - High uptime (> 90% of Online/Offline observations Online;
 ///     Unknown-status readings are not observations and are excluded)
 ///   - Healthy Rx power (average > -25 dBm)
-///   - No ethernet link ever observed -> confirmed ghost (NoLink)
-///   - Ethernet link observed -> insufficient data (usage unknowable
-///     without traffic octet counters)
+///   - Traffic evidence, in order of strength:
+///     - Octet counters with ≥ 7 days valid coverage and total below the
+///       floor -> confirmed ghost (NoTraffic, or NoLink when the eth port
+///       also never linked)
+///     - Octet counters showing real traffic -> active customer (never a
+///       ghost, even if the eth port looks down: integrated-WiFi CPEs pass
+///       traffic with no ethernet link)
+///     - No usable octet data, eth never linked -> confirmed ghost (NoLink)
+///     - No usable octet data, eth link observed -> insufficient data
 pub fn detect_ghost_customers_detailed(readings: &[OntReading], arpu: f64) -> GhostDetection {
     let mut by_serial: HashMap<String, Vec<&OntReading>> = HashMap::new();
     for r in readings {
@@ -142,19 +241,49 @@ pub fn detect_ghost_customers_detailed(readings: &[OntReading], arpu: f64) -> Gh
             continue;
         }
 
-        // 3. Check ethernet status
+        // 3. Usage evidence: octet counters first (direct measurement),
+        //    ethernet link state second (proxy).
         let has_any_eth = ont_readings.iter().any(|r| {
             r.eth_speed_mbps.map_or(false, |s| s > 0)
         });
 
-        if has_any_eth {
-            // Link is up, but without traffic octet counters we cannot know
-            // whether the customer actually uses the service. GPON downstream
-            // Rx does not vary with traffic, so there is no optical proxy.
-            // Report honestly as insufficient data — never as leakage.
-            insufficient_data_serials.push(serial);
-            continue;
-        }
+        let eth_status = match octet_usage(&ont_readings) {
+            Some(usage) => {
+                // Pro-rate the weekly floor to the actual coverage: 10 MiB
+                // per 7 covered days.
+                let floor = GHOST_TRAFFIC_FLOOR_BYTES_PER_WEEK as f64
+                    * (usage.coverage_days / MIN_OCTET_COVERAGE_DAYS);
+                if (usage.total_bytes as f64) < floor {
+                    if has_any_eth {
+                        GhostEthStatus::NoTraffic {
+                            total_bytes: usage.total_bytes,
+                            coverage_days: usage.coverage_days,
+                        }
+                    } else {
+                        // No link AND ~zero octets: NoLink is the more
+                        // specific physical cause, now corroborated.
+                        GhostEthStatus::NoLink
+                    }
+                } else {
+                    // Measured real traffic: an active customer, regardless
+                    // of what the eth port claims (integrated-WiFi CPEs pass
+                    // traffic with the ethernet port down). Never a ghost.
+                    continue;
+                }
+            }
+            None => {
+                if has_any_eth {
+                    // Link is up, but without usable traffic octet coverage
+                    // we cannot know whether the customer actually uses the
+                    // service. GPON downstream Rx does not vary with
+                    // traffic, so there is no optical proxy. Report honestly
+                    // as insufficient data — never as leakage.
+                    insufficient_data_serials.push(serial);
+                    continue;
+                }
+                GhostEthStatus::NoLink
+            }
+        };
 
         // 4. Calculate days online from first to last reading
         let first_ts = ont_readings.first().unwrap().timestamp;
@@ -172,7 +301,7 @@ pub fn detect_ghost_customers_detailed(readings: &[OntReading], arpu: f64) -> Gh
             port,
             distance_m,
             rx_power_dbm: rx_avg,
-            eth_status: GhostEthStatus::NoLink,
+            eth_status,
             days_online,
             estimated_monthly_revenue: arpu,
         });
@@ -296,6 +425,191 @@ mod tests {
             "eth-linked customer should never be flagged as ghost"
         );
         assert_eq!(detection.insufficient_data_serials, vec!["ACTIVE01".to_string()]);
+    }
+
+    /// Daily reading with cumulative octet counters.
+    fn make_reading_with_octets(
+        serial: &str,
+        ts: DateTime<Utc>,
+        eth_speed: Option<u32>,
+        in_octets: Option<u64>,
+        out_octets: Option<u64>,
+    ) -> OntReading {
+        OntReading {
+            in_octets,
+            out_octets,
+            ..make_reading(serial, ts, OntReadingStatus::Online, Some(-20.0), eth_speed)
+        }
+    }
+
+    #[test]
+    fn test_real_usage_onts_with_octets_never_flagged() {
+        let now = Utc::now();
+        // 15 daily readings, counters growing ~2 GB/day: a real household.
+        // Must be neither ghost NOR insufficient — octets prove usage.
+        let readings: Vec<OntReading> = (0..15)
+            .map(|i| {
+                make_reading_with_octets(
+                    "HEAVY01",
+                    now - Duration::days(14 - i),
+                    Some(1000),
+                    Some(i as u64 * 2_000_000_000),
+                    Some(i as u64 * 150_000_000),
+                )
+            })
+            .collect();
+
+        let detection = detect_ghost_customers_detailed(&readings, 89.90);
+        assert!(
+            detection.ghosts.is_empty(),
+            "GBs of measured deltas must never be flagged: {:?}",
+            detection.ghosts
+        );
+        assert!(
+            detection.insufficient_data_serials.is_empty(),
+            "octet-measured ONT is not insufficient data"
+        );
+    }
+
+    #[test]
+    fn test_near_zero_traffic_two_weeks_flagged_no_traffic() {
+        let now = Utc::now();
+        // 15 daily readings over 14 days, eth link up, ~70 KB/day of
+        // background chatter (~1 MB total, floor pro-rated to 20 MiB).
+        let readings: Vec<OntReading> = (0..15)
+            .map(|i| {
+                make_reading_with_octets(
+                    "IDLE01",
+                    now - Duration::days(14 - i),
+                    Some(1000),
+                    Some(i as u64 * 50_000),
+                    Some(i as u64 * 20_000),
+                )
+            })
+            .collect();
+
+        let detection = detect_ghost_customers_detailed(&readings, 89.90);
+        assert_eq!(detection.ghosts.len(), 1, "near-zero traffic over 14 days IS a ghost");
+        assert!(detection.insufficient_data_serials.is_empty());
+        let ghost = &detection.ghosts[0];
+        assert_eq!(ghost.ont_serial, "IDLE01");
+        match &ghost.eth_status {
+            GhostEthStatus::NoTraffic { total_bytes, coverage_days } => {
+                assert_eq!(*total_bytes, 14 * 70_000, "total must be the measured deltas");
+                assert!(
+                    (*coverage_days - 14.0).abs() < 0.1,
+                    "coverage must reflect the window: {coverage_days}"
+                );
+            }
+            other => panic!("expected NoTraffic, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_counter_reset_mid_window_skipped_not_misread() {
+        let now = Utc::now();
+        // Active user whose ONT rebooted mid-window: counters grow 2 GB/day,
+        // drop to 0 on day 8, grow again. The reset interval must be skipped
+        // (never read as negative or as zero usage) and the surviving
+        // intervals still prove real usage.
+        let readings: Vec<OntReading> = (0..15)
+            .map(|i| {
+                let in_o = if i < 8 {
+                    i as u64 * 2_000_000_000
+                } else {
+                    (i as u64 - 8) * 2_000_000_000
+                };
+                make_reading_with_octets(
+                    "RESET01",
+                    now - Duration::days(14 - i),
+                    Some(1000),
+                    Some(in_o),
+                    Some(in_o / 20),
+                )
+            })
+            .collect();
+
+        let detection = detect_ghost_customers_detailed(&readings, 89.90);
+        assert!(
+            detection.ghosts.is_empty(),
+            "counter reset must not turn an active customer into a ghost: {:?}",
+            detection.ghosts
+        );
+        assert!(detection.insufficient_data_serials.is_empty());
+    }
+
+    #[test]
+    fn test_short_octet_coverage_is_insufficient_not_ghost() {
+        let now = Utc::now();
+        // Only 4 days of near-zero octet coverage with an eth link: too
+        // little evidence for a weekly-floor claim — insufficient, not ghost.
+        let readings: Vec<OntReading> = (0..5)
+            .map(|i| {
+                make_reading_with_octets(
+                    "SHORT01",
+                    now - Duration::days(4 - i),
+                    Some(1000),
+                    Some(i as u64 * 10_000),
+                    Some(i as u64 * 5_000),
+                )
+            })
+            .collect();
+
+        let detection = detect_ghost_customers_detailed(&readings, 89.90);
+        assert!(
+            detection.ghosts.is_empty(),
+            "4 days of coverage must never support a no-traffic claim"
+        );
+        assert_eq!(detection.insufficient_data_serials, vec!["SHORT01".to_string()]);
+    }
+
+    #[test]
+    fn test_no_link_with_zero_octets_stays_no_link() {
+        let now = Utc::now();
+        // Eth never linked AND octets flat: NoLink is the specific physical
+        // cause, now corroborated by measured zero traffic.
+        let readings: Vec<OntReading> = (0..15)
+            .map(|i| {
+                make_reading_with_octets(
+                    "DARK01",
+                    now - Duration::days(14 - i),
+                    None,
+                    Some(500_000),
+                    Some(200_000),
+                )
+            })
+            .collect();
+
+        let detection = detect_ghost_customers_detailed(&readings, 89.90);
+        assert_eq!(detection.ghosts.len(), 1);
+        assert_eq!(detection.ghosts[0].eth_status, GhostEthStatus::NoLink);
+    }
+
+    #[test]
+    fn test_no_eth_but_real_octet_traffic_not_flagged() {
+        let now = Utc::now();
+        // Integrated-WiFi CPE: ethernet port never links, but octets show a
+        // heavy user. Must NOT be flagged (the old eth-only logic would
+        // have called this revenue leakage).
+        let readings: Vec<OntReading> = (0..15)
+            .map(|i| {
+                make_reading_with_octets(
+                    "WIFI01",
+                    now - Duration::days(14 - i),
+                    None,
+                    Some(i as u64 * 1_000_000_000),
+                    Some(i as u64 * 80_000_000),
+                )
+            })
+            .collect();
+
+        let detection = detect_ghost_customers_detailed(&readings, 89.90);
+        assert!(
+            detection.ghosts.is_empty(),
+            "measured traffic overrides a down eth port: {:?}",
+            detection.ghosts
+        );
+        assert!(detection.insufficient_data_serials.is_empty());
     }
 
     #[test]

@@ -1026,7 +1026,7 @@ mod audit {
         println!("  serial={}, rx={}", doc["ont"]["serial"], doc["ont"]["rx_power_dbm"]);
     }
 
-    /// 7B: Adtran bulk format — enlace-adtran-{date} with extended + degradation + diagnostics
+    /// 7B: Adtran bulk format — {prefix}-adtran-{date} with extended + degradation + diagnostics
     #[test]
     fn audit_7b_adtran_bulk_format() {
         let config = ElasticConfig {
@@ -1063,6 +1063,7 @@ mod audit {
             severity: DegradationSeverity::Warning,
             days_to_failure: Some(50),
             confidence: 0.85,
+            recent_step: None,
             message: "WARNING: degrading".into(),
         }];
 
@@ -1075,7 +1076,11 @@ mod audit {
 
         let action: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
         let index = action["index"]["_index"].as_str().unwrap();
-        assert!(index.starts_with("enlace-adtran-"), "7B FAIL: index={}", index);
+        assert!(
+            index.starts_with("pulso-adtran-"),
+            "7B FAIL: Adtran path must honour the configured index_prefix, index={}",
+            index
+        );
 
         let doc: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
         assert_eq!(doc["olt"]["vendor"], "adtran");

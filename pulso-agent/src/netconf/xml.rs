@@ -23,6 +23,8 @@
 //         onu-state-change-notification_1_0.txt).
 //   - Optical power (OLT-side upstream rx, ONT-side OMCI transceiver)
 //   - Ranging (equalization-delay TQ → distance meters)
+//   - Interface octet counters (ietf-interfaces statistics, RFC 8343)
+//   - xPON PHY FEC/BIP counters (bbf-xpon-performance-management)
 //   - Notifications (onu-state-change, dying-gasp alarms)
 //   - ietf-yang-library (RFC 7895 <modules-state> / RFC 8525 <yang-library>)
 //   - ietf-alarms alarm-list (RFC 8632) for down-cause classification
@@ -1027,6 +1029,244 @@ pub fn parse_rssi_onu(xml: &str) -> anyhow::Result<Vec<(String, f64)>> {
     Ok(entries)
 }
 
+// ── ietf-interfaces statistics (per-ONU octet counters) ─────────────────────
+
+/// Per-interface octet counters from an ietf-interfaces reply.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InterfaceStatsEntry {
+    pub name: String,
+    pub in_octets: Option<u64>,
+    pub out_octets: Option<u64>,
+}
+
+/// Parse `statistics/in-octets|out-octets` for every `<interface>` in an
+/// ietf-interfaces reply.
+///
+/// Source model: ietf-interfaces (RFC 8343, revision 2018-02-20 — the
+/// revision the OB-BAA standard OLT library advertises, see
+/// data/external/adtran-samples/obbaa-yang-library/
+/// bbf-olt-standard-2.1_yang-library.xml). `statistics { in-octets;
+/// out-octets; }` (Counter64) exists identically in the `<interfaces>`
+/// operational tree and the deprecated `<interfaces-state>` tree; the parser
+/// matches on local names so both work.
+///
+/// Counters are parsed as u64 — negative or garbled values fail the parse
+/// and become None rather than wrapping into fake huge counters.
+pub fn parse_interface_statistics(xml: &str) -> anyhow::Result<Vec<InterfaceStatsEntry>> {
+    let mut entries = Vec::new();
+    let mut reader = Reader::from_str(xml);
+    let mut buf = Vec::new();
+
+    let mut in_interface = false;
+    let mut in_statistics = false;
+    let mut name = String::new();
+    let mut in_octets: Option<u64> = None;
+    let mut out_octets: Option<u64> = None;
+    let mut current_elem = String::new();
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(e)) => {
+                let local =
+                    String::from_utf8_lossy(local_name(e.name().as_ref())).to_string();
+                match local.as_str() {
+                    "interface" => {
+                        in_interface = true;
+                        in_statistics = false;
+                        name.clear();
+                        in_octets = None;
+                        out_octets = None;
+                    }
+                    "statistics" if in_interface => in_statistics = true,
+                    _ => {}
+                }
+                current_elem = local;
+            }
+            Ok(Event::Text(e)) if in_interface => {
+                if let Ok(text) = e.unescape() {
+                    let text = text.trim();
+                    if text.is_empty() {
+                        buf.clear();
+                        continue;
+                    }
+                    if !in_statistics {
+                        // The interface's own <name> — take the first only so
+                        // nested name-ish leaves cannot overwrite it.
+                        if current_elem == "name" && name.is_empty() {
+                            name = text.to_string();
+                        }
+                    } else {
+                        match current_elem.as_str() {
+                            "in-octets" => in_octets = text.parse().ok(),
+                            "out-octets" => out_octets = text.parse().ok(),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            Ok(Event::End(e)) => {
+                match local_name(e.name().as_ref()) {
+                    b"interface" if in_interface => {
+                        if !name.is_empty() && (in_octets.is_some() || out_octets.is_some()) {
+                            entries.push(InterfaceStatsEntry {
+                                name: name.clone(),
+                                in_octets,
+                                out_octets,
+                            });
+                        }
+                        in_interface = false;
+                        in_statistics = false;
+                    }
+                    b"statistics" => in_statistics = false,
+                    _ => {}
+                }
+                current_elem.clear();
+            }
+            Ok(Event::Eof) => break,
+            Err(e) => return Err(parse_err("interface statistics reply", &reader, e)),
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    debug!(count = entries.len(), "Parsed interface statistics entries");
+    Ok(entries)
+}
+
+// ── bbf-xpon-performance-management PHY counters (FEC / BIP) ────────────────
+
+/// Per-interface xPON PHY performance counters (current 15-minute interval).
+#[derive(Debug, Clone, PartialEq)]
+pub struct XponPhyPmEntry {
+    pub interface_name: String,
+    /// `phy/corrected-fec-codewords`
+    pub corrected_fec_codewords: Option<u64>,
+    /// `phy/uncorrectable-fec-codewords`
+    pub uncorrectable_fec_codewords: Option<u64>,
+    /// `phy/in-bip-errors`
+    pub in_bip_errors: Option<u64>,
+}
+
+/// Parse the xPON PHY counters from a bbf-interfaces-performance-management
+/// reply.
+///
+/// Source model: bbf-xpon-performance-management (revisions
+/// 2020-10-13…2024-04-23, data/external/broadband-forum-yang/
+/// bbf-xpon-performance-management.yang) — grouping `xpon-phy-pm` container
+/// `phy` with leaves `corrected-fec-codewords`, `uncorrectable-fec-codewords`
+/// and `in-bip-errors` (all bbf-yang:performance-counter64), augmenting
+/// /if:interfaces-state/if:interface/bbf-if-pm:performance/
+/// bbf-if-pm:intervals-15min/bbf-if-pm:current — i.e. these are CURRENT
+/// 15-MINUTE-BIN counters, reset at each interval boundary, reported per
+/// v-ANI (and CT) interface. For G-PON, all three leaves are reported per
+/// vANI (see the leaves' description text in the module).
+///
+/// Only the `<current>` bin is read; `<history>` bins in the same reply are
+/// skipped so a firmware answering with more than requested cannot smear
+/// stale intervals over live data.
+pub fn parse_xpon_phy_pm(xml: &str) -> anyhow::Result<Vec<XponPhyPmEntry>> {
+    let mut entries = Vec::new();
+    let mut reader = Reader::from_str(xml);
+    let mut buf = Vec::new();
+
+    let mut in_interface = false;
+    let mut in_current = false;
+    let mut in_history = false;
+    let mut in_phy = false;
+    let mut name = String::new();
+    let mut corrected: Option<u64> = None;
+    let mut uncorrectable: Option<u64> = None;
+    let mut bip: Option<u64> = None;
+    let mut current_elem = String::new();
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(e)) => {
+                let local =
+                    String::from_utf8_lossy(local_name(e.name().as_ref())).to_string();
+                match local.as_str() {
+                    "interface" => {
+                        in_interface = true;
+                        in_current = false;
+                        in_history = false;
+                        in_phy = false;
+                        name.clear();
+                        corrected = None;
+                        uncorrectable = None;
+                        bip = None;
+                    }
+                    "current" if in_interface => in_current = true,
+                    "history" if in_interface => in_history = true,
+                    "phy" if in_current && !in_history => in_phy = true,
+                    _ => {}
+                }
+                current_elem = local;
+            }
+            Ok(Event::Text(e)) if in_interface => {
+                if let Ok(text) = e.unescape() {
+                    let text = text.trim();
+                    if text.is_empty() {
+                        buf.clear();
+                        continue;
+                    }
+                    if !in_current && !in_history {
+                        if current_elem == "name" && name.is_empty() {
+                            name = text.to_string();
+                        }
+                    } else if in_phy {
+                        // performance-counter64 → u64; negative/garbled → None
+                        match current_elem.as_str() {
+                            "corrected-fec-codewords" => corrected = text.parse().ok(),
+                            "uncorrectable-fec-codewords" => {
+                                uncorrectable = text.parse().ok()
+                            }
+                            "in-bip-errors" => bip = text.parse().ok(),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            Ok(Event::End(e)) => {
+                match local_name(e.name().as_ref()) {
+                    b"interface" if in_interface => {
+                        if !name.is_empty()
+                            && (corrected.is_some()
+                                || uncorrectable.is_some()
+                                || bip.is_some())
+                        {
+                            entries.push(XponPhyPmEntry {
+                                interface_name: name.clone(),
+                                corrected_fec_codewords: corrected,
+                                uncorrectable_fec_codewords: uncorrectable,
+                                in_bip_errors: bip,
+                            });
+                        }
+                        in_interface = false;
+                        in_current = false;
+                        in_history = false;
+                        in_phy = false;
+                    }
+                    b"current" => {
+                        in_current = false;
+                        in_phy = false;
+                    }
+                    b"history" => in_history = false,
+                    b"phy" => in_phy = false,
+                    _ => {}
+                }
+                current_elem.clear();
+            }
+            Ok(Event::Eof) => break,
+            Err(e) => return Err(parse_err("xpon phy pm reply", &reader, e)),
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    debug!(count = entries.len(), "Parsed xPON PHY PM entries");
+    Ok(entries)
+}
+
 /// Parse a dying-gasp alarm from a NETCONF notification.
 ///
 /// Returns `(serial_number, true)` if this is a dying-gasp alarm.
@@ -1678,5 +1918,193 @@ mod tests {
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].0, "ADTN153201C4");
         assert!((entries[0].1 - (-22.1)).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_parse_interface_statistics_v_ani_and_uplink() {
+        // Interface naming ("vAni_ont1", type bbf-xponift:v-ani) taken from
+        // the real OB-BAA payload data/external/adtran-samples/obbaa-examples/
+        // vomci-end-to-end-config/9-create_onu_on_olt.xml; the statistics
+        // container is ietf-interfaces (RFC 8343).
+        let xml = r#"<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="7">
+  <data>
+    <interfaces-state xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+      <interface>
+        <name>vAni_ont1</name>
+        <type xmlns:bbf-xponift="urn:bbf:yang:bbf-xpon-if-type">bbf-xponift:v-ani</type>
+        <statistics>
+          <in-octets>123456789012</in-octets>
+          <out-octets>987654321098</out-octets>
+        </statistics>
+      </interface>
+      <interface>
+        <name>channeltermination.1</name>
+        <type xmlns:bbf-xponift="urn:bbf:yang:bbf-xpon-if-type">bbf-xponift:channel-termination</type>
+        <statistics>
+          <in-octets>42</in-octets>
+          <out-octets>43</out-octets>
+        </statistics>
+      </interface>
+      <interface>
+        <name>no-stats-if</name>
+      </interface>
+    </interfaces-state>
+  </data>
+</rpc-reply>"#;
+
+        let entries = parse_interface_statistics(xml).expect("should parse");
+        // The interface without a <statistics> container yields no entry.
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].name, "vAni_ont1");
+        assert_eq!(entries[0].in_octets, Some(123_456_789_012));
+        assert_eq!(entries[0].out_octets, Some(987_654_321_098));
+        assert_eq!(entries[1].name, "channeltermination.1");
+    }
+
+    #[test]
+    fn test_parse_interface_statistics_rejects_negative_and_garbled() {
+        let xml = r#"<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <data>
+    <interfaces-state xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+      <interface>
+        <name>vAni_ont2</name>
+        <statistics>
+          <in-octets>-5</in-octets>
+          <out-octets>18446744073709551615</out-octets>
+        </statistics>
+      </interface>
+    </interfaces-state>
+  </data>
+</rpc-reply>"#;
+
+        let entries = parse_interface_statistics(xml).expect("should parse");
+        assert_eq!(entries.len(), 1);
+        // Negative counters cannot exist (Counter64); parse to None, never
+        // wrap into a fake huge value.
+        assert_eq!(entries[0].in_octets, None);
+        // u64::MAX is a valid Counter64 value.
+        assert_eq!(entries[0].out_octets, Some(u64::MAX));
+    }
+
+    #[test]
+    fn test_parse_interface_statistics_namespace_prefixed() {
+        // Some servers emit explicit prefixes; local-name matching must cope.
+        let xml = r#"<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <data>
+    <if:interfaces-state xmlns:if="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+      <if:interface>
+        <if:name>vAni_ont1</if:name>
+        <if:statistics>
+          <if:in-octets>1000</if:in-octets>
+          <if:out-octets>2000</if:out-octets>
+        </if:statistics>
+      </if:interface>
+    </if:interfaces-state>
+  </data>
+</rpc-reply>"#;
+
+        let entries = parse_interface_statistics(xml).expect("should parse");
+        assert_eq!(
+            entries,
+            vec![InterfaceStatsEntry {
+                name: "vAni_ont1".into(),
+                in_octets: Some(1000),
+                out_octets: Some(2000),
+            }]
+        );
+    }
+
+    #[test]
+    fn test_parse_xpon_phy_pm_current_bin_only() {
+        // Structure per bbf-xpon-performance-management (rev 2024-04-23,
+        // data/external/broadband-forum-yang/bbf-xpon-performance-management
+        // .yang): container `phy` under bbf-if-pm performance/
+        // intervals-15min/current on a v-ANI interface. The <history> bin in
+        // the same reply must be ignored.
+        let xml = r#"<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="8">
+  <data>
+    <interfaces-state xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+      <interface>
+        <name>vAni_ont1</name>
+        <performance xmlns="urn:bbf:yang:bbf-interfaces-performance-management">
+          <intervals-15min>
+            <current>
+              <xpon xmlns="urn:bbf:yang:bbf-xpon-performance-management">
+                <phy>
+                  <corrected-fec-bytes>987654</corrected-fec-bytes>
+                  <corrected-fec-codewords>18234</corrected-fec-codewords>
+                  <uncorrectable-fec-codewords>2</uncorrectable-fec-codewords>
+                  <in-fec-codewords>91231234</in-fec-codewords>
+                  <in-bip-errors>7</in-bip-errors>
+                </phy>
+              </xpon>
+            </current>
+            <history>
+              <interval-number>1</interval-number>
+              <xpon xmlns="urn:bbf:yang:bbf-xpon-performance-management">
+                <phy>
+                  <corrected-fec-codewords>999999</corrected-fec-codewords>
+                  <uncorrectable-fec-codewords>500</uncorrectable-fec-codewords>
+                  <in-bip-errors>400</in-bip-errors>
+                </phy>
+              </xpon>
+            </history>
+          </intervals-15min>
+        </performance>
+      </interface>
+      <interface>
+        <name>vAni_ont2</name>
+        <performance xmlns="urn:bbf:yang:bbf-interfaces-performance-management">
+          <intervals-15min>
+            <current>
+              <xpon xmlns="urn:bbf:yang:bbf-xpon-performance-management">
+                <phy>
+                  <in-bip-errors>0</in-bip-errors>
+                </phy>
+              </xpon>
+            </current>
+          </intervals-15min>
+        </performance>
+      </interface>
+    </interfaces-state>
+  </data>
+</rpc-reply>"#;
+
+        let entries = parse_xpon_phy_pm(xml).expect("should parse");
+        assert_eq!(entries.len(), 2);
+        // Current bin, not the stale history bin (999999/500/400).
+        assert_eq!(entries[0].interface_name, "vAni_ont1");
+        assert_eq!(entries[0].corrected_fec_codewords, Some(18_234));
+        assert_eq!(entries[0].uncorrectable_fec_codewords, Some(2));
+        assert_eq!(entries[0].in_bip_errors, Some(7));
+        // Partial phy containers are fine — 0 is a real (good) reading.
+        assert_eq!(entries[1].interface_name, "vAni_ont2");
+        assert_eq!(entries[1].corrected_fec_codewords, None);
+        assert_eq!(entries[1].in_bip_errors, Some(0));
+    }
+
+    #[test]
+    fn test_parse_xpon_phy_pm_no_phy_yields_no_entries() {
+        // An interface with performance data but no xpon/phy container
+        // (e.g. an ethernet uplink) must not fabricate a zeroed entry.
+        let xml = r#"<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <data>
+    <interfaces-state xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+      <interface>
+        <name>eth-uplink-1</name>
+        <performance xmlns="urn:bbf:yang:bbf-interfaces-performance-management">
+          <intervals-15min>
+            <current>
+              <in-errors>3</in-errors>
+            </current>
+          </intervals-15min>
+        </performance>
+      </interface>
+    </interfaces-state>
+  </data>
+</rpc-reply>"#;
+
+        let entries = parse_xpon_phy_pm(xml).expect("should parse");
+        assert!(entries.is_empty());
     }
 }

@@ -39,6 +39,11 @@ struct OltCycleArtifacts {
     diagnostics: diagnostics::OltDiagnostics,
     predictions: predictions::Predictions,
     fault_events: Vec<fault::FaultEvent>,
+    /// Incident lifecycle updates from this OLT's detector pass. NOT yet
+    /// dispatched: the main loop collects every OLT's updates first, runs
+    /// the cross-OLT correlation post-pass ([`fault::correlate_cycle`])
+    /// once over the whole pass, and only then dispatches to ES/webhooks.
+    incident_updates: Vec<fault::IncidentUpdate>,
 }
 
 /// Per-(OLT, PON-port) fibre topologies for fault location.
@@ -107,7 +112,6 @@ async fn process_olt_cycle(
     diag_state: &mut diagnostics::OfflineAlertState,
     topologies: &TopologyRegistry,
     elastic: Option<&output::ElasticOutput>,
-    webhooks: Option<&std::sync::Arc<output::WebhookDispatcher>>,
     agent_metrics: &metrics::Metrics,
     data: vendors::OltData,
 ) -> OltCycleArtifacts {
@@ -122,6 +126,7 @@ async fn process_olt_cycle(
     let predictions = predictions::forecast_olt_configured(&data, db, cfg.degradation.as_ref());
 
     let mut fault_events = Vec::new();
+    let mut incident_updates = Vec::new();
     if let Some(detector) = fault_detector {
         let updates = detector.check_incidents(&data.olt_id, &data.onts);
         if !updates.is_empty() {
@@ -161,27 +166,17 @@ async fn process_olt_cycle(
                         );
                     }
                 }
-
-                // Index open AND resolve transitions — a resolve that never
-                // reaches the dashboard is an incident that pages forever
-                if let Some(elastic) = elastic {
-                    if let Err(e) = elastic.send_incident(update).await {
-                        agent_metrics.record_send_failure();
-                        warn!(error = %e, "Failed to send incident to Elastic");
-                    }
-                }
-
-                // Fire-and-forget: never block the poll loop on webhook endpoints
-                if let Some(wh) = webhooks {
-                    wh.dispatch_incident_detached(update);
-                }
             }
         }
         fault_events = updates
-            .into_iter()
+            .iter()
             .filter(|u| matches!(u.action, fault::IncidentAction::Open))
-            .map(|u| u.event)
+            .map(|u| u.event.clone())
             .collect();
+        // Dispatch happens AFTER the whole poll pass, once every OLT's
+        // updates have been through fault::correlate_cycle (an area power
+        // event is only visible across OLTs, never from one OLT's view).
+        incident_updates = updates;
     }
 
     if let Some(elastic) = elastic {
@@ -201,7 +196,49 @@ async fn process_olt_cycle(
         diagnostics,
         predictions,
         fault_events,
+        incident_updates,
     }
+}
+
+/// Cross-OLT correlation + dispatch for one poll pass.
+///
+/// Takes every incident update collected across ALL OLTs in the pass, runs
+/// [`fault::correlate_cycle`] ONCE (so ≥ 2 OLTs opening power-classified
+/// incidents in the same pass get `area_power_suspected = true`), then
+/// dispatches the correlated updates to Elasticsearch and webhooks.
+///
+/// Error isolation: a failed ES send for one update logs and counts a send
+/// failure but never drops the remaining updates; webhook dispatch is
+/// fire-and-forget. Per-OLT collection failures were already isolated
+/// upstream (a failing OLT contributes no updates, everyone else's still
+/// arrive here). Returns the correlated updates for observability/tests.
+async fn correlate_and_dispatch_incidents(
+    updates: Vec<fault::IncidentUpdate>,
+    elastic: Option<&output::ElasticOutput>,
+    webhooks: Option<&std::sync::Arc<output::WebhookDispatcher>>,
+    agent_metrics: &metrics::Metrics,
+) -> Vec<fault::IncidentUpdate> {
+    if updates.is_empty() {
+        return updates;
+    }
+    let correlated = fault::correlate_cycle(&updates);
+
+    for update in &correlated {
+        // Index open AND resolve transitions — a resolve that never
+        // reaches the dashboard is an incident that pages forever
+        if let Some(elastic) = elastic {
+            if let Err(e) = elastic.send_incident(update).await {
+                agent_metrics.record_send_failure();
+                warn!(error = %e, "Failed to send incident to Elastic");
+            }
+        }
+
+        // Fire-and-forget: never block the poll loop on webhook endpoints
+        if let Some(wh) = webhooks {
+            wh.dispatch_incident_detached(update);
+        }
+    }
+    correlated
 }
 
 #[derive(Parser, Debug)]
@@ -550,7 +587,10 @@ async fn main() -> anyhow::Result<()> {
         first_cycle = false;
 
         // Process results sequentially (detector/diagnostics state is
-        // per-cycle mutable); collection itself ran concurrently above
+        // per-cycle mutable); collection itself ran concurrently above.
+        // Incident updates are only COLLECTED here — dispatch happens after
+        // the whole pass, post cross-OLT correlation.
+        let mut cycle_incident_updates: Vec<fault::IncidentUpdate> = Vec::new();
         for task in collect_tasks {
             let (collector, timeout, result) = match task.await {
                 Ok(r) => r,
@@ -563,7 +603,7 @@ async fn main() -> anyhow::Result<()> {
             match result {
                 Ok(Ok(data)) => {
                     agent_metrics.record_olt_success(collector.olt_id(), data.onts.len());
-                    let _artifacts = process_olt_cycle(
+                    let artifacts = process_olt_cycle(
                         &cfg,
                         &db,
                         &mut telemetry,
@@ -571,10 +611,10 @@ async fn main() -> anyhow::Result<()> {
                         &mut diag_state,
                         &topologies,
                         elastic.as_ref(),
-                        webhooks.as_ref(),
                         &agent_metrics,
                         data,
                     ).await;
+                    cycle_incident_updates.extend(artifacts.incident_updates);
                 }
                 Ok(Err(e)) => {
                     agent_metrics.record_olt_failure(collector.olt_id());
@@ -592,6 +632,14 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
+
+        // One correlation pass over the whole cycle (all OLTs), then dispatch
+        let _dispatched = correlate_and_dispatch_incidents(
+            cycle_incident_updates,
+            elastic.as_ref(),
+            webhooks.as_ref(),
+            &agent_metrics,
+        ).await;
 
         // Collect from all MikroTik routers (with per-device timeout)
         for collector in &mk_collectors {
@@ -753,6 +801,122 @@ api_key = "k"
             olt_collect_timeout(&cfg, None),
             std::time::Duration::from_secs(60)
         );
+    }
+
+    fn make_incident_update(olt: &str, fault_type: fault::FaultType) -> fault::IncidentUpdate {
+        let opened_at = chrono::Utc::now();
+        fault::IncidentUpdate {
+            action: fault::IncidentAction::Open,
+            incident_id: format!("{olt}:0/1/0:{}", opened_at.timestamp()),
+            scope: fault::IncidentScope::Port,
+            opened_at,
+            resolved_at: None,
+            ports: vec!["0/1/0".into()],
+            classification: Default::default(),
+            area_power_suspected: false,
+            event: fault::FaultEvent {
+                timestamp: opened_at,
+                pon_port: "0/1/0".into(),
+                olt_id: olt.into(),
+                severity: "major".into(),
+                fault_type,
+                affected_onts: Vec::new(),
+                detection_latency_seconds: 10,
+            },
+        }
+    }
+
+    /// The collect-then-correlate-then-dispatch helper: updates from ALL
+    /// OLTs in one pass go through fault::correlate_cycle once, so two OLTs
+    /// opening power incidents in the same pass are flagged as one area
+    /// power event — and every update (flagged or not) still reaches ES,
+    /// even when an earlier send fails.
+    #[tokio::test]
+    async fn correlate_and_dispatch_flags_cross_olt_power_and_isolates_failures() {
+        use std::sync::{Arc, Mutex};
+
+        // Minimal mock ES: first request fails non-retryably (400), the
+        // rest succeed; all received bodies are recorded.
+        let bodies: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let bodies_handler = bodies.clone();
+        let app = axum::Router::new().route(
+            "/_bulk",
+            axum::routing::post(move |body: String| {
+                let bodies = bodies_handler.clone();
+                async move {
+                    let n = {
+                        let mut b = bodies.lock().unwrap();
+                        b.push(body);
+                        b.len()
+                    };
+                    if n == 1 {
+                        (
+                            axum::http::StatusCode::BAD_REQUEST,
+                            r#"{"error":"scripted failure"}"#.to_string(),
+                        )
+                    } else {
+                        (
+                            axum::http::StatusCode::OK,
+                            r#"{"errors":false,"items":[]}"#.to_string(),
+                        )
+                    }
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let elastic = output::ElasticOutput::new(&config::ElasticConfig {
+            enabled: true,
+            url: format!("http://{}", addr),
+            index_prefix: "pulso".into(),
+            bulk_size: 500,
+            username: None,
+            password: None,
+            api_key: None,
+            verify_tls: false,
+        })
+        .unwrap();
+        let agent_metrics = metrics::Metrics::new();
+
+        // One poll pass across three OLTs: two power-classified opens
+        // (area power event) plus one fibre cut (must stay unflagged).
+        let updates = vec![
+            make_incident_update("olt-a", fault::FaultType::PowerOutage),
+            make_incident_update("olt-b", fault::FaultType::PowerOutage),
+            make_incident_update("olt-c", fault::FaultType::FibreCut),
+        ];
+
+        let dispatched = correlate_and_dispatch_incidents(
+            updates,
+            Some(&elastic),
+            None,
+            &agent_metrics,
+        )
+        .await;
+
+        assert_eq!(dispatched.len(), 3);
+        for u in &dispatched {
+            let expect_area = u.event.fault_type == fault::FaultType::PowerOutage;
+            assert_eq!(
+                u.area_power_suspected, expect_area,
+                "olt {} fault {:?}: area flag wrong",
+                u.event.olt_id, u.event.fault_type
+            );
+        }
+
+        // Every update was sent — the scripted first-send failure did not
+        // drop the remaining OLTs' updates.
+        let bodies = bodies.lock().unwrap();
+        assert_eq!(bodies.len(), 3, "one ES request per update");
+        let area_flagged = bodies
+            .iter()
+            .filter(|b| b.contains("\"area_power_suspected\":true"))
+            .count();
+        assert_eq!(area_flagged, 2, "both power opens carry the area flag in ES docs");
     }
 
     #[test]

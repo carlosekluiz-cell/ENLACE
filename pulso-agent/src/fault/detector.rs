@@ -34,11 +34,117 @@ pub struct FaultEvent {
 /// - FibreCut: ONTs went offline without sending dying gasp → physical fibre break
 /// - PowerOutage: ONTs sent dying gasp before going offline → power loss at premises/area
 /// - Mixed: Some ONTs sent dying gasp, others didn't → partial power + possible break
+///
+/// Classification is ratio-based, not exact-zero: real events are noisy.
+/// Dying gasps are a single burst on a contended upstream and get lost, and
+/// UPS-backed ONTs mask power loss by staying up until the battery dies.
+/// See `POWER_GASP_RATIO_MIN` / `FIBRE_GASP_RATIO_MAX` for the thresholds
+/// and `ClassificationEvidence` for the evidence emitted alongside.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum FaultType {
     FibreCut,
     PowerOutage,
     Mixed,
+}
+
+/// Minimum dying-gasp ratio to classify PowerOutage. A clear majority of
+/// gasps is strong evidence of premises/area power loss even when some
+/// gasps are lost in upstream contention (field experience: 60% is a safe
+/// majority; exact-100% almost never happens on real PONs).
+pub const POWER_GASP_RATIO_MIN: f64 = 0.6;
+
+/// Maximum dying-gasp ratio to classify FibreCut. A cut severs the fibre
+/// while ONTs keep power, so almost nothing gasps — but allow up to 10%
+/// stragglers (a co-incident premises power blip, or vendors that put
+/// "power" strings in unrelated last-down-cause fields).
+pub const FIBRE_GASP_RATIO_MAX: f64 = 0.1;
+
+/// Minimum affected ONTs before a FibreCut call is made from the gasp
+/// ratio. Below 5 members the ratio is too coarse (1 gasp in 4 = 0.25) to
+/// distinguish a cut from coincidence; such incidents are labelled Mixed.
+pub const FIBRE_MIN_AFFECTED: usize = 5;
+
+/// Ratio at which a PowerOutage call is considered strong evidence
+/// (comfortably above `POWER_GASP_RATIO_MIN`, not scraping the boundary).
+pub const POWER_STRONG_GASP_RATIO: f64 = 0.8;
+
+/// Ratio at which a FibreCut call is considered strong evidence (half of
+/// `FIBRE_GASP_RATIO_MAX`).
+pub const FIBRE_STRONG_GASP_RATIO: f64 = 0.05;
+
+/// A fibre cut drops every ONT on the segment within 1-2 poll cycles.
+/// Transition spread beyond this many observed poll cycles means the
+/// incident built up gradually (attrition/degradation), which contradicts
+/// a cut and downgrades classification confidence.
+pub const SIMULTANEOUS_MAX_CYCLES: i32 = 2;
+
+/// Minimum distinct OLTs opening PowerOutage-classified incidents in one
+/// detector pass before an area power event is suspected (see
+/// [`correlate_cycle`]). Two independent OLTs losing power-classified
+/// populations at once is grid, not N coincidental premises events.
+pub const AREA_POWER_MIN_OLTS: usize = 2;
+
+/// Temporal tightness of an incident's member transitions.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OnsetPattern {
+    /// First-to-last transition spread ≤ `SIMULTANEOUS_MAX_CYCLES` poll
+    /// cycles — consistent with a single physical event.
+    #[default]
+    Simultaneous,
+    /// Members dropped over more than `SIMULTANEOUS_MAX_CYCLES` cycles —
+    /// gradual attrition, inconsistent with a clean cut.
+    Staggered,
+}
+
+impl std::fmt::Display for OnsetPattern {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Simultaneous => write!(f, "simultaneous"),
+            Self::Staggered => write!(f, "staggered"),
+        }
+    }
+}
+
+/// Confidence in the `fault_type` call, derived from ratio distance from
+/// threshold × onset tightness (see `confidence_for`). Defaults to Low —
+/// never claim confidence that was not computed.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClassificationConfidence {
+    High,
+    Medium,
+    #[default]
+    Low,
+}
+
+impl std::fmt::Display for ClassificationConfidence {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::High => write!(f, "high"),
+            Self::Medium => write!(f, "medium"),
+            Self::Low => write!(f, "low"),
+        }
+    }
+}
+
+/// The evidence behind a `fault_type` call, emitted on every incident
+/// update so webhooks/ES receivers can show WHY the classifier decided —
+/// never just the label.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ClassificationEvidence {
+    /// Members that sent a dying gasp at their offline transition.
+    pub dying_gasp_count: usize,
+    /// Members that went dark without a gasp.
+    pub hard_offline_count: usize,
+    /// dying_gasp_count / member count at open time.
+    pub dying_gasp_ratio: f64,
+    pub onset: OnsetPattern,
+    /// First-to-last offline-transition spread across members at open time.
+    pub onset_spread_seconds: u64,
+    pub confidence: ClassificationConfidence,
+    /// Human-readable one-liner with ratio, counts, onset and confidence.
+    pub summary: String,
 }
 
 impl std::fmt::Display for FaultType {
@@ -99,6 +205,14 @@ pub struct IncidentUpdate {
     pub resolved_at: Option<DateTime<Utc>>,
     /// PON ports involved (single entry for port-scope incidents)
     pub ports: Vec<String>,
+    /// Evidence behind `event.fault_type` (gasp ratio, counts, onset,
+    /// confidence). Additive: existing consumers keep reading `event.*`.
+    pub classification: ClassificationEvidence,
+    /// Fleet-level annotation set by [`correlate_cycle`]: true when ≥
+    /// `AREA_POWER_MIN_OLTS` OLTs opened PowerOutage-classified incidents
+    /// in the same detector pass — an area power event, not N local ones.
+    /// Always false until the caller runs the correlation post-pass.
+    pub area_power_suspected: bool,
     #[serde(flatten)]
     pub event: FaultEvent,
 }
@@ -127,6 +241,7 @@ struct ActiveIncident {
     /// serial → snapshot at offline transition
     members: BTreeMap<String, AffectedOnt>,
     fault_type: FaultType,
+    classification: ClassificationEvidence,
     severity: String,
     detection_latency_seconds: u64,
 }
@@ -142,6 +257,11 @@ pub struct FaultDetector {
     /// OLTs already warned about degraded port-level localization
     /// (ONTs reporting UNKNOWN_PON_PORT) — log once per OLT, not per cycle.
     unknown_port_warned: HashSet<String>,
+    /// olt_id → timestamp of the last check_incidents call, used to measure
+    /// the observed poll-cycle length for onset-tightness classification.
+    last_cycle: HashMap<String, DateTime<Utc>>,
+    /// olt_id → last observed poll-cycle interval (now − previous call).
+    cycle_interval: HashMap<String, chrono::Duration>,
 }
 
 fn is_online(ont: &OntData) -> bool {
@@ -167,6 +287,8 @@ impl FaultDetector {
             incidents: HashMap::new(),
             port_incident: HashMap::new(),
             unknown_port_warned: HashSet::new(),
+            last_cycle: HashMap::new(),
+            cycle_interval: HashMap::new(),
         }
     }
 
@@ -195,6 +317,16 @@ impl FaultDetector {
     ) -> Vec<IncidentUpdate> {
         if !self.config.enabled {
             return Vec::new();
+        }
+
+        // Track the observed poll-cycle length per OLT: onset tightness
+        // ("did everything drop within 1-2 cycles?") is measured against the
+        // REAL polling cadence, not an assumed one.
+        if let Some(prev) = self.last_cycle.insert(olt_id.to_string(), now) {
+            let interval = now - prev;
+            if interval > chrono::Duration::zero() {
+                self.cycle_interval.insert(olt_id.to_string(), interval);
+            }
         }
 
         let window = chrono::Duration::seconds(self.config.time_window_seconds as i64);
@@ -305,7 +437,8 @@ impl FaultDetector {
 
         // 3. Find ports (without an active incident) where enough ONTs
         //    transitioned offline within the time window to open one.
-        let mut opening: Vec<(String, BTreeMap<String, AffectedOnt>, DateTime<Utc>)> = Vec::new();
+        type Opening = (String, BTreeMap<String, AffectedOnt>, DateTime<Utc>, DateTime<Utc>);
+        let mut opening: Vec<Opening> = Vec::new();
         for (port, port_onts) in &by_port {
             if self.port_incident.contains_key(&(olt_id.to_string(), port.to_string())) {
                 continue;
@@ -313,6 +446,7 @@ impl FaultDetector {
 
             let mut members: BTreeMap<String, AffectedOnt> = BTreeMap::new();
             let mut earliest = now;
+            let mut latest = now - window;
             for ont in port_onts {
                 let key = (olt_id.to_string(), ont.serial_number.clone());
                 if let Some(track) = self.onts.get(&key) {
@@ -324,6 +458,9 @@ impl FaultDetector {
                                     if t < earliest {
                                         earliest = t;
                                     }
+                                    if t > latest {
+                                        latest = t;
+                                    }
                                 }
                             }
                         }
@@ -332,7 +469,7 @@ impl FaultDetector {
             }
 
             if members.len() >= self.config.min_offline_onts {
-                opening.push((port.to_string(), members, earliest));
+                opening.push((port.to_string(), members, earliest, latest));
             }
         }
         opening.sort_by(|a, b| a.0.cmp(&b.0));
@@ -340,7 +477,7 @@ impl FaultDetector {
         // 4. Open incidents: one per port, or one OLT-level rollup when
         //    multiple ports fail in the same cycle (feeder/OLT fault).
         if opening.len() == 1 {
-            let (port, members, earliest) = opening.remove(0);
+            let (port, members, earliest, latest) = opening.remove(0);
             let incident = self.open_incident(
                 olt_id,
                 IncidentScope::Port,
@@ -348,17 +485,22 @@ impl FaultDetector {
                 members,
                 now,
                 earliest,
+                latest,
             );
             updates.push(incident);
         } else if opening.len() >= 2 {
             let mut ports = BTreeSet::new();
             let mut members: BTreeMap<String, AffectedOnt> = BTreeMap::new();
             let mut earliest = now;
-            for (port, port_members, port_earliest) in opening {
+            let mut latest = now - window;
+            for (port, port_members, port_earliest, port_latest) in opening {
                 ports.insert(port);
                 members.extend(port_members);
                 if port_earliest < earliest {
                     earliest = port_earliest;
+                }
+                if port_latest > latest {
+                    latest = port_latest;
                 }
             }
             let incident = self.open_incident(
@@ -368,6 +510,7 @@ impl FaultDetector {
                 members,
                 now,
                 earliest,
+                latest,
             );
             updates.push(incident);
         }
@@ -375,6 +518,7 @@ impl FaultDetector {
         updates
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn open_incident(
         &mut self,
         olt_id: &str,
@@ -383,6 +527,7 @@ impl FaultDetector {
         members: BTreeMap<String, AffectedOnt>,
         now: DateTime<Utc>,
         earliest_transition: DateTime<Utc>,
+        latest_transition: DateTime<Utc>,
     ) -> IncidentUpdate {
         let key_part = match scope {
             IncidentScope::Port => ports.iter().next().cloned().unwrap_or_default(),
@@ -390,15 +535,23 @@ impl FaultDetector {
         };
         let incident_id = format!("{}:{}:{}", olt_id, key_part, now.timestamp());
 
-        let gasp = members.values().filter(|m| m.had_dying_gasp).count();
-        let hard = members.len() - gasp;
-        let fault_type = if hard == 0 {
-            FaultType::PowerOutage
-        } else if gasp == 0 {
-            FaultType::FibreCut
-        } else {
-            FaultType::Mixed
+        // Onset tightness: spread of offline transitions across members,
+        // measured against the observed poll cadence for this OLT. Members
+        // exist only after a baseline cycle, so the interval is known by the
+        // time any incident opens; if it somehow is not, only a zero spread
+        // may claim Simultaneous — never guess tightness.
+        let spread = (latest_transition - earliest_transition)
+            .max(chrono::Duration::zero());
+        let onset = match self.cycle_interval.get(olt_id) {
+            Some(interval) if spread <= *interval * SIMULTANEOUS_MAX_CYCLES => {
+                OnsetPattern::Simultaneous
+            }
+            None if spread.is_zero() => OnsetPattern::Simultaneous,
+            _ => OnsetPattern::Staggered,
         };
+        let spread_seconds = spread.num_seconds().max(0) as u64;
+
+        let (fault_type, classification) = classify(&members, onset, spread_seconds);
 
         let severity = self.severity_for(members.len()).to_string();
         let detection_latency_seconds =
@@ -412,6 +565,7 @@ impl FaultDetector {
             ports: ports.clone(),
             members,
             fault_type,
+            classification,
             severity,
             detection_latency_seconds,
         };
@@ -443,6 +597,10 @@ impl FaultDetector {
                 IncidentAction::Resolve => Some(now),
             },
             ports: incident.ports.iter().cloned().collect(),
+            classification: incident.classification.clone(),
+            // Fleet-level flag: only the correlate_cycle post-pass may set
+            // this; a single-OLT view never claims an area power event.
+            area_power_suspected: false,
             event: FaultEvent {
                 timestamp: now,
                 pon_port,
@@ -466,6 +624,129 @@ impl FaultDetector {
             "warning"
         }
     }
+}
+
+/// Ratio-based power-vs-fibre classification with evidence.
+///
+/// - gasp_ratio ≥ `POWER_GASP_RATIO_MIN` (0.6) → PowerOutage: a clear
+///   majority gasped; the missing gasps are expected loss (upstream burst
+///   contention, weak capacitors).
+/// - gasp_ratio ≤ `FIBRE_GASP_RATIO_MAX` (0.1) with ≥ `FIBRE_MIN_AFFECTED`
+///   members → FibreCut: powered ONTs went dark without gasping.
+/// - anything between (or too few members for a cut call) → Mixed, with the
+///   ratio in the evidence so operators see how mixed.
+fn classify(
+    members: &BTreeMap<String, AffectedOnt>,
+    onset: OnsetPattern,
+    spread_seconds: u64,
+) -> (FaultType, ClassificationEvidence) {
+    let total = members.len();
+    let gasp = members.values().filter(|m| m.had_dying_gasp).count();
+    let hard = total - gasp;
+    let ratio = if total > 0 { gasp as f64 / total as f64 } else { 0.0 };
+
+    let fault_type = if ratio >= POWER_GASP_RATIO_MIN {
+        FaultType::PowerOutage
+    } else if ratio <= FIBRE_GASP_RATIO_MAX && total >= FIBRE_MIN_AFFECTED {
+        FaultType::FibreCut
+    } else {
+        FaultType::Mixed
+    };
+
+    let confidence = confidence_for(&fault_type, ratio, onset);
+
+    let mut summary = format!(
+        "{}: {}/{} dying gasps (ratio {:.2}), {} onset ({}s first-to-last spread) — confidence {}",
+        fault_type, gasp, total, ratio, onset, spread_seconds, confidence,
+    );
+    if fault_type == FaultType::FibreCut && onset == OnsetPattern::Staggered {
+        summary.push_str(&format!(
+            "; staggered onset over {}s is atypical for a cut (a cut drops all ONTs \
+             within {} poll cycles) — confidence downgraded",
+            spread_seconds, SIMULTANEOUS_MAX_CYCLES,
+        ));
+    }
+
+    let evidence = ClassificationEvidence {
+        dying_gasp_count: gasp,
+        hard_offline_count: hard,
+        dying_gasp_ratio: ratio,
+        onset,
+        onset_spread_seconds: spread_seconds,
+        confidence,
+        summary,
+    };
+    (fault_type, evidence)
+}
+
+/// Confidence = ratio distance-from-threshold × onset tightness.
+///
+/// - Ratio is "strong" when comfortably past the classification threshold
+///   (≥ `POWER_STRONG_GASP_RATIO` for power, ≤ `FIBRE_STRONG_GASP_RATIO`
+///   for fibre, solidly inside the ambiguous band for Mixed).
+/// - Onset contradicts only a FibreCut call: a cut is instantaneous, so a
+///   staggered onset downgrades it. Power events legitimately stagger
+///   (feeder sectionalising, differing UPS holdup times), so onset is
+///   neutral for PowerOutage/Mixed.
+fn confidence_for(
+    fault_type: &FaultType,
+    ratio: f64,
+    onset: OnsetPattern,
+) -> ClassificationConfidence {
+    let ratio_strong = match fault_type {
+        FaultType::PowerOutage => ratio >= POWER_STRONG_GASP_RATIO,
+        FaultType::FibreCut => ratio <= FIBRE_STRONG_GASP_RATIO,
+        // Mixed is a strong call only when the ratio is well inside the
+        // ambiguous band, not scraping either classification boundary.
+        FaultType::Mixed => {
+            ratio > FIBRE_GASP_RATIO_MAX + 0.1 && ratio < POWER_GASP_RATIO_MIN - 0.1
+        }
+    };
+    let onset_supports = match fault_type {
+        FaultType::FibreCut => onset == OnsetPattern::Simultaneous,
+        FaultType::PowerOutage | FaultType::Mixed => true,
+    };
+    match (ratio_strong, onset_supports) {
+        (true, true) => ClassificationConfidence::High,
+        (false, false) => ClassificationConfidence::Low,
+        _ => ClassificationConfidence::Medium,
+    }
+}
+
+/// Cross-OLT power correlation post-pass.
+///
+/// The detector classifies one OLT at a time; when ≥ `AREA_POWER_MIN_OLTS`
+/// OLTs open PowerOutage-classified incidents in the SAME detector pass,
+/// that is one area power event (grid), not N independent premises events.
+/// The caller collects every update from one poll pass (all OLTs) and runs
+/// this before dispatching to webhooks/ES: matching updates come back with
+/// `area_power_suspected = true` and the evidence appended to the summary.
+/// All other updates pass through unchanged.
+pub fn correlate_cycle(updates: &[IncidentUpdate]) -> Vec<IncidentUpdate> {
+    let power_olts: BTreeSet<&str> = updates
+        .iter()
+        .filter(|u| {
+            u.action == IncidentAction::Open && u.event.fault_type == FaultType::PowerOutage
+        })
+        .map(|u| u.event.olt_id.as_str())
+        .collect();
+
+    let mut out = updates.to_vec();
+    if power_olts.len() >= AREA_POWER_MIN_OLTS {
+        for update in out.iter_mut() {
+            if update.action == IncidentAction::Open
+                && update.event.fault_type == FaultType::PowerOutage
+            {
+                update.area_power_suspected = true;
+                update.classification.summary.push_str(&format!(
+                    "; area power event suspected — {} OLTs opened power-classified \
+                     incidents in the same pass",
+                    power_olts.len(),
+                ));
+            }
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -854,6 +1135,197 @@ mod tests {
         let updates =
             detector.check_incidents_at("olt-1", &onts, t0 + chrono::Duration::seconds(610));
         assert!(updates.is_empty(), "stale transitions must age out of the window");
+    }
+
+    /// Baseline then mass-offline with `gasp_of_n` ONTs gasping out of `n`.
+    fn ratio_incident(detector: &mut FaultDetector, olt: &str, n: usize, gasp_of_n: usize) -> Vec<IncidentUpdate> {
+        detector.check_incidents(olt, &online_population("0/1/0", n));
+        let onts: Vec<OntData> = (0..n)
+            .map(|i| {
+                if i < gasp_of_n {
+                    make_ont(&format!("ONT{:03}", i), "0/1/0", OntStatus::PowerFail, true)
+                } else {
+                    make_ont(&format!("ONT{:03}", i), "0/1/0", OntStatus::Offline, false)
+                }
+            })
+            .collect();
+        detector.check_incidents(olt, &onts)
+    }
+
+    #[test]
+    fn test_gasp_ratio_0_7_classifies_power_outage() {
+        // 7/10 gasps: lost gasps must not veto a power call (old exact-zero
+        // logic would have said Mixed).
+        let cfg = make_config();
+        let mut detector = FaultDetector::new(&cfg);
+        let updates = ratio_incident(&mut detector, "olt-1", 10, 7);
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].event.fault_type, FaultType::PowerOutage);
+        let c = &updates[0].classification;
+        assert!((c.dying_gasp_ratio - 0.7).abs() < 1e-9);
+        assert_eq!(c.dying_gasp_count, 7);
+        assert_eq!(c.hard_offline_count, 3);
+        // 0.7 is above the 0.6 threshold but below the 0.8 strong mark
+        assert_eq!(c.confidence, ClassificationConfidence::Medium);
+        assert!(c.summary.contains("0.70"), "summary must show the ratio: {}", c.summary);
+    }
+
+    #[test]
+    fn test_gasp_ratio_0_05_classifies_fibre_cut_high_confidence() {
+        // 1/20 gasps: one straggler gasp must not veto a cut call.
+        let cfg = make_config();
+        let mut detector = FaultDetector::new(&cfg);
+        let updates = ratio_incident(&mut detector, "olt-1", 20, 1);
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].event.fault_type, FaultType::FibreCut);
+        let c = &updates[0].classification;
+        assert!((c.dying_gasp_ratio - 0.05).abs() < 1e-9);
+        // ratio ≤ strong mark (0.05) and same-cycle onset → High
+        assert_eq!(c.onset, OnsetPattern::Simultaneous);
+        assert_eq!(c.confidence, ClassificationConfidence::High);
+    }
+
+    #[test]
+    fn test_gasp_ratio_0_3_classifies_mixed_with_evidence() {
+        // 3/10 gasps is genuinely ambiguous → Mixed, with the ratio emitted
+        // so operators see HOW mixed.
+        let cfg = make_config();
+        let mut detector = FaultDetector::new(&cfg);
+        let updates = ratio_incident(&mut detector, "olt-1", 10, 3);
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].event.fault_type, FaultType::Mixed);
+        let c = &updates[0].classification;
+        assert!((c.dying_gasp_ratio - 0.3).abs() < 1e-9);
+        assert_eq!(c.dying_gasp_count, 3);
+        assert_eq!(c.hard_offline_count, 7);
+        assert!(c.summary.contains("mixed"), "summary: {}", c.summary);
+    }
+
+    #[test]
+    fn test_small_incident_without_gasps_is_mixed_not_fibre_cut() {
+        // Below FIBRE_MIN_AFFECTED the ratio is too coarse for a cut call.
+        let mut cfg = make_config();
+        cfg.min_offline_onts = 3;
+        let mut detector = FaultDetector::new(&cfg);
+        let updates = ratio_incident(&mut detector, "olt-1", 4, 0);
+        assert_eq!(updates.len(), 1);
+        assert_eq!(
+            updates[0].event.fault_type,
+            FaultType::Mixed,
+            "4 members with 0 gasps is too few to confidently call a cut"
+        );
+    }
+
+    #[test]
+    fn test_simultaneous_onset_single_cycle_drop() {
+        // Everything transitions in one poll cycle → Simultaneous, spread 0.
+        let cfg = make_config();
+        let mut detector = FaultDetector::new(&cfg);
+        let t0 = Utc::now();
+        detector.check_incidents_at("olt-1", &online_population("0/1/0", 10), t0);
+
+        let onts: Vec<OntData> = (0..10)
+            .map(|i| make_ont(&format!("ONT{:03}", i), "0/1/0", OntStatus::Offline, false))
+            .collect();
+        let updates =
+            detector.check_incidents_at("olt-1", &onts, t0 + chrono::Duration::seconds(30));
+        assert_eq!(updates.len(), 1);
+        let c = &updates[0].classification;
+        assert_eq!(c.onset, OnsetPattern::Simultaneous);
+        assert_eq!(c.onset_spread_seconds, 0);
+        assert_eq!(updates[0].event.fault_type, FaultType::FibreCut);
+        assert_eq!(c.confidence, ClassificationConfidence::High);
+    }
+
+    #[test]
+    fn test_staggered_onset_downgrades_fibre_cut_confidence() {
+        // Transitions spread over 4 poll cycles (30s cadence, 120s spread)
+        // contradict a clean cut → Staggered, confidence downgraded, and the
+        // summary says so.
+        let mut cfg = make_config();
+        cfg.time_window_seconds = 300;
+        let mut detector = FaultDetector::new(&cfg);
+        let t0 = Utc::now();
+        let cycle = chrono::Duration::seconds(30);
+
+        let mut onts = online_population("0/1/0", 10);
+        detector.check_incidents_at("olt-1", &onts, t0);
+
+        // Cycle t0+30: 3 ONTs drop (below the 5-ONT open threshold)
+        for ont in onts.iter_mut().take(3) {
+            ont.status = OntStatus::Offline;
+        }
+        assert!(detector.check_incidents_at("olt-1", &onts, t0 + cycle).is_empty());
+
+        // Quiet cycles keep the cadence observable
+        assert!(detector.check_incidents_at("olt-1", &onts, t0 + cycle * 2).is_empty());
+        assert!(detector.check_incidents_at("olt-1", &onts, t0 + cycle * 3).is_empty());
+        assert!(detector.check_incidents_at("olt-1", &onts, t0 + cycle * 4).is_empty());
+
+        // Cycle t0+150: 3 more drop → threshold crossed, spread = 120s > 2 cycles
+        for ont in onts.iter_mut().skip(3).take(3) {
+            ont.status = OntStatus::Offline;
+        }
+        let updates = detector.check_incidents_at("olt-1", &onts, t0 + cycle * 5);
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].event.fault_type, FaultType::FibreCut);
+        let c = &updates[0].classification;
+        assert_eq!(c.onset, OnsetPattern::Staggered);
+        assert_eq!(c.onset_spread_seconds, 120);
+        assert_eq!(
+            c.confidence,
+            ClassificationConfidence::Medium,
+            "staggered onset must downgrade a strong-ratio cut from High"
+        );
+        assert!(
+            c.summary.contains("staggered") && c.summary.contains("downgraded"),
+            "summary must say why: {}",
+            c.summary
+        );
+    }
+
+    #[test]
+    fn test_correlate_cycle_flags_two_olt_power_event() {
+        // PowerOutage incidents opening on 2 OLTs in the same pass = area
+        // power event, not two coincidences.
+        let cfg = make_config();
+        let mut detector = FaultDetector::new(&cfg);
+        let mut pass = Vec::new();
+        pass.extend(ratio_incident(&mut detector, "olt-a", 10, 10));
+        pass.extend(ratio_incident(&mut detector, "olt-b", 8, 8));
+        assert_eq!(pass.len(), 2);
+        assert!(pass.iter().all(|u| !u.area_power_suspected), "raw updates never claim area power");
+
+        let correlated = correlate_cycle(&pass);
+        assert!(correlated.iter().all(|u| u.area_power_suspected));
+        assert!(correlated.iter().all(|u| u.classification.summary.contains("area power event suspected")));
+    }
+
+    #[test]
+    fn test_correlate_cycle_single_olt_power_not_flagged() {
+        let cfg = make_config();
+        let mut detector = FaultDetector::new(&cfg);
+        let pass = ratio_incident(&mut detector, "olt-a", 10, 10);
+        let correlated = correlate_cycle(&pass);
+        assert_eq!(correlated.len(), 1);
+        assert!(
+            !correlated[0].area_power_suspected,
+            "one OLT losing power is a local event, never an area claim"
+        );
+    }
+
+    #[test]
+    fn test_correlate_cycle_fibre_cuts_never_flagged() {
+        // Two fibre cuts on two OLTs are two cuts, not an area power event.
+        let cfg = make_config();
+        let mut detector = FaultDetector::new(&cfg);
+        let mut pass = Vec::new();
+        pass.extend(ratio_incident(&mut detector, "olt-a", 10, 0));
+        pass.extend(ratio_incident(&mut detector, "olt-b", 10, 0));
+        assert_eq!(pass.len(), 2);
+        let correlated = correlate_cycle(&pass);
+        assert!(correlated.iter().all(|u| !u.area_power_suspected));
+        assert!(correlated.iter().all(|u| u.event.fault_type == FaultType::FibreCut));
     }
 
     #[test]

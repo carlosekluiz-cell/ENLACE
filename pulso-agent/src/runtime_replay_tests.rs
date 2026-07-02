@@ -373,7 +373,6 @@ mod runtime_replay {
             &mut diag_state,
             &topologies,
             Some(&elastic),
-            Some(&webhooks),
             &agent_metrics,
             baseline_olt,
         ).await;
@@ -391,10 +390,26 @@ mod runtime_replay {
             &mut diag_state,
             &topologies,
             Some(&elastic),
-            Some(&webhooks),
             &agent_metrics,
             olt,
         ).await;
+
+        // The live loop dispatches AFTER collecting the whole pass and
+        // running the cross-OLT correlation post-pass — mirror it here.
+        assert!(
+            !artifacts.incident_updates.is_empty(),
+            "expected an incident update from the mass-offline cycle"
+        );
+        let dispatched = crate::correlate_and_dispatch_incidents(
+            artifacts.incident_updates.clone(),
+            Some(&elastic),
+            Some(&webhooks),
+            &agent_metrics,
+        ).await;
+        assert!(
+            dispatched.iter().all(|u| !u.area_power_suspected),
+            "a single-OLT pass must never claim an area power event"
+        );
 
         let cloud = CloudTransport::new(&cfg.cloud, true).unwrap();
         cloud.send(&telemetry).await.unwrap();
@@ -420,6 +435,12 @@ mod runtime_replay {
 
         assert!(captured.len() >= 3, "expected Elastic fault + Elastic ONTs + webhook HTTP sends");
         assert!(captured.iter().any(|r| r.path == "/_bulk" && r.body.contains("\"affected_onts_count\"")));
+        // Fault docs carry the classification evidence (the WHY, not just the label)
+        assert!(captured.iter().any(|r| {
+            r.path == "/_bulk"
+                && r.body.contains("\"classification_summary\"")
+                && r.body.contains("\"area_power_suspected\":false")
+        }));
         assert!(captured.iter().any(|r| {
             r.path == "/_bulk"
                 && r.body.contains("\"serial\":\"REPLAY-")

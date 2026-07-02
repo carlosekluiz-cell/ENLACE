@@ -76,6 +76,8 @@ pub struct ZteCollector {
     config: OltConfig,
     snmp: Option<SnmpPoller>,
     olt_id: String,
+    /// One-time telemetry-coverage log guard (see collect_onts_snmp).
+    coverage_logged: std::sync::atomic::AtomicBool,
 }
 
 impl ZteCollector {
@@ -87,6 +89,7 @@ impl ZteCollector {
             olt_id: format!("zte-{}", config.ip.replace('.', "-")),
             config: config.clone(),
             snmp,
+            coverage_logged: std::sync::atomic::AtomicBool::new(false),
         })
     }
 }
@@ -189,6 +192,18 @@ impl ZteCollector {
     async fn collect_onts_snmp(&self) -> anyhow::Result<Vec<OntData>> {
         let snmp = self.snmp.as_ref()
             .ok_or_else(|| anyhow::anyhow!("SNMP not configured"))?;
+
+        // Telemetry coverage — once per OLT, not per cycle.
+        if !self.coverage_logged.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            tracing::debug!(
+                olt = %self.olt_id,
+                "ZTE SNMP coverage: optical rx/tx collected; per-ONU DDM \
+                 temperature/voltage/bias, FEC/BIP and per-ONT octet counters \
+                 are NOT collected — no per-ONU OID for them is verifiable in \
+                 the real ZXA10 captures (data/external/snmp-dumps/zte/; the \
+                 1082.10.10.2.4.x tables there are card/fan sensors, not ONU DDM)"
+            );
+        }
 
         // V2.1 firmware tree (zxAnPon / zxGpon, enterprise .1012)
         let statuses = snmp.walk_table(crate::snmp::oids::zte::ONT_PHASE_STATE).await?;

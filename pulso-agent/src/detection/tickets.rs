@@ -35,13 +35,28 @@ use serde::{Deserialize, Serialize};
 
 use super::reflectance::ReflectanceEvent;
 use super::churn::ChurnRisk;
+use super::fec_health::{FecConfidence, FecFinding, FecHypothesis};
 use super::ghost::GhostCustomer;
 use super::capacity::{SplitterCapacity, CapacityAlert};
+use super::rogue::{RogueConfidence, RoguePortFinding};
 use super::weather::{WeatherCorrelation, WeatherPattern};
+use crate::predictions::laser_health::{LaserHealthPrediction, LaserHealthUrgency};
 
 /// Process-wide monotonic ticket sequence. Combined with the generation
 /// timestamp this makes IDs unique across cycles and across restarts.
 static TICKET_SEQ: AtomicU64 = AtomicU64::new(1);
+
+/// Minimum fit confidence (R² of the residual daily-mean fit) before a
+/// ClassicAgeing laser prediction becomes a planned-maintenance ticket.
+/// Lower-confidence ageing predictions stay in the laser_health report only
+/// — an honest hypothesis is not yet a dispatch (same rule the FEC module
+/// applies to its trend findings).
+const LASER_AGEING_TICKET_MIN_CONFIDENCE: f32 = 0.8;
+
+/// An ActivelyFailing laser whose fast-edge EOL ETA is inside this window
+/// escalates from P2 to P1: the replacement has to happen before the laser
+/// dies, and a 5-day SLA would eat most of the margin.
+const LASER_FAILING_P1_ETA_DAYS: u32 = 30;
 
 /// Produce a unique ticket id: ENLACE-{unix_ts}-{seq:04}.
 fn next_ticket_id(generated_ts: i64) -> String {
@@ -88,6 +103,18 @@ pub enum TicketFaultType {
     GhostCustomer,
     CapacityWarning,
     ChurnRisk,
+    /// Uncorrectable FEC codewords observed — customer already erroring.
+    FecErrorFloor,
+    /// Rising corrected-FEC trend (pre-FEC degradation).
+    PreFecDegradation,
+    /// Suspected rogue ONT (multi-victim upstream-integrity event).
+    RogueOnt,
+    /// Laser bias rising while tx power falls — APC out of headroom, the
+    /// ONT laser is already failing.
+    LaserFailing,
+    /// Laser bias rising at flat tx power — classic ageing precursor;
+    /// planned replacement inside the (heuristic) EOL ETA window.
+    LaserAgeing,
 }
 
 impl std::fmt::Display for TicketFaultType {
@@ -103,6 +130,11 @@ impl std::fmt::Display for TicketFaultType {
             Self::GhostCustomer => write!(f, "Ghost Customer"),
             Self::CapacityWarning => write!(f, "Capacity Warning"),
             Self::ChurnRisk => write!(f, "Churn Risk"),
+            Self::FecErrorFloor => write!(f, "FEC Error Floor Breached"),
+            Self::PreFecDegradation => write!(f, "Pre-FEC Degradation"),
+            Self::RogueOnt => write!(f, "Rogue ONT (suspected)"),
+            Self::LaserFailing => write!(f, "Laser Failing (APC out of headroom)"),
+            Self::LaserAgeing => write!(f, "Laser Ageing (planned replacement)"),
         }
     }
 }
@@ -158,6 +190,9 @@ pub struct DetectionResults {
     pub ghost_customers: Vec<GhostCustomer>,
     pub splitter_capacity: Vec<SplitterCapacity>,
     pub weather_correlations: Vec<WeatherCorrelation>,
+    pub fec_findings: Vec<FecFinding>,
+    pub rogue_findings: Vec<RoguePortFinding>,
+    pub laser_predictions: Vec<LaserHealthPrediction>,
 }
 
 /// Generate fault tickets from all detection results.
@@ -453,6 +488,259 @@ pub fn generate_fault_tickets(results: &DetectionResults, arpu: f64) -> Vec<Faul
         });
     }
 
+    // FEC HEALTH → per-ONT tickets.
+    //   ErrorFloorBreached  => P1 Customer (customer already erroring)
+    //   DispersionOrReflection HIGH => P2 Passive (plant impairment rx
+    //     power cannot see — the FEC trend is the only early warning)
+    //   Attenuation HIGH => P3 Passive (optical-budget loss, also visible
+    //     to the optical modules; lower urgency)
+    // Lower-confidence trend findings stay in the fec_health report only —
+    // an honest hypothesis is not yet a dispatch.
+    for finding in &results.fec_findings {
+        let (fault_type, priority, team, sla_days, action) = match (&finding.hypothesis, finding.confidence) {
+            (FecHypothesis::ErrorFloorBreached, _) => (
+                TicketFaultType::FecErrorFloor,
+                TicketPriority::P1,
+                TeamClassification::Customer,
+                1,
+                format!(
+                    "Customer {} on port {} is already experiencing errored frames \
+                     (uncorrectable FEC). Dispatch: inspect ONT optics, connectors and \
+                     drop fibre now — do not wait for an rx-power alarm",
+                    finding.serial_number, finding.pon_port
+                ),
+            ),
+            (FecHypothesis::DispersionOrReflection, FecConfidence::High) => (
+                TicketFaultType::PreFecDegradation,
+                TicketPriority::P2,
+                TeamClassification::Passive,
+                5,
+                format!(
+                    "Inspect plant serving {} on port {} for a reflective/timing \
+                     impairment (connector back-reflection, dispersion): corrected-FEC \
+                     is rising while rx power is stable, so power monitoring will NOT \
+                     catch this before the error floor",
+                    finding.serial_number, finding.pon_port
+                ),
+            ),
+            (FecHypothesis::Attenuation, FecConfidence::High) => (
+                TicketFaultType::PreFecDegradation,
+                TicketPriority::P3,
+                TeamClassification::Passive,
+                14,
+                format!(
+                    "Inspect drop/distribution fibre serving {} on port {} for \
+                     progressive attenuation (bend, splice creep, dirty connector): \
+                     corrected-FEC rising alongside falling rx power",
+                    finding.serial_number, finding.pon_port
+                ),
+            ),
+            _ => continue,
+        };
+
+        let fix_cost = 150.0; // assumed truck roll
+        let revenue = arpu * 12.0 * 0.35;
+        let roi = if fix_cost > 0.0 { revenue / fix_cost } else { 0.0 };
+
+        let mut evidence = vec![finding.summary.clone()];
+        evidence.push(format!(
+            "Corrected-FEC rate: {:.0}/hour ({} normalization)",
+            finding.corrected_rate_per_hour, finding.normalization
+        ));
+        if finding.uncorrected_total > 0 {
+            evidence.push(format!(
+                "Uncorrectable codewords in window: {}",
+                finding.uncorrected_total
+            ));
+        }
+        match finding.rx_trend_dbm_per_day {
+            Some(t) => evidence.push(format!("Rx trend: {:+.3} dBm/day", t)),
+            None => evidence.push("Rx trend: unavailable (insufficient rx samples)".to_string()),
+        }
+        evidence.push(format!("Confidence: {:?}", finding.confidence));
+
+        tickets.push(FaultTicket {
+            ticket_id: next_ticket_id(generated_ts),
+            generated_at: Utc::now(),
+            fault_type,
+            priority,
+            team,
+            affected_ont_count: 1,
+            affected_ont_serials: vec![finding.serial_number.clone()],
+            evidence,
+            estimated_revenue_at_risk_annual: revenue,
+            fix_cost_estimate: fix_cost,
+            estimated_roi: roi,
+            assumptions: vec![
+                format!("Assumed monthly ARPU: {:.2}", arpu),
+                "Assumed 35% churn probability if unresolved".to_string(),
+                format!("Assumed truck roll cost: {:.2}", fix_cost),
+            ],
+            recommended_action: action,
+            sla_days,
+        });
+    }
+
+    // ROGUE ONT → P2 ticket for HIGH-confidence findings only. The finding
+    // is a hypothesis; the ticket action is the vendor-native confirmation
+    // step, never "replace the candidate".
+    for finding in &results.rogue_findings {
+        if finding.confidence != RogueConfidence::High {
+            continue;
+        }
+
+        let fix_cost = 200.0; // assumed maintenance-window diagnostic session
+        let revenue = finding.victim_count as f64 * arpu * 12.0 * 0.35;
+        let roi = if fix_cost > 0.0 { revenue / fix_cost } else { 0.0 };
+
+        let mut evidence = finding.evidence.clone();
+        for c in finding.candidates.iter().take(2) {
+            for e in &c.evidence {
+                evidence.push(format!("Candidate: {}", e));
+            }
+        }
+
+        tickets.push(FaultTicket {
+            ticket_id: next_ticket_id(generated_ts),
+            generated_at: Utc::now(),
+            fault_type: TicketFaultType::RogueOnt,
+            priority: TicketPriority::P2,
+            team: TeamClassification::Active,
+            affected_ont_count: finding.victim_count,
+            affected_ont_serials: finding
+                .candidates
+                .iter()
+                .map(|c| c.serial_number.clone())
+                .collect(),
+            evidence,
+            estimated_revenue_at_risk_annual: revenue,
+            fix_cost_estimate: fix_cost,
+            estimated_roi: roi,
+            assumptions: vec![
+                format!("Assumed monthly ARPU: {:.2}", arpu),
+                "Assumed 35% of victim subscribers churn if unresolved".to_string(),
+                format!("Assumed diagnostic session cost: {:.2}", fix_cost),
+                "Candidate ranking is a passive hypothesis — vendor-native \
+                 confirmation required before any hardware action"
+                    .to_string(),
+            ],
+            recommended_action: finding.recommended_action.clone(),
+            sla_days: 5,
+        });
+    }
+
+    // LASER HEALTH → per-ONT tickets.
+    //   ActivelyFailing => P2 Customer (P1 when the fast-edge EOL ETA is
+    //     ≤ LASER_FAILING_P1_ETA_DAYS): bias rising AND tx power falling —
+    //     the APC loop is out of headroom, the laser is already failing.
+    //   ClassicAgeing with confidence >= 0.8 => P3 Customer planned
+    //     maintenance, with the (heuristic) EOL ETA range in the evidence.
+    //   ClassicAgeing below the confidence bar and BiasRiseOnly (tx trend
+    //     unavailable — ageing vs failing cannot be distinguished) stay in
+    //     the laser_health report only.
+    for pred in &results.laser_predictions {
+        let (fault_type, priority, sla_days, action) = match pred.urgency {
+            LaserHealthUrgency::ActivelyFailing => {
+                let (priority, sla_days) =
+                    if pred.eta_days_to_eol_earliest <= LASER_FAILING_P1_ETA_DAYS {
+                        (TicketPriority::P1, 1)
+                    } else {
+                        (TicketPriority::P2, 5)
+                    };
+                (
+                    TicketFaultType::LaserFailing,
+                    priority,
+                    sla_days,
+                    format!(
+                        "Replace ONT {} on port {} urgently: bias current is rising \
+                         while tx power falls — the APC loop is out of headroom and \
+                         the laser is already failing. Do not wait for an rx-power \
+                         alarm at the OLT",
+                        pred.serial_number, pred.pon_port
+                    ),
+                )
+            }
+            LaserHealthUrgency::ClassicAgeing
+                if pred.confidence >= LASER_AGEING_TICKET_MIN_CONFIDENCE =>
+            {
+                (
+                    TicketFaultType::LaserAgeing,
+                    TicketPriority::P3,
+                    14,
+                    format!(
+                        "Schedule planned ONT replacement for {} on port {} inside \
+                         the EOL ETA window ({}): bias current rising at flat tx \
+                         power is the classic laser end-of-life precursor (APC \
+                         compensating for threshold drift)",
+                        pred.serial_number,
+                        pred.pon_port,
+                        eol_eta_text(pred)
+                    ),
+                )
+            }
+            _ => continue,
+        };
+
+        let fix_cost = 100.0; // assumed ONT replacement cost
+        let revenue = arpu * 12.0 * 0.35;
+        let roi = if fix_cost > 0.0 { revenue / fix_cost } else { 0.0 };
+
+        let detrend_evidence = if pred.temperature_detrended {
+            "Temperature detrending: bias~temperature residuals (thermal swings removed)"
+                .to_string()
+        } else {
+            "Temperature detrending: 24h-mean fallback only (no temperature data — \
+             multi-day weather swings NOT removed; weigh accordingly)"
+                .to_string()
+        };
+        let tx_evidence = match pred.tx_power_stable {
+            Some(true) => "Tx power: flat — APC still holding output constant".to_string(),
+            Some(false) => "Tx power: falling — APC out of headroom".to_string(),
+            None => "Tx power: trend unavailable (insufficient tx samples)".to_string(),
+        };
+
+        tickets.push(FaultTicket {
+            ticket_id: next_ticket_id(generated_ts),
+            generated_at: Utc::now(),
+            fault_type,
+            priority,
+            team: TeamClassification::Customer,
+            affected_ont_count: 1,
+            affected_ont_serials: vec![pred.serial_number.clone()],
+            evidence: vec![
+                format!(
+                    "Bias drift: +{:.2}%/month of median bias {:.1} mA (95% CI \
+                     {:.2}–{:.2}%/month, R²={:.2})",
+                    pred.drift_pct_per_month,
+                    pred.median_bias_ma,
+                    pred.drift_ci95_pct_per_month.0,
+                    pred.drift_ci95_pct_per_month.1,
+                    pred.confidence,
+                ),
+                detrend_evidence,
+                tx_evidence,
+                format!(
+                    "EOL ETA (heuristic: bias at +50% over window-median baseline): {}",
+                    eol_eta_text(pred)
+                ),
+            ],
+            estimated_revenue_at_risk_annual: revenue,
+            fix_cost_estimate: fix_cost,
+            estimated_roi: roi,
+            assumptions: vec![
+                format!("Assumed monthly ARPU: {:.2}", arpu),
+                "Assumed 35% churn probability if unresolved".to_string(),
+                format!("Assumed ONT replacement cost: {:.2}", fix_cost),
+                "EOL threshold (+50% bias over baseline) is a GR-468-style \
+                 HEURISTIC, not a vendor spec — the ETA is a 95%-confidence \
+                 range, never a point promise"
+                    .to_string(),
+            ],
+            recommended_action: action,
+            sla_days,
+        });
+    }
+
     // Sort by priority (P1 first) then by estimated revenue at risk descending
     tickets.sort_by(|a, b| {
         let pa = priority_rank(&a.priority);
@@ -465,6 +753,21 @@ pub fn generate_fault_tickets(results: &DetectionResults, arpu: f64) -> Vec<Faul
     });
 
     tickets
+}
+
+/// The EOL ETA range as human text: "120–300 days (95% confidence)" or
+/// "120+ days (slow edge of confidence band is flat)".
+fn eol_eta_text(pred: &LaserHealthPrediction) -> String {
+    match pred.eta_days_to_eol_latest {
+        Some(late) => format!(
+            "{}–{} days (95% confidence)",
+            pred.eta_days_to_eol_earliest, late
+        ),
+        None => format!(
+            "{}+ days (slow edge of confidence band is flat)",
+            pred.eta_days_to_eol_earliest
+        ),
+    }
 }
 
 /// Map priority to a numeric rank for sorting (lower = higher priority).
@@ -532,6 +835,34 @@ mod tests {
             ghost_customers: Vec::new(),
             splitter_capacity: Vec::new(),
             weather_correlations: Vec::new(),
+            fec_findings: Vec::new(),
+            rogue_findings: Vec::new(),
+            laser_predictions: Vec::new(),
+        }
+    }
+
+    fn make_laser_prediction(
+        urgency: LaserHealthUrgency,
+        confidence: f32,
+        eta_earliest: u32,
+    ) -> LaserHealthPrediction {
+        LaserHealthPrediction {
+            serial_number: "LSR-001".to_string(),
+            pon_port: "OLT01/0/1/0".to_string(),
+            median_bias_ma: 20.0,
+            drift_pct_per_month: 3.2,
+            drift_ci95_pct_per_month: (2.4, 4.0),
+            temperature_detrended: true,
+            tx_power_stable: match urgency {
+                LaserHealthUrgency::ActivelyFailing => Some(false),
+                LaserHealthUrgency::ClassicAgeing => Some(true),
+                LaserHealthUrgency::BiasRiseOnly => None,
+            },
+            urgency,
+            eta_days_to_eol_earliest: eta_earliest,
+            eta_days_to_eol_latest: Some(eta_earliest * 3),
+            confidence,
+            message: "test laser message".to_string(),
         }
     }
 
@@ -728,6 +1059,212 @@ mod tests {
         assert_eq!(tickets[0].affected_ont_count, 4);
         assert_eq!(tickets[0].sla_days, 14);
         assert!((tickets[0].fix_cost_estimate - 150.0).abs() < 0.01);
+    }
+
+    fn make_fec_finding(
+        hypothesis: crate::detection::fec_health::FecHypothesis,
+        confidence: crate::detection::fec_health::FecConfidence,
+        uncorrected: u64,
+    ) -> crate::detection::fec_health::FecFinding {
+        crate::detection::fec_health::FecFinding {
+            serial_number: "FEC-001".to_string(),
+            pon_port: "OLT01/0/1/0".to_string(),
+            window_start: Utc::now() - chrono::Duration::days(7),
+            window_end: Utc::now(),
+            corrected_rate_per_hour: 2500.0,
+            corrected_per_gbyte: None,
+            normalization: "time".to_string(),
+            uncorrected_total: uncorrected,
+            rx_trend_dbm_per_day: Some(0.001),
+            hypothesis,
+            confidence,
+            summary: "test summary".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_ticket_error_floor_breached_is_p1_customer() {
+        let mut results = empty_results();
+        results.fec_findings.push(make_fec_finding(
+            crate::detection::fec_health::FecHypothesis::ErrorFloorBreached,
+            crate::detection::fec_health::FecConfidence::Medium,
+            42,
+        ));
+
+        let tickets = generate_fault_tickets(&results, 89.90);
+        assert_eq!(tickets.len(), 1);
+        assert_eq!(tickets[0].fault_type, TicketFaultType::FecErrorFloor);
+        assert_eq!(tickets[0].priority, TicketPriority::P1, "customer already erroring => P1");
+        assert_eq!(tickets[0].team, TeamClassification::Customer);
+        assert_eq!(tickets[0].sla_days, 1);
+        assert_eq!(tickets[0].affected_ont_serials, vec!["FEC-001".to_string()]);
+        assert!(tickets[0].evidence.iter().any(|e| e.contains("Uncorrectable")));
+    }
+
+    #[test]
+    fn test_ticket_dispersion_high_is_p2_passive_low_conf_suppressed() {
+        let mut results = empty_results();
+        results.fec_findings.push(make_fec_finding(
+            crate::detection::fec_health::FecHypothesis::DispersionOrReflection,
+            crate::detection::fec_health::FecConfidence::High,
+            0,
+        ));
+        results.fec_findings.push(make_fec_finding(
+            crate::detection::fec_health::FecHypothesis::DispersionOrReflection,
+            crate::detection::fec_health::FecConfidence::Low,
+            0,
+        ));
+
+        let tickets = generate_fault_tickets(&results, 89.90);
+        assert_eq!(tickets.len(), 1, "only HIGH-confidence dispersion becomes a ticket");
+        assert_eq!(tickets[0].fault_type, TicketFaultType::PreFecDegradation);
+        assert_eq!(tickets[0].priority, TicketPriority::P2);
+        assert_eq!(tickets[0].team, TeamClassification::Passive);
+        assert!(tickets[0].recommended_action.contains("rx power is stable"));
+    }
+
+    fn make_rogue_finding(
+        confidence: crate::detection::rogue::RogueConfidence,
+    ) -> crate::detection::rogue::RoguePortFinding {
+        crate::detection::rogue::RoguePortFinding {
+            olt: "OLT01".to_string(),
+            pon_port: "OLT01/0/1/0".to_string(),
+            victim_count: 4,
+            window_start: Utc::now() - chrono::Duration::days(3),
+            window_end: Utc::now(),
+            evidence: vec!["4 ONTs suffering".to_string()],
+            candidates: vec![crate::detection::rogue::RogueCandidate {
+                serial_number: "ROGUE-1".to_string(),
+                score: 4.0,
+                evidence: vec!["tx anomaly".to_string(), "bias anomaly".to_string()],
+            }],
+            confidence,
+            recommended_action:
+                "confirm via OLT rogue-ONU detection / port-level bisection during a \
+                 maintenance window"
+                    .to_string(),
+        }
+    }
+
+    #[test]
+    fn test_ticket_rogue_high_is_p2_with_confirmation_action() {
+        let mut results = empty_results();
+        results.rogue_findings.push(make_rogue_finding(
+            crate::detection::rogue::RogueConfidence::High,
+        ));
+        results.rogue_findings.push(make_rogue_finding(
+            crate::detection::rogue::RogueConfidence::Medium,
+        ));
+
+        let tickets = generate_fault_tickets(&results, 89.90);
+        assert_eq!(tickets.len(), 1, "only HIGH-confidence rogue findings become tickets");
+        assert_eq!(tickets[0].fault_type, TicketFaultType::RogueOnt);
+        assert_eq!(tickets[0].priority, TicketPriority::P2);
+        assert_eq!(tickets[0].team, TeamClassification::Active);
+        assert_eq!(tickets[0].affected_ont_count, 4);
+        assert!(
+            tickets[0].recommended_action.contains("rogue-ONU detection"),
+            "ticket must carry the vendor-native confirmation step"
+        );
+        assert!(
+            tickets[0].assumptions.iter().any(|a| a.contains("hypothesis")),
+            "rogue ticket must state the candidate ranking is a hypothesis"
+        );
+        assert!(tickets[0].evidence.iter().any(|e| e.contains("Candidate:")));
+    }
+
+    #[test]
+    fn test_ticket_laser_actively_failing_is_urgent_customer() {
+        let mut results = empty_results();
+        results.laser_predictions.push(make_laser_prediction(
+            LaserHealthUrgency::ActivelyFailing,
+            0.7, // ActivelyFailing tickets regardless of the ageing bar
+            200,
+        ));
+
+        let tickets = generate_fault_tickets(&results, 89.90);
+        assert_eq!(tickets.len(), 1);
+        assert_eq!(tickets[0].fault_type, TicketFaultType::LaserFailing);
+        assert_eq!(tickets[0].priority, TicketPriority::P2, "distant ETA => P2 urgent");
+        assert_eq!(tickets[0].team, TeamClassification::Customer);
+        assert_eq!(tickets[0].sla_days, 5);
+        assert_eq!(tickets[0].affected_ont_serials, vec!["LSR-001".to_string()]);
+        assert!(
+            tickets[0].recommended_action.contains("out of headroom"),
+            "action must explain the failing signature: {}",
+            tickets[0].recommended_action
+        );
+        assert!(
+            tickets[0].assumptions.iter().any(|a| a.contains("HEURISTIC")),
+            "EOL threshold must be labelled a heuristic: {:?}",
+            tickets[0].assumptions
+        );
+    }
+
+    #[test]
+    fn test_ticket_laser_failing_escalates_to_p1_on_short_eta() {
+        let mut results = empty_results();
+        results.laser_predictions.push(make_laser_prediction(
+            LaserHealthUrgency::ActivelyFailing,
+            0.9,
+            21, // fast edge inside the 30-day escalation window
+        ));
+
+        let tickets = generate_fault_tickets(&results, 89.90);
+        assert_eq!(tickets.len(), 1);
+        assert_eq!(tickets[0].priority, TicketPriority::P1);
+        assert_eq!(tickets[0].sla_days, 1);
+    }
+
+    #[test]
+    fn test_ticket_laser_classic_ageing_high_conf_is_p3_with_eta_range() {
+        let mut results = empty_results();
+        results.laser_predictions.push(make_laser_prediction(
+            LaserHealthUrgency::ClassicAgeing,
+            0.92,
+            150,
+        ));
+
+        let tickets = generate_fault_tickets(&results, 89.90);
+        assert_eq!(tickets.len(), 1);
+        assert_eq!(tickets[0].fault_type, TicketFaultType::LaserAgeing);
+        assert_eq!(tickets[0].priority, TicketPriority::P3, "planned maintenance => P3");
+        assert_eq!(tickets[0].team, TeamClassification::Customer);
+        assert_eq!(tickets[0].sla_days, 14);
+        assert!(
+            tickets[0].evidence.iter().any(|e| e.contains("150–450 days")),
+            "ETA range must be in the evidence: {:?}",
+            tickets[0].evidence
+        );
+        assert!(
+            tickets[0].evidence.iter().any(|e| e.contains("heuristic")),
+            "EOL evidence must be labelled heuristic: {:?}",
+            tickets[0].evidence
+        );
+    }
+
+    #[test]
+    fn test_ticket_laser_low_conf_ageing_and_bias_rise_only_suppressed() {
+        let mut results = empty_results();
+        // ClassicAgeing below the 0.8 confidence bar: report-only.
+        results.laser_predictions.push(make_laser_prediction(
+            LaserHealthUrgency::ClassicAgeing,
+            0.65,
+            150,
+        ));
+        // BiasRiseOnly (ageing vs failing indistinguishable): report-only.
+        results.laser_predictions.push(make_laser_prediction(
+            LaserHealthUrgency::BiasRiseOnly,
+            0.95,
+            150,
+        ));
+
+        let tickets = generate_fault_tickets(&results, 89.90);
+        assert!(
+            tickets.is_empty(),
+            "low-confidence ageing / unclassified bias rise must not dispatch: {:?}",
+            tickets.iter().map(|t| &t.fault_type).collect::<Vec<_>>()
+        );
     }
 
     #[test]

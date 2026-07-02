@@ -37,6 +37,22 @@
 // not a false-precision point estimate.
 //   - Absolute critical: measured rx at/below -27.0 dBm is reported directly
 //     (that is a measurement of the current level, not a forecast).
+//
+// STEP vs TREND (why the changepoint pass exists): a splice event, connector
+// rework, or fibre disturbance produces an abrupt LEVEL SHIFT, not a slope.
+// A linear fit over a step conflates the two — a clean 2 dB step with flat
+// segments on both sides fits a "line" with R² ≈ 0.75 and a steep bogus
+// slope, which the gates above would happily quote as CRITICAL. So before
+// fitting, the daily-mean series goes through a binary-segmentation step
+// detector (stats::detect_step — a plain model comparison, NOT a Bayesian
+// online method): if a significant step larger than the 0.3 dB sensor floor
+// exists, the PRE-step history is dropped and the trend is fitted on the
+// post-step segment only (which must independently satisfy every gate above,
+// so a step inside the last 7 days suppresses trend claims entirely). The
+// step itself is reported as `recent_step` — "the level moved 2 dB on day X"
+// is a measurement worth reporting; "therefore it is degrading at 0.2 dB/day"
+// is not.
+//
 // For capacity: fit a line to (timestamp, utilization%) and find when it hits 95%.
 // For churn: track session duration trend over 30 days.
 //
@@ -44,6 +60,9 @@
 // Results are sent to the Pulso Cloud where they're enriched with
 // market intelligence (Starlink penetration, competitor activity, etc.)
 // to produce the final predictions shown to the ISP.
+
+pub mod laser_health;
+pub mod stats;
 
 use std::collections::BTreeMap;
 
@@ -76,6 +95,13 @@ const MIN_R_SQUARED: f64 = 0.6;
 /// the minimum window. Configured thresholds shallower than this are
 /// floored here — they would otherwise classify quantization noise.
 const MIN_DEFENSIBLE_RATE_PER_DAY: f64 = MIN_TOTAL_DROP_DB / MIN_WINDOW_DAYS;
+
+/// Significance threshold (robust standard errors) for the daily-mean step
+/// detector. At 4.0 the family-wise false-positive rate across the ≲60
+/// candidate splits of a daily series stays well below 1% for roughly
+/// Gaussian daily means, and the detector additionally requires the step
+/// model to beat a straight line (see stats::detect_step).
+const STEP_THRESHOLD_MADS: f64 = 4.0;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Predictions {
@@ -130,8 +156,24 @@ pub struct SignalPrediction {
     /// lower fits are suppressed), or 1.0 for measured absolute-level
     /// criticals.
     pub confidence: f32,
+    /// A significant abrupt level shift detected in the history (splice
+    /// event, connector rework, ...). When present, any quoted trend was
+    /// fitted on the POST-step data only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recent_step: Option<RecentStep>,
     /// Human-readable message for the ISP
     pub message: String,
+}
+
+/// An abrupt rx-power level shift found by the daily-mean step detector.
+/// A measurement of "the level moved", NOT a degradation rate.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RecentStep {
+    /// Unix timestamp (UTC, start of day) of the first post-step daily mean.
+    pub at_unix_ts: i64,
+    /// mean(after) - mean(before) in dB; negative = the level dropped.
+    /// Always exceeds the 0.3 dB sensor floor in magnitude.
+    pub magnitude_db: f64,
 }
 
 /// Predicted PON port capacity exhaustion
@@ -219,50 +261,9 @@ pub enum DiagnosticSeverity {
 }
 
 /// Simple linear regression: y = mx + b
-/// Returns (slope, intercept, r_squared)
+/// Returns (slope, intercept, r_squared). Thin wrapper over stats::linear_fit.
 fn linear_regression(points: &[(f64, f64)]) -> Option<(f64, f64, f64)> {
-    linear_regression_full(points).map(|(m, b, r2, _se)| (m, b, r2))
-}
-
-/// Linear regression with slope standard error:
-/// returns (slope, intercept, r_squared, slope_stderr).
-fn linear_regression_full(points: &[(f64, f64)]) -> Option<(f64, f64, f64, f64)> {
-    let n = points.len() as f64;
-    if n < 3.0 {
-        return None; // Need at least 3 data points
-    }
-
-    let sum_x: f64 = points.iter().map(|(x, _)| x).sum();
-    let sum_y: f64 = points.iter().map(|(_, y)| y).sum();
-    let sum_xy: f64 = points.iter().map(|(x, y)| x * y).sum();
-    let sum_x2: f64 = points.iter().map(|(x, _)| x * x).sum();
-
-    let denom = n * sum_x2 - sum_x * sum_x;
-    if denom.abs() < 1e-10 {
-        return None;
-    }
-
-    let slope = (n * sum_xy - sum_x * sum_y) / denom;
-    let intercept = (sum_y - slope * sum_x) / n;
-
-    // R-squared (coefficient of determination)
-    let y_mean = sum_y / n;
-    let ss_tot: f64 = points.iter().map(|(_, y)| (y - y_mean).powi(2)).sum();
-    let ss_res: f64 = points.iter().map(|(x, y)| {
-        let predicted = slope * x + intercept;
-        (y - predicted).powi(2)
-    }).sum();
-    let r_squared = if ss_tot > 0.0 { 1.0 - ss_res / ss_tot } else { 0.0 };
-
-    // Standard error of the slope: sqrt( (ss_res / (n-2)) / Σ(x - x̄)² )
-    let sxx = sum_x2 - sum_x * sum_x / n;
-    let slope_stderr = if n > 2.0 && sxx > 1e-12 {
-        ((ss_res / (n - 2.0)) / sxx).sqrt()
-    } else {
-        f64::INFINITY
-    };
-
-    Some((slope, intercept, r_squared, slope_stderr))
+    stats::linear_fit(points).map(|f| (f.slope, f.intercept, f.r_squared))
 }
 
 /// A degradation trend that passed every statistical gate.
@@ -284,9 +285,18 @@ pub(crate) struct DegradationTrend {
     pub total_fitted_drop_db: f64,
 }
 
+/// Degradation analysis result: a gated trend, a detected step, both, or
+/// neither. A step without a trend is common (splice event, then stable) —
+/// it must be reported as a step, never laundered into a slope.
+#[derive(Debug, Clone)]
+pub(crate) struct DegradationAnalysis {
+    pub trend: Option<DegradationTrend>,
+    pub recent_step: Option<RecentStep>,
+}
+
 /// Fit a degradation trend from raw signal history `(unix_ts, rx_dbm)`,
-/// applying every statistical gate from the module header. Returns None —
-/// i.e. NO prediction, never a CRITICAL — unless the history contains
+/// applying every statistical gate from the module header. `trend` is None —
+/// i.e. NO prediction, never a CRITICAL — unless the fitted segment contains
 /// >= MIN_SAMPLES plausible samples spanning >= MIN_WINDOW_DAYS, aggregated
 /// into >= MIN_DAILY_BUCKETS daily means, fitting a line with
 /// R² >= MIN_R_SQUARED whose total drop across the window exceeds
@@ -295,7 +305,21 @@ pub(crate) struct DegradationTrend {
 /// Daily-mean (24h) aggregation is the detrending step: it averages out the
 /// diurnal thermal cycle and the DDM quantization steps so the fit sees the
 /// day-over-day movement only.
-pub(crate) fn fit_degradation_trend(history: &[(i64, f64)]) -> Option<DegradationTrend> {
+///
+/// STEP HANDLING: before fitting, the daily means are checked for a single
+/// significant level step (stats::detect_step at STEP_THRESHOLD_MADS, and
+/// the step must also exceed the MIN_TOTAL_DROP_DB sensor floor). If one
+/// exists it is returned as `recent_step` and the trend is fitted on the
+/// POST-step daily means only — a step is an event, not a rate, and must not
+/// poison the slope. The post-step segment must independently pass every
+/// gate above, so a step within the last MIN_WINDOW_DAYS suppresses all
+/// trend claims (honest: we cannot distinguish trend from settling yet).
+pub(crate) fn analyze_degradation(history: &[(i64, f64)]) -> DegradationAnalysis {
+    const NOTHING: DegradationAnalysis = DegradationAnalysis {
+        trend: None,
+        recent_step: None,
+    };
+
     // Sanitize: drop vendor sentinels / implausible values before statistics.
     let clean: Vec<(i64, f64)> = history
         .iter()
@@ -303,14 +327,18 @@ pub(crate) fn fit_degradation_trend(history: &[(i64, f64)]) -> Option<Degradatio
         .collect();
 
     if clean.len() < MIN_SAMPLES {
-        return None;
+        return NOTHING;
     }
 
-    let first_ts = clean.iter().map(|(t, _)| *t).min()?;
-    let last_ts = clean.iter().map(|(t, _)| *t).max()?;
+    let Some(first_ts) = clean.iter().map(|(t, _)| *t).min() else {
+        return NOTHING;
+    };
+    let Some(last_ts) = clean.iter().map(|(t, _)| *t).max() else {
+        return NOTHING;
+    };
     let window_days = (last_ts - first_ts) as f64 / 86400.0;
     if window_days < MIN_WINDOW_DAYS {
-        return None;
+        return NOTHING;
     }
 
     // 24h-mean detrending: bucket into UTC days and average.
@@ -322,7 +350,7 @@ pub(crate) fn fit_degradation_trend(history: &[(i64, f64)]) -> Option<Degradatio
         entry.1 += 1;
     }
     if buckets.len() < MIN_DAILY_BUCKETS {
-        return None;
+        return NOTHING;
     }
 
     let daily_points: Vec<(f64, f64)> = buckets
@@ -330,29 +358,77 @@ pub(crate) fn fit_degradation_trend(history: &[(i64, f64)]) -> Option<Degradatio
         .map(|(day, (sum, count))| (*day as f64, sum / *count as f64))
         .collect();
 
-    let (slope, _intercept, r_squared, slope_stderr) =
-        linear_regression_full(&daily_points)?;
+    // Step detection on the daily means. Only steps that are statistically
+    // significant AND above the sensor resolution floor count.
+    let daily_values: Vec<f64> = daily_points.iter().map(|(_, v)| *v).collect();
+    let step = stats::detect_step(&daily_values, STEP_THRESHOLD_MADS)
+        .filter(|s| s.significant && s.magnitude.abs() > MIN_TOTAL_DROP_DB);
+
+    let recent_step = step.as_ref().map(|s| RecentStep {
+        at_unix_ts: daily_points[s.index].0 as i64 * 86400,
+        magnitude_db: s.magnitude,
+    });
+
+    // Fit segment: everything after the step, or the whole series.
+    let fit_points: &[(f64, f64)] = match &step {
+        Some(s) => &daily_points[s.index..],
+        None => &daily_points,
+    };
+
+    let no_trend = DegradationAnalysis {
+        trend: None,
+        recent_step: recent_step.clone(),
+    };
+
+    // The fitted segment must independently satisfy every gate.
+    if fit_points.len() < MIN_DAILY_BUCKETS {
+        return no_trend;
+    }
+    let seg_start_day = fit_points[0].0 as i64;
+    let seg_start_ts = seg_start_day * 86400;
+    let seg_window_days = fit_points.last().map(|(d, _)| d - fit_points[0].0).unwrap_or(0.0);
+    if seg_window_days < MIN_WINDOW_DAYS {
+        return no_trend;
+    }
+    let seg_samples = clean.iter().filter(|(ts, _)| *ts >= seg_start_ts).count();
+    if seg_samples < MIN_SAMPLES {
+        return no_trend;
+    }
+
+    let Some(fit) = stats::linear_fit(fit_points) else {
+        return no_trend;
+    };
 
     // The fit must actually be a line, not noise.
-    if r_squared < MIN_R_SQUARED {
-        return None;
+    if fit.r_squared < MIN_R_SQUARED {
+        return no_trend;
     }
 
     // Only negative (degrading) trends whose total drop clears the sensor
     // resolution gate are real.
-    let total_fitted_drop_db = -slope * window_days;
-    if slope >= 0.0 || total_fitted_drop_db <= MIN_TOTAL_DROP_DB {
-        return None;
+    let total_fitted_drop_db = -fit.slope * seg_window_days;
+    if fit.slope >= 0.0 || total_fitted_drop_db <= MIN_TOTAL_DROP_DB {
+        return no_trend;
     }
 
-    Some(DegradationTrend {
-        slope_per_day: slope,
-        slope_stderr_per_day: slope_stderr,
-        r_squared,
-        window_days,
-        samples: clean.len(),
-        total_fitted_drop_db,
-    })
+    DegradationAnalysis {
+        trend: Some(DegradationTrend {
+            slope_per_day: fit.slope,
+            slope_stderr_per_day: fit.slope_stderr,
+            r_squared: fit.r_squared,
+            window_days: seg_window_days,
+            samples: seg_samples,
+            total_fitted_drop_db,
+        }),
+        recent_step,
+    }
+}
+
+/// Trend-only view of [`analyze_degradation`] (kept for callers/tests that
+/// don't need the step).
+#[allow(dead_code)] // production path uses analyze_degradation; tests + future callers use this
+pub(crate) fn fit_degradation_trend(history: &[(i64, f64)]) -> Option<DegradationTrend> {
+    analyze_degradation(history).trend
 }
 
 /// 95%-confidence ETA range (days) to the failure threshold, from the slope
@@ -600,6 +676,23 @@ pub fn forecast_olt_configured(
         let current_rx = current_rx.and_then(plausible_dbm);
 
         if let Some(current_rx) = current_rx {
+            let history = db.get_ont_signal_history(&ont.serial_number, history_days)
+                .unwrap_or_default();
+            let analysis = analyze_degradation(&history);
+            let step_text = analysis
+                .recent_step
+                .as_ref()
+                .map(|s| {
+                    format!(
+                        " Level step of {:+.1} dB detected on {} — trend (if any) fitted on post-step data only.",
+                        s.magnitude_db,
+                        chrono::DateTime::from_timestamp(s.at_unix_ts, 0)
+                            .map(|d| d.format("%Y-%m-%d").to_string())
+                            .unwrap_or_else(|| s.at_unix_ts.to_string())
+                    )
+                })
+                .unwrap_or_default();
+
             // Absolute critical: the CURRENT measured level is at/below the
             // failure threshold. This is a measurement, not a forecast, so
             // it is reported regardless of trend gates.
@@ -613,24 +706,23 @@ pub fn forecast_olt_configured(
                     severity: DegradationSeverity::Critical,
                     days_to_failure: Some(0),
                     confidence: 1.0,
+                    recent_step: analysis.recent_step,
                     message: format!(
-                        "CRITICAL: ONT {} measured at {:.1} dBm (at/below {:.1} dBm threshold). Immediate inspection required.",
-                        ont.serial_number, current_rx, failure_threshold
+                        "CRITICAL: ONT {} measured at {:.1} dBm (at/below {:.1} dBm threshold). Immediate inspection required.{}",
+                        ont.serial_number, current_rx, failure_threshold, step_text
                     ),
                 });
                 continue;
             }
 
-            let history = db.get_ont_signal_history(&ont.serial_number, history_days)
-                .unwrap_or_default();
-
             // Trend predictions must pass ALL statistical gates (window,
-            // sample count, daily buckets, R², total-drop-above-resolution).
+            // sample count, daily buckets, R², total-drop-above-resolution),
+            // fitted on post-step data only when a significant step exists.
             // Anything that fails emits NOTHING — never a CRITICAL from noise.
-            if let Some(trend) = fit_degradation_trend(&history) {
+            if let Some(trend) = &analysis.trend {
                 let slope = trend.slope_per_day;
                 if let Some(severity) = classify_degradation(slope, current_rx, config) {
-                    let (eta_early, eta_late) = eta_range_days(current_rx, failure_threshold, &trend);
+                    let (eta_early, eta_late) = eta_range_days(current_rx, failure_threshold, trend);
                     let days_to_failure =
                         Some(((current_rx - failure_threshold) / slope.abs()) as u32);
                     let eta_text = match eta_late {
@@ -640,17 +732,17 @@ pub fn forecast_olt_configured(
 
                     let message = match &severity {
                         DegradationSeverity::Critical => format!(
-                            "CRITICAL: ONT {} degrading at {:.3} dBm/day ({:.1} dBm, R²={:.2}, {} samples/{:.0}d). Failure window: {}.",
+                            "CRITICAL: ONT {} degrading at {:.3} dBm/day ({:.1} dBm, R²={:.2}, {} samples/{:.0}d). Failure window: {}.{}",
                             ont.serial_number, slope, current_rx,
-                            trend.r_squared, trend.samples, trend.window_days, eta_text
+                            trend.r_squared, trend.samples, trend.window_days, eta_text, step_text
                         ),
                         DegradationSeverity::Warning => format!(
-                            "WARNING: ONT {} degrading at {:.3} dBm/day ({:.1} dBm, R²={:.2}). Failure window: {}. Schedule inspection.",
-                            ont.serial_number, slope, current_rx, trend.r_squared, eta_text
+                            "WARNING: ONT {} degrading at {:.3} dBm/day ({:.1} dBm, R²={:.2}). Failure window: {}. Schedule inspection.{}",
+                            ont.serial_number, slope, current_rx, trend.r_squared, eta_text, step_text
                         ),
                         DegradationSeverity::Watch => format!(
-                            "WATCH: ONT {} slow degradation at {:.4} dBm/day ({:.1} dBm, R²={:.2}). Monitor trend.",
-                            ont.serial_number, slope, current_rx, trend.r_squared
+                            "WATCH: ONT {} slow degradation at {:.4} dBm/day ({:.1} dBm, R²={:.2}). Monitor trend.{}",
+                            ont.serial_number, slope, current_rx, trend.r_squared, step_text
                         ),
                     };
 
@@ -663,6 +755,7 @@ pub fn forecast_olt_configured(
                         severity,
                         days_to_failure,
                         confidence: trend.r_squared as f32,
+                        recent_step: analysis.recent_step.clone(),
                         message,
                     });
                 }
@@ -942,6 +1035,100 @@ mod tests {
             fit_degradation_trend(&history).is_none(),
             "sentinel values must be dropped, not fitted"
         );
+    }
+
+    #[test]
+    fn test_step_plus_flat_yields_step_not_trend() {
+        // 7 days flat at -20, an abrupt 2.5 dB drop (splice event), then 7
+        // days flat at -22.5. The OLD behavior fitted a line through the
+        // step (R² ≈ 0.75 clears the gate) and quoted a steep bogus trend.
+        // NEW behavior: NO trend (post-step segment too short to re-qualify),
+        // but the step IS reported.
+        let start: i64 = 1_770_000_000;
+        let mut history = Vec::new();
+        for d in 0..14u32 {
+            let base = if d < 7 { -20.0 } else { -22.5 };
+            for s in 0..4u32 {
+                let ts = start + (d as i64) * 86400 + (s as i64) * 21600;
+                let hour = s as f64 * 6.0;
+                let diurnal = 0.2 * (2.0 * std::f64::consts::PI * hour / 24.0).sin();
+                history.push((ts, ((base + diurnal) * 10.0f64).round() / 10.0));
+            }
+        }
+        let analysis = analyze_degradation(&history);
+        assert!(
+            analysis.trend.is_none(),
+            "a step is an event, not a trend: {:?}",
+            analysis.trend
+        );
+        let step = analysis.recent_step.expect("the 2.5 dB step must be reported");
+        assert!(
+            (step.magnitude_db + 2.5).abs() < 0.5,
+            "magnitude={}",
+            step.magnitude_db
+        );
+        // Step day: 7 days after start.
+        let expected_ts = (start.div_euclid(86400) + 7) * 86400;
+        assert!(
+            (step.at_unix_ts - expected_ts).abs() <= 2 * 86400,
+            "step at {} expected ~{}",
+            step.at_unix_ts,
+            expected_ts
+        );
+    }
+
+    #[test]
+    fn test_step_then_trend_fits_post_step_only() {
+        // 6 days flat at -19, a 3 dB step, then 15 days genuinely degrading
+        // at -0.12 dBm/day. A whole-series fit conflates step + trend into
+        // roughly -0.25 dBm/day; the honest slope is the post-step -0.12.
+        let start: i64 = 1_770_000_000;
+        let mut history = Vec::new();
+        for d in 0..21u32 {
+            let base = if d < 6 {
+                -19.0
+            } else {
+                -22.0 - 0.12 * (d - 6) as f64
+            };
+            for s in 0..4u32 {
+                let ts = start + (d as i64) * 86400 + (s as i64) * 21600;
+                let hour = s as f64 * 6.0;
+                let diurnal = 0.2 * (2.0 * std::f64::consts::PI * hour / 24.0).sin();
+                history.push((ts, ((base + diurnal) * 10.0f64).round() / 10.0));
+            }
+        }
+        let analysis = analyze_degradation(&history);
+        let step = analysis.recent_step.expect("3 dB step must be reported");
+        assert!((step.magnitude_db + 3.0).abs() < 1.0, "magnitude={}", step.magnitude_db);
+        let trend = analysis
+            .trend
+            .expect("15 post-step days of genuine degradation must re-qualify");
+        assert!(
+            (trend.slope_per_day - (-0.12)).abs() < 0.04,
+            "slope must be the POST-step rate, got {}",
+            trend.slope_per_day
+        );
+        assert!(
+            trend.slope_per_day > -0.2,
+            "slope must not be poisoned by the step (conflated fit ≈ -0.25): {}",
+            trend.slope_per_day
+        );
+        assert!(trend.window_days < 16.0, "window is the post-step segment");
+    }
+
+    #[test]
+    fn test_pure_trend_reports_no_step() {
+        // A genuine ramp must stay a trend: the step detector's line-model
+        // comparison must NOT split it and shorten the fit window.
+        let history = synth_history(14, 4, -20.0, -0.1, 0.3);
+        let analysis = analyze_degradation(&history);
+        assert!(
+            analysis.recent_step.is_none(),
+            "ramp misread as step: {:?}",
+            analysis.recent_step
+        );
+        let trend = analysis.trend.expect("genuine trend must survive");
+        assert!((trend.slope_per_day - (-0.1)).abs() < 0.03);
     }
 
     #[test]

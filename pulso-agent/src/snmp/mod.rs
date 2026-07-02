@@ -87,6 +87,31 @@ pub mod oids {
         pub const ONT_UPTIME: &str = "1.3.6.1.4.1.2011.6.128.1.1.2.46.1.24";
         pub const ONT_DOWN_CAUSE: &str = "1.3.6.1.4.1.2011.6.128.1.1.2.46.1.22";
         pub const PON_BW_UTIL: &str = "1.3.6.1.4.1.2011.6.128.1.1.2.23.1";
+
+        // hwGponDeviceOntOpticalDdmInfoTable column map (…1.1.2.51.1.x),
+        // verified 2026-07-02 against two independent machine-readable
+        // mirrors of Huawei's HUAWEI-XPON-MIB text (they agree exactly):
+        //   https://mibs.observium.org/object/HUAWEI-XPON-MIB/hwGponOntOpticalDdm*
+        //   https://github.com/nocproject/noc cmibs/huawei_xpon_mib.py
+        //   .1 hwGponOntOpticalDdmTemperature  "unit C(centigrade)"
+        //   .2 hwGponOntOpticalDdmBiasCurrent  "unit mA"
+        //   .3 hwGponOntOpticalDdmTxPower      "unit 0.01dBm"
+        //   .4 hwGponOntOpticalDdmRxPower      "unit 0.01dBm"
+        //   .5 hwGponOntOpticalDdmVoltage      "unit mV"
+        //   .6 hwGponOntOpticalDdmOltRxOntPower
+        // The column OIDs .1/.2/.5/.6 also appear (as bare walk targets) in a
+        // real MA5683T operator capture: data/external/snmp-dumps/huawei/
+        // localcomua_ma5683t_thread_excerpts.txt.
+        //
+        // TRAP: .51.1.5 is the supply VOLTAGE (mV), not tx power. The legacy
+        // ONT_TX_POWER constant above points at .5 — on real gear its ~3300 mV
+        // readings scaled /100 to 33 dBm and were silently discarded by the
+        // plausibility window, so tx_power_dbm was always None. Superseded by
+        // ONT_DDM_TX_POWER (.3) below; kept only so this module stays additive.
+        pub const ONT_DDM_TEMPERATURE: &str = "1.3.6.1.4.1.2011.6.128.1.1.2.51.1.1";
+        pub const ONT_DDM_BIAS_CURRENT: &str = "1.3.6.1.4.1.2011.6.128.1.1.2.51.1.2";
+        pub const ONT_DDM_TX_POWER: &str = "1.3.6.1.4.1.2011.6.128.1.1.2.51.1.3";
+        pub const ONT_DDM_VOLTAGE_MV: &str = "1.3.6.1.4.1.2011.6.128.1.1.2.51.1.5";
     }
 
     pub mod zte {

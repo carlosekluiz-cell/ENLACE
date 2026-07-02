@@ -267,7 +267,8 @@ impl ElasticOutput {
     }
 
     /// Build NDJSON bulk body with Adtran-specific extended schema.
-    /// Index pattern: `enlace-adtran-{YYYY.MM.DD}`
+    /// Index pattern: `{prefix}-adtran-{YYYY.MM.DD}` (same configured
+    /// index_prefix as every other write path)
     /// Includes: ONT-side power, temperature, voltage, bias current,
     /// degradation predictions, and customer diagnostics.
     pub fn build_adtran_bulk(
@@ -285,7 +286,7 @@ impl ElasticOutput {
 
         let now = Utc::now();
         let date_suffix = now.format("%Y.%m.%d").to_string();
-        let index = format!("enlace-adtran-{}", date_suffix);
+        let index = format!("{}-adtran-{}", self.index_prefix, date_suffix);
         let timestamp = now.to_rfc3339();
         let action_line = format!("{{\"index\":{{\"_index\":\"{}\"}}}}\n", index);
         let timestamp_json = serde_json::to_string(&timestamp).unwrap();
@@ -423,7 +424,10 @@ impl ElasticOutput {
 
     /// Convert an incident lifecycle update (open OR resolve) into a fault
     /// document. `event_action` + `incident_id` let dashboards pair resolves
-    /// with their opens.
+    /// with their opens. Classification evidence (gasp ratio, onset,
+    /// confidence, summary) and the cross-OLT `area_power_suspected` flag
+    /// ride along so dashboards can show WHY the fault_type was called,
+    /// never just the label.
     pub fn incident_to_doc(update: &IncidentUpdate) -> String {
         let event = &update.event;
         let doc = serde_json::json!({
@@ -440,6 +444,11 @@ impl ElasticOutput {
             "olt_id": &event.olt_id,
             "affected_onts_count": event.affected_onts.len(),
             "dying_gasp_count": event.affected_onts.iter().filter(|o| o.had_dying_gasp).count(),
+            "dying_gasp_ratio": update.classification.dying_gasp_ratio,
+            "onset": update.classification.onset.to_string(),
+            "classification_confidence": update.classification.confidence.to_string(),
+            "classification_summary": &update.classification.summary,
+            "area_power_suspected": update.area_power_suspected,
             "detection_latency_seconds": event.detection_latency_seconds
         });
         doc.to_string()
@@ -737,6 +746,11 @@ impl ElasticOutput {
                         "olt_id": { "type": "keyword" },
                         "affected_onts_count": { "type": "integer" },
                         "dying_gasp_count": { "type": "integer" },
+                        "dying_gasp_ratio": { "type": "float" },
+                        "onset": { "type": "keyword" },
+                        "classification_confidence": { "type": "keyword" },
+                        "classification_summary": { "type": "text" },
+                        "area_power_suspected": { "type": "boolean" },
                         "detection_latency_seconds": { "type": "long" }
                     }
                 }
@@ -744,7 +758,7 @@ impl ElasticOutput {
         });
 
         let adtran_template = serde_json::json!({
-            "index_patterns": ["enlace-adtran-*"],
+            "index_patterns": [format!("{}-adtran-*", self.index_prefix)],
             "priority": 100,
             "template": {
                 "settings": { "index.lifecycle.name": policy_name },
@@ -810,7 +824,7 @@ impl ElasticOutput {
             .await;
         ok &= self
             .put_json(
-                "_index_template/enlace-adtran",
+                &format!("_index_template/{}-adtran", self.index_prefix),
                 &adtran_template,
                 "Adtran index template",
             )
@@ -1169,6 +1183,7 @@ mod tests {
             severity: DegradationSeverity::Warning,
             days_to_failure: Some(50),
             confidence: 0.85,
+            recent_step: None,
             message: "WARNING: ADTN153201C4 degrading".into(),
         }];
 
@@ -1193,12 +1208,13 @@ mod tests {
         let lines: Vec<&str> = body.lines().collect();
         assert_eq!(lines.len(), 4, "Expected 4 NDJSON lines for 2 ONTs");
 
-        // Check index pattern is enlace-adtran-{date}
+        // Check index pattern is {configured prefix}-adtran-{date} — the
+        // Adtran path must honour index_prefix like every other write path
         let action: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
         let index_name = action["index"]["_index"].as_str().unwrap();
         assert!(
-            index_name.starts_with("enlace-adtran-"),
-            "Adtran index should start with enlace-adtran-: {}",
+            index_name.starts_with("pulso-adtran-"),
+            "Adtran index should start with configured prefix: {}",
             index_name
         );
 
@@ -1289,6 +1305,8 @@ mod tests {
             opened_at,
             resolved_at: Some(resolved_at),
             ports: vec!["0/2/0".into()],
+            classification: Default::default(),
+            area_power_suspected: false,
             event: make_fault_event(),
         };
 
@@ -1316,6 +1334,43 @@ mod tests {
         assert!(doc["resolved_at"].is_null());
     }
 
+    #[test]
+    fn test_incident_doc_carries_classification_evidence() {
+        use crate::fault::detector::{
+            ClassificationConfidence, ClassificationEvidence, OnsetPattern,
+        };
+        let update = IncidentUpdate {
+            action: IncidentAction::Open,
+            incident_id: "olt-a:0/1/0:1751400000".into(),
+            scope: IncidentScope::Port,
+            opened_at: Utc::now(),
+            resolved_at: None,
+            ports: vec!["0/1/0".into()],
+            classification: ClassificationEvidence {
+                dying_gasp_count: 7,
+                hard_offline_count: 1,
+                dying_gasp_ratio: 0.875,
+                onset: OnsetPattern::Simultaneous,
+                onset_spread_seconds: 12,
+                confidence: ClassificationConfidence::High,
+                summary: "power_outage: 7/8 dying gasps (ratio 0.88)".into(),
+            },
+            area_power_suspected: true,
+            event: make_fault_event(),
+        };
+
+        let doc: serde_json::Value =
+            serde_json::from_str(&ElasticOutput::incident_to_doc(&update)).unwrap();
+        assert_eq!(doc["dying_gasp_ratio"], 0.875);
+        assert_eq!(doc["onset"], "simultaneous");
+        assert_eq!(doc["classification_confidence"], "high");
+        assert_eq!(
+            doc["classification_summary"],
+            "power_outage: 7/8 dying gasps (ratio 0.88)"
+        );
+        assert_eq!(doc["area_power_suspected"], true);
+    }
+
     #[tokio::test]
     async fn test_send_incident_targets_faults_index() {
         let (url, state) = spawn_mock_es(vec![]).await;
@@ -1328,6 +1383,8 @@ mod tests {
             opened_at: Utc::now(),
             resolved_at: Some(Utc::now()),
             ports: vec!["0/1/0".into()],
+            classification: Default::default(),
+            area_power_suspected: false,
             event: make_fault_event(),
         };
 

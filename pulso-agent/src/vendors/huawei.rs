@@ -36,6 +36,8 @@ pub struct HuaweiCollector {
     config: OltConfig,
     snmp: Option<SnmpPoller>,
     olt_id: String,
+    /// One-time telemetry-coverage log guard (see collect_onts_snmp).
+    coverage_logged: std::sync::atomic::AtomicBool,
 }
 
 impl HuaweiCollector {
@@ -48,6 +50,7 @@ impl HuaweiCollector {
             olt_id: format!("huawei-{}", config.ip.replace('.', "-")),
             config: config.clone(),
             snmp,
+            coverage_logged: std::sync::atomic::AtomicBool::new(false),
         })
     }
 
@@ -62,8 +65,25 @@ impl HuaweiCollector {
         let serials = snmp.walk_table(oids::huawei::ONT_SERIAL).await?;
         let statuses = snmp.walk_table(oids::huawei::ONT_STATUS).await?;
         let rx_powers = snmp.walk_table(oids::huawei::ONT_RX_POWER).await?;
-        let tx_powers = snmp.walk_table(oids::huawei::ONT_TX_POWER).await?;
+        // NOTE: tx power is DDM column .3 — the old .51.1.5 constant is the
+        // supply voltage (see the citation block in snmp::oids::huawei).
+        let tx_powers = snmp.walk_table(oids::huawei::ONT_DDM_TX_POWER).await?;
         let distances = snmp.walk_table(oids::huawei::ONT_DISTANCE).await?;
+        // Extended DDM columns (same hwGponDeviceOntOpticalDdmInfoTable).
+        let temps = snmp.walk_table(oids::huawei::ONT_DDM_TEMPERATURE).await?;
+        let biases = snmp.walk_table(oids::huawei::ONT_DDM_BIAS_CURRENT).await?;
+        let voltages = snmp.walk_table(oids::huawei::ONT_DDM_VOLTAGE_MV).await?;
+
+        // Telemetry coverage — once per OLT, not per cycle.
+        if !self.coverage_logged.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            tracing::debug!(
+                olt = %self.olt_id,
+                "Huawei SNMP coverage: optical rx/tx + DDM temperature/bias/voltage \
+                 collected; FEC/BIP and per-ONT octet counters are NOT collected — \
+                 no OID for them is verifiable from the available captures \
+                 (data/external/snmp-dumps/huawei/) or public HUAWEI-XPON-MIB text"
+            );
+        }
 
         // Correlate by OID index: <gponPortIfIndex>.<ontId>, matched on
         // component boundaries (a plain ends_with would attribute ONT 8.1's
@@ -101,10 +121,41 @@ impl HuaweiCollector {
                     _ => None,
                 });
 
+            // Extended DDM readings (ONT-side transceiver, OMCI-sourced).
+            let temperature = super::snmp_helper::find_by_suffix(&temps, &index)
+                .and_then(|v| match v {
+                    crate::snmp::SnmpData::Integer(i) => huawei_ddm_temp_c(*i),
+                    _ => None,
+                });
+            let bias = super::snmp_helper::find_by_suffix(&biases, &index)
+                .and_then(|v| match v {
+                    crate::snmp::SnmpData::Integer(i) => huawei_ddm_bias_ma(*i),
+                    _ => None,
+                });
+            let voltage = super::snmp_helper::find_by_suffix(&voltages, &index)
+                .and_then(|v| match v {
+                    crate::snmp::SnmpData::Integer(i) => huawei_ddm_voltage_v(*i),
+                    _ => None,
+                });
+
             // Determine refined status based on signal level
             let refined_status = match (&status, rx_power) {
                 (OntStatus::Online, Some(rx)) if rx < -27.0 => OntStatus::LowSignal,
                 _ => status,
+            };
+
+            let extended = if temperature.is_some() || voltage.is_some() || bias.is_some() {
+                Some(ExtendedOntMetrics {
+                    // ONT-side rx already lives in top-level rx_power_dbm
+                    // (hwGponOntOpticalDdmRxPower IS the ONT-side reading);
+                    // not duplicated here.
+                    ont_rx_power_dbm: None,
+                    ont_temperature_c: temperature,
+                    ont_voltage_v: voltage,
+                    ont_bias_current_ma: bias,
+                })
+            } else {
+                None
             };
 
             onts.push(OntData {
@@ -124,7 +175,7 @@ impl HuaweiCollector {
                 out_octets: None,
                 fec_corrected: None, fec_uncorrected: None, bip_errors: None,
                 eth_speed_mbps: None,
-                extended: None,
+                extended,
             });
         }
 
@@ -351,6 +402,26 @@ pub(crate) fn huawei_optical_dbm(raw: i64) -> Option<f64> {
     super::snmp_helper::plausible_dbm(raw as f64 / 100.0)
 }
 
+/// hwGponOntOpticalDdmTemperature (…2.51.1.1) → °C. MIB text: "The
+/// temperature of the optical module, unit C(centigrade)" — whole degrees,
+/// no scaling (citations in snmp::oids::huawei). The 2147483647 sentinel
+/// falls outside the plausibility window.
+pub(crate) fn huawei_ddm_temp_c(raw: i64) -> Option<f64> {
+    super::snmp_helper::plausible_temp_c(raw as f64)
+}
+
+/// hwGponOntOpticalDdmBiasCurrent (…2.51.1.2) → mA. MIB text: "The Bias
+/// Current of the optical module, unit mA" — no scaling.
+pub(crate) fn huawei_ddm_bias_ma(raw: i64) -> Option<f64> {
+    super::snmp_helper::plausible_bias_ma(raw as f64)
+}
+
+/// hwGponOntOpticalDdmVoltage (…2.51.1.5) → V. MIB text: "The power feed
+/// voltage of the optical module, unit mV" — divide by 1000.
+pub(crate) fn huawei_ddm_voltage_v(raw: i64) -> Option<f64> {
+    super::snmp_helper::plausible_voltage_v(raw as f64 / 1000.0)
+}
+
 /// Decode frame/slot/port + ONT id from the hwGponDeviceOnt* table index
 /// (<gponPortIfIndex>.<ontId>).
 ///
@@ -418,6 +489,93 @@ mod tests {
         // INTEGER: 2147483647 — must become None, not 21474836.47 dBm.
         assert_eq!(huawei_optical_dbm(2147483647), None);
         assert_eq!(huawei_optical_dbm(i32::MIN as i64), None);
+    }
+
+    #[test]
+    fn test_huawei_ddm_column_layout_matches_mib_text() {
+        // hwGponDeviceOntOpticalDdmInfoTable columns per HUAWEI-XPON-MIB
+        // (two independent mirrors agree — citations in snmp::oids::huawei):
+        // .1 temp / .2 bias / .3 TX / .4 RX / .5 voltage. Guard the .3/.5
+        // trap: tx power is NOT column .5.
+        assert_eq!(oids::huawei::ONT_DDM_TEMPERATURE, "1.3.6.1.4.1.2011.6.128.1.1.2.51.1.1");
+        assert_eq!(oids::huawei::ONT_DDM_BIAS_CURRENT, "1.3.6.1.4.1.2011.6.128.1.1.2.51.1.2");
+        assert_eq!(oids::huawei::ONT_DDM_TX_POWER, "1.3.6.1.4.1.2011.6.128.1.1.2.51.1.3");
+        assert_eq!(oids::huawei::ONT_RX_POWER, "1.3.6.1.4.1.2011.6.128.1.1.2.51.1.4");
+        assert_eq!(oids::huawei::ONT_DDM_VOLTAGE_MV, "1.3.6.1.4.1.2011.6.128.1.1.2.51.1.5");
+    }
+
+    #[test]
+    fn test_huawei_ddm_scaling_and_sentinels() {
+        // Temperature: whole °C, no scaling ("unit C(centigrade)")
+        assert_eq!(huawei_ddm_temp_c(45), Some(45.0));
+        assert_eq!(huawei_ddm_temp_c(-5), Some(-5.0));
+        assert_eq!(huawei_ddm_temp_c(2147483647), None); // offline sentinel
+        // Bias: whole mA ("unit mA")
+        assert_eq!(huawei_ddm_bias_ma(12), Some(12.0));
+        assert_eq!(huawei_ddm_bias_ma(2147483647), None);
+        // Voltage: mV → V ("unit mV"); a typical 3300 mV module reads 3.3 V
+        assert_eq!(huawei_ddm_voltage_v(3300), Some(3.3));
+        assert_eq!(huawei_ddm_voltage_v(2147483647), None);
+        // The historic mis-wiring: a 3300 mV voltage reading fed through the
+        // optical (0.01 dBm) path became 33 dBm and was (rightly) discarded —
+        // which is how tx_power_dbm ended up always-None before the fix.
+        assert_eq!(huawei_optical_dbm(3300), None);
+    }
+
+    /// Replay the REAL MA5680T ONT rx-power walk (~50 ONTs incl. offline
+    /// sentinels) through index decode + scaling. Fixture:
+    /// data/external/snmp-dumps/huawei/librenms_forum6801_ma5680t_ddm_rxpower.txt
+    /// (net-snmp output lines "iso.3.…2.51.1.4.<ifIndex>.<ont> = INTEGER: x").
+    /// Skips gracefully when the data dir is absent (same pattern as the zte
+    /// full-walk replay test).
+    #[test]
+    fn test_ddm_rx_replay_against_full_real_ma5680t_walk() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/external/snmp-dumps/huawei/librenms_forum6801_ma5680t_ddm_rxpower.txt"
+        );
+        let data = match std::fs::read_to_string(path) {
+            Ok(d) => d,
+            Err(_) => {
+                eprintln!("skipping: real-walk fixture not present at {path}");
+                return;
+            }
+        };
+
+        const COL: &str = "3.6.1.4.1.2011.6.128.1.1.2.51.1.4.";
+        let mut rows = 0;
+        let mut readings = 0;
+        for line in data.lines() {
+            // "iso.3.6.…2.51.1.4.4194312192.0 = INTEGER: -1583"
+            let Some(rest) = line.trim_start_matches('>').trim().strip_prefix("iso.") else {
+                continue;
+            };
+            let Some((oid_tail, value)) = rest.split_once(" = INTEGER: ") else { continue };
+            let Some(index) = oid_tail.strip_prefix(COL) else { continue };
+            let raw: i64 = value.trim().parse().expect("integer row");
+            rows += 1;
+
+            // Index must decode to a real frame/slot/port (slot 1 on this
+            // MA5680T — 4194312192 = 0/1/0, +256 per port).
+            let (slot, port, _ont) = parse_huawei_index(index);
+            assert_eq!(slot, 1, "unexpected slot from index {index}");
+            assert!(port <= 15, "impossible port {port} from index {index}");
+
+            match huawei_optical_dbm(raw) {
+                Some(dbm) => {
+                    // Every accepted reading must be a physically sane GPON
+                    // upstream level.
+                    assert!((-45.0..=10.0).contains(&dbm), "implausible {dbm} from {raw}");
+                    readings += 1;
+                }
+                None => {
+                    // Only the documented offline sentinel may be rejected.
+                    assert_eq!(raw, 2147483647, "unexpected rejected value {raw}");
+                }
+            }
+        }
+        assert!(rows >= 40, "expected the ~50-ONT walk, saw {rows} rows");
+        assert!(readings >= 30, "expected mostly live readings, saw {readings}");
     }
 
     /// Byte-exact fixture from networktocode/ntc-templates

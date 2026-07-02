@@ -82,6 +82,8 @@ pub struct BdcomCollector {
     config: OltConfig,
     snmp: Option<SnmpPoller>,
     olt_id: String,
+    /// One-time telemetry-coverage log guard (see collect_onts_snmp).
+    coverage_logged: std::sync::atomic::AtomicBool,
 }
 
 impl BdcomCollector {
@@ -93,12 +95,26 @@ impl BdcomCollector {
             olt_id: format!("bdcom-{}", config.ip.replace('.', "-")),
             config: config.clone(),
             snmp,
+            coverage_logged: std::sync::atomic::AtomicBool::new(false),
         })
     }
 
     async fn collect_onts_snmp(&self) -> anyhow::Result<Vec<OntData>> {
         let snmp = self.snmp.as_ref()
             .ok_or_else(|| anyhow::anyhow!("SNMP not configured"))?;
+
+        // Telemetry coverage — once per OLT, not per cycle.
+        if !self.coverage_logged.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            tracing::debug!(
+                olt = %self.olt_id,
+                "BDCOM SNMP coverage: optical rx/tx collected; DDM \
+                 temperature/voltage/bias, FEC/BIP and per-ONT octet counters \
+                 are NOT collected — the ONU transceiver temp/volt/bias exist \
+                 in CLI (`show gpon onu-optical-transceiver-diagnosis`) but the \
+                 real captures (data/external/snmp-dumps/bdcom/nagwiki_*) only \
+                 verify the rx/tx SNMP columns (.10.3.4.1.2/.3, .101.10.5.1.5/.6)"
+            );
+        }
 
         // ifDescr is the source of PON-port names AND ONU-interface ifIndexes;
         // errors propagate (a partial ifTable would mis-attribute ONUs).

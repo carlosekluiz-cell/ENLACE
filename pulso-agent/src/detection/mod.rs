@@ -20,6 +20,8 @@ pub mod tickets;
 pub mod flapping;
 pub mod sfp_health;
 pub mod optical_budget;
+pub mod fec_health;
+pub mod rogue;
 
 use std::collections::HashMap;
 

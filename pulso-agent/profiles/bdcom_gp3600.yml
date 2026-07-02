@@ -1,0 +1,8 @@
+vendor: bdcom
+models: [GP3600-04, GP3600-08, GP3600-16]
+detection:
+  sys_object_id_prefix: "1.3.6.1.4.1.3320"
+snmp_oids:
+  ont:
+    status: "1.3.6.1.4.1.3320.101.12.1.1.7"
+    rx_power: "1.3.6.1.4.1.3320.101.10.5.1.5"

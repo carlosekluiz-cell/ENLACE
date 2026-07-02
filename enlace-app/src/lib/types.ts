@@ -34,6 +34,20 @@ export interface AuditResult {
   reflectance: ReflectanceEvent[];
   optical_budget: OpticalBudgetEntry[];
   sfp_health: SfpHealth[];
+  /**
+   * Pre-FEC degradation report. The full object (coverage counters +
+   * coverage_note) is ALWAYS present, even with zero findings — absence of
+   * a finding is not evidence of health when only N of M ONTs had FEC data.
+   */
+  fec_health: FecHealthReport;
+  /**
+   * Laser end-of-life report from bias-current drift. Like fec_health, the
+   * full object (predictions + coverage) is always present so the UI can say
+   * how much of the estate had assessable bias data.
+   */
+  laser_health: LaserHealthReport;
+  /** Passive rogue-ONT findings (hypotheses with confirmation steps). */
+  rogue: RoguePortFinding[];
   churn_risk: ChurnRisk[];
   tickets: Ticket[];
   diagnostics: Diagnostics;
@@ -235,6 +249,113 @@ export interface ChurnRisk {
   micro_dropout_count: number;
   impact: string;
   assumptions: ChurnAssumptions;
+}
+
+// ── Pre-FEC degradation (detection/fec_health.rs) ──
+
+export type FecHypothesis =
+  | "Attenuation"
+  | "DispersionOrReflection"
+  | "ErrorFloorBreached";
+
+export type FecConfidence = "High" | "Medium" | "Low";
+
+export interface FecFinding {
+  serial_number: string;
+  pon_port: string;
+  window_start: string;
+  window_end: string;
+  corrected_rate_per_hour: number;
+  /** Traffic-normalized rate; null when octet counters were unavailable. */
+  corrected_per_gbyte: number | null;
+  /** Which normalization the rate uses ("time" or "traffic"). */
+  normalization: string;
+  uncorrected_total: number;
+  /** null = insufficient rx samples to quote a trend. */
+  rx_trend_dbm_per_day: number | null;
+  hypothesis: FecHypothesis;
+  confidence: FecConfidence;
+  summary: string;
+}
+
+export interface FecHealthReport {
+  onts_with_fec_data: number;
+  total_onts: number;
+  /** Honest coverage statement ("FEC analysis covered N of M ONTs…"). */
+  coverage_note: string;
+  findings: FecFinding[];
+}
+
+// ── Laser health (predictions/laser_health.rs) ──
+
+export type LaserHealthUrgency =
+  | "ClassicAgeing"
+  | "ActivelyFailing"
+  | "BiasRiseOnly";
+
+export interface LaserHealthPrediction {
+  serial_number: string;
+  pon_port: string;
+  /** Median bias current across the window (mA) — the ONT's own baseline. */
+  median_bias_ma: number;
+  drift_pct_per_month: number;
+  /** 95% confidence interval on the drift (%/month). */
+  drift_ci95_pct_per_month: [number, number];
+  /** False = 24h-mean fallback only (no temperature data — weigh accordingly). */
+  temperature_detrended: boolean;
+  /** true = flat, false = moving, null = insufficient tx data. */
+  tx_power_stable: boolean | null;
+  urgency: LaserHealthUrgency;
+  /** ETA to the +50%-over-baseline EOL HEURISTIC — a range, not a promise. */
+  eta_days_to_eol_earliest: number;
+  /** null = slow edge of the confidence band is flat (open-ended). */
+  eta_days_to_eol_latest: number | null;
+  /** R² of the residual daily-mean fit (>= 0.6 by construction). */
+  confidence: number;
+  message: string;
+}
+
+/** Coverage counters: ONTs without bias data are NOT "healthy", just absent. */
+export interface LaserHealthCoverage {
+  onts_total: number;
+  onts_with_bias: number;
+  onts_analyzed: number;
+  /** Had bias data but failed a data-sufficiency gate — "not assessable yet". */
+  onts_gated_out: number;
+  onts_temperature_detrended: number;
+  onts_flagged: number;
+}
+
+export interface LaserHealthReport {
+  predictions: LaserHealthPrediction[];
+  coverage: LaserHealthCoverage;
+}
+
+// ── Rogue ONT hypotheses (detection/rogue.rs) ──
+
+export type RogueConfidence = "High" | "Medium" | "Low";
+
+export interface RogueCandidate {
+  serial_number: string;
+  score: number;
+  evidence: string[];
+}
+
+/**
+ * A passive multi-victim upstream-integrity hypothesis. The candidate
+ * ranking is NOT a verdict — recommended_action carries the vendor-native
+ * confirmation step, never "replace the candidate".
+ */
+export interface RoguePortFinding {
+  olt: string;
+  pon_port: string;
+  victim_count: number;
+  window_start: string;
+  window_end: string;
+  evidence: string[];
+  candidates: RogueCandidate[];
+  confidence: RogueConfidence;
+  recommended_action: string;
 }
 
 // ── Tickets (detection/tickets.rs) ──

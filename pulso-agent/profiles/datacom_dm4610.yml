@@ -1,0 +1,5 @@
+vendor: datacom
+models: [DM4610, DM4615]
+detection:
+  sys_object_id_prefix: "1.3.6.1.4.1.3709"
+notes: "DmOS supports NETCONF/YANG natively. LibreNMS has DmOS support."

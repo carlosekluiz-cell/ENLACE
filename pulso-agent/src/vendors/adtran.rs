@@ -21,6 +21,12 @@
 //   - OLT-side upstream rx power per ONU via bbf-hardware-transceivers-xpon
 //     `rssi-onu` list (0.1 dBm units)
 //   - ONT-side OMCI transceiver data where exposed (rx, tx, temp, voltage, bias)
+//   - Per-ONU octet counters via ietf-interfaces (RFC 8343)
+//     statistics/in-octets|out-octets on the v-ANI interfaces, joined to
+//     serials through the onu-state `v-ani-ref` leaf
+//   - Per-ONU FEC/BIP counters via bbf-xpon-performance-management
+//     (current 15-min bin, container xpon/phy) where the firmware
+//     implements the module
 //   - Ranging via equalization-delay (TQ * 0.0125 = meters)
 //   - Down-cause classification via ietf-alarms polling (RFC 8632) —
 //     dying gasp is identity `dgi` in bbf-xpon-defects — with RFC 5277
@@ -120,6 +126,55 @@ const FILTER_RSSI_ONU: &str = r#"<hardware xmlns="urn:ietf:params:xml:ns:yang:ie
 const FILTER_ALARM_LIST: &str =
     r#"<alarms xmlns="urn:ietf:params:xml:ns:yang:ietf-alarms"><alarm-list/></alarms>"#;
 
+/// Per-ONU octet counters: ietf-interfaces statistics (RFC 8343, revision
+/// 2018-02-20 — the revision the OB-BAA standard OLT library advertises,
+/// data/external/adtran-samples/obbaa-yang-library/
+/// bbf-olt-standard-2.1_yang-library.xml). Each activated ONU is represented
+/// at the OLT by a v-ANI interface (type bbf-xponift:v-ani, real payload:
+/// obbaa-examples/vomci-end-to-end-config/9-create_onu_on_olt.xml), and the
+/// onu-state entry's `v-ani-ref` leaf (bbf-xpon-onu-state rev 2024-04-23)
+/// links the detected serial to that interface name.
+///
+/// Semantics on a v-ANI: `in-octets` = received by the OLT from the ONU
+/// (upstream / customer upload), `out-octets` = sent toward the ONU
+/// (downstream).
+const FILTER_IF_STATISTICS: &str = r#"<interfaces-state xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+  <interface>
+    <name/>
+    <statistics>
+      <in-octets/>
+      <out-octets/>
+    </statistics>
+  </interface>
+</interfaces-state>"#;
+
+/// Per-ONU FEC/BIP counters: bbf-xpon-performance-management (revisions
+/// 2020-10-13…2024-04-23, module text in data/external/broadband-forum-yang/
+/// bbf-xpon-performance-management.yang) container `xpon/phy` with leaves
+/// `corrected-fec-codewords`, `uncorrectable-fec-codewords`, `in-bip-errors`
+/// (performance-counter64), augmenting
+/// /if:interfaces-state/if:interface/bbf-if-pm:performance/
+/// bbf-if-pm:intervals-15min/bbf-if-pm:current — reported per v-ANI for
+/// G-PON. The bbf-interfaces-performance-management namespace is confirmed
+/// by the OB-BAA OLT yang-library fixture above (rev 2021-06-02).
+///
+/// NOTE: these are CURRENT 15-MINUTE-BIN counters (reset at each interval
+/// boundary per the BBF PM model), not lifetime totals.
+const FILTER_XPON_PHY_PM: &str = r#"<interfaces-state xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+  <interface>
+    <name/>
+    <performance xmlns="urn:bbf:yang:bbf-interfaces-performance-management">
+      <intervals-15min>
+        <current>
+          <xpon xmlns="urn:bbf:yang:bbf-xpon-performance-management">
+            <phy/>
+          </xpon>
+        </current>
+      </intervals-15min>
+    </performance>
+  </interface>
+</interfaces-state>"#;
+
 // ── Tunables ────────────────────────────────────────────────────────────────
 
 /// NETCONF collection timeout. A 48-port SDX with thousands of ONTs produces
@@ -182,6 +237,20 @@ pub struct OntState {
     pub ont_bias_current_ma: Option<f64>,
     /// Ranging distance (meters), from equalization_delay_tq * 0.0125
     pub distance_m: Option<f64>,
+    /// v-ANI interface name from the onu-state entry's `v-ani-ref` leaf —
+    /// the join key for per-interface octet and FEC/BIP counters.
+    pub v_ani_ref: Option<String>,
+    /// Upstream octets (received by the OLT from this ONU) — ietf-interfaces
+    /// statistics/in-octets on the v-ANI.
+    pub in_octets: Option<u64>,
+    /// Downstream octets (sent by the OLT toward this ONU).
+    pub out_octets: Option<u64>,
+    /// FEC corrected codewords, current 15-min bin (bbf-xpon-pm phy).
+    pub fec_corrected: Option<u64>,
+    /// FEC uncorrectable codewords, current 15-min bin.
+    pub fec_uncorrected: Option<u64>,
+    /// BIP errors, current 15-min bin.
+    pub bip_errors: Option<u64>,
 }
 
 impl OntState {
@@ -207,6 +276,12 @@ impl OntState {
             ont_voltage_v: None,
             ont_bias_current_ma: None,
             distance_m: None,
+            v_ani_ref: None,
+            in_octets: None,
+            out_octets: None,
+            fec_corrected: None,
+            fec_uncorrected: None,
+            bip_errors: None,
         }
     }
 }
@@ -321,7 +396,9 @@ impl AdtranCollector {
     ///   1. ietf-yang-library → select the ONT-state filter variant
     ///   2. ONT state (full subtree: state + any OMCI/ranging leaves)
     ///   3. OLT-side per-ONU RX (rssi-onu) — best effort
-    ///   4. ietf-alarms → last_down_cause (dying gasp vs LOS) — best effort
+    ///   4. per-ONU octets (ietf-interfaces statistics) and FEC/BIP
+    ///      (bbf-xpon-performance-management), joined via v-ani-ref — best effort
+    ///   5. ietf-alarms → last_down_cause (dying gasp vs LOS) — best effort
     async fn collect_via_netconf(&self) -> anyhow::Result<Vec<OntData>> {
         let nc = self.config.netconf.as_ref().ok_or_else(|| {
             anyhow::anyhow!("NETCONF config missing for Adtran SDX")
@@ -401,7 +478,70 @@ impl AdtranCollector {
             }
         };
 
-        // 4. ietf-alarms poll — primary down-cause source (dying gasp = dgi).
+        // 4. Per-ONU octet + FEC/BIP counters, joined via v-ani-ref
+        //    (best effort — see the FILTER_IF_STATISTICS / FILTER_XPON_PHY_PM
+        //    doc comments for the model citations).
+        let has_v_ani_refs = state_entries.iter().any(|e| e.v_ani_ref.is_some());
+        let if_stats = if has_v_ani_refs {
+            match session.get(FILTER_IF_STATISTICS).await {
+                Ok(reply) => match xml::parse_interface_statistics(&reply) {
+                    Ok(entries) => entries,
+                    Err(e) => {
+                        warn!(olt = %self.olt_id, error = %e,
+                              "interface-statistics reply failed to parse");
+                        Vec::new()
+                    }
+                },
+                Err(e) => {
+                    debug!(olt = %self.olt_id, error = %e,
+                           "ietf-interfaces statistics not available — per-ONT octets not collected");
+                    Vec::new()
+                }
+            }
+        } else {
+            debug!(
+                olt = %self.olt_id,
+                "onu-state entries carry no v-ani-ref on this firmware — per-ONT \
+                 octet and FEC/BIP counters cannot be attributed to serials; not collected"
+            );
+            Vec::new()
+        };
+
+        // Only ask for the bbf-xpon PM subtree when the server's yang-library
+        // either lists the module or is unavailable (same pattern as the
+        // ONT-state filter selection above).
+        let has_xpon_pm = modules
+            .as_deref()
+            .map(|m| m.iter().any(|x| x.name == "bbf-xpon-performance-management"))
+            .unwrap_or(true);
+        let phy_pm = if has_v_ani_refs && has_xpon_pm {
+            match session.get(FILTER_XPON_PHY_PM).await {
+                Ok(reply) => match xml::parse_xpon_phy_pm(&reply) {
+                    Ok(entries) => entries,
+                    Err(e) => {
+                        warn!(olt = %self.olt_id, error = %e,
+                              "xpon phy PM reply failed to parse");
+                        Vec::new()
+                    }
+                },
+                Err(e) => {
+                    debug!(olt = %self.olt_id, error = %e,
+                           "bbf-xpon-performance-management not available — FEC/BIP not collected");
+                    Vec::new()
+                }
+            }
+        } else {
+            if has_v_ani_refs {
+                debug!(
+                    olt = %self.olt_id,
+                    "yang-library does not list bbf-xpon-performance-management — \
+                     FEC/BIP counters not collected on this firmware"
+                );
+            }
+            Vec::new()
+        };
+
+        // 5. ietf-alarms poll — primary down-cause source (dying gasp = dgi).
         //    Best effort: firmware without RFC 8632 support degrades to
         //    notification-only dying-gasp detection.
         let alarms = match session.get(FILTER_ALARM_LIST).await {
@@ -432,6 +572,8 @@ impl AdtranCollector {
         Self::apply_power_entries(&self.ont_state, &power_entries);
         Self::apply_rssi_entries(&self.ont_state, &rssi_entries);
         Self::apply_ranging_entries(&self.ont_state, &ranging_entries);
+        Self::apply_interface_stats(&self.ont_state, &if_stats);
+        Self::apply_phy_pm(&self.ont_state, &phy_pm);
 
         // ONTs previously tracked but absent from this (successful, non-empty)
         // reply are no longer present on any channel termination → offline.
@@ -509,6 +651,9 @@ impl AdtranCollector {
             if !entry.channel_term.is_empty() {
                 st.channel_term = entry.channel_term.clone();
             }
+            if entry.v_ani_ref.is_some() {
+                st.v_ani_ref = entry.v_ani_ref.clone();
+            }
             st.status = status.clone();
             st.last_seen = now;
             if status == OntStatus::Online {
@@ -560,6 +705,68 @@ impl AdtranCollector {
         for r in entries {
             if let Some(mut state) = map.get_mut(&r.serial_number) {
                 state.distance_m = Some(r.distance_m);
+            }
+        }
+    }
+
+    /// Build the v-ani-ref → serial join map. Interfaces not referenced by
+    /// any tracked ONT (uplinks, channel terminations…) simply never match.
+    fn v_ani_to_serial(map: &DashMap<String, OntState>) -> std::collections::HashMap<String, String> {
+        map.iter()
+            .filter_map(|e| {
+                e.value()
+                    .v_ani_ref
+                    .clone()
+                    .map(|v_ani| (v_ani, e.key().clone()))
+            })
+            .collect()
+    }
+
+    /// Per-ONU octet counters from ietf-interfaces statistics on the v-ANI
+    /// interfaces (see FILTER_IF_STATISTICS for citations and semantics).
+    ///
+    /// Counters are cleared first: a reading must come from THIS cycle or be
+    /// None. Re-reporting a stale counter under a fresh timestamp would fake
+    /// a zero-traffic interval downstream.
+    fn apply_interface_stats(map: &DashMap<String, OntState>, entries: &[xml::InterfaceStatsEntry]) {
+        for mut st in map.iter_mut() {
+            st.in_octets = None;
+            st.out_octets = None;
+        }
+        if entries.is_empty() {
+            return;
+        }
+        let join = Self::v_ani_to_serial(map);
+        for stats in entries {
+            let Some(serial) = join.get(&stats.name) else { continue };
+            if let Some(mut st) = map.get_mut(serial) {
+                st.in_octets = stats.in_octets;
+                st.out_octets = stats.out_octets;
+            }
+        }
+    }
+
+    /// FEC/BIP counters from bbf-xpon-performance-management on the v-ANI
+    /// interfaces (see FILTER_XPON_PHY_PM; current 15-min bin).
+    ///
+    /// Cleared first for the same reason as octets — a 15-minute bin from an
+    /// old cycle presented as current would fake an error-free interval.
+    fn apply_phy_pm(map: &DashMap<String, OntState>, entries: &[xml::XponPhyPmEntry]) {
+        for mut st in map.iter_mut() {
+            st.fec_corrected = None;
+            st.fec_uncorrected = None;
+            st.bip_errors = None;
+        }
+        if entries.is_empty() {
+            return;
+        }
+        let join = Self::v_ani_to_serial(map);
+        for pm in entries {
+            let Some(serial) = join.get(&pm.interface_name) else { continue };
+            if let Some(mut st) = map.get_mut(serial) {
+                st.fec_corrected = pm.corrected_fec_codewords;
+                st.fec_uncorrected = pm.uncorrectable_fec_codewords;
+                st.bip_errors = pm.in_bip_errors;
             }
         }
     }
@@ -681,9 +888,15 @@ impl AdtranCollector {
                     vendor_id: Some("ADTN".into()),
                     equipment_id: None,
                     firmware_version: None,
-                    in_octets: None,
-                    out_octets: None,
-                    fec_corrected: None, fec_uncorrected: None, bip_errors: None,
+                    // ietf-interfaces statistics on the v-ANI (RFC 8343):
+                    // in = upstream from the ONU, out = downstream toward it.
+                    in_octets: s.in_octets,
+                    out_octets: s.out_octets,
+                    // bbf-xpon-performance-management phy counters
+                    // (current 15-min bin — see FILTER_XPON_PHY_PM).
+                    fec_corrected: s.fec_corrected,
+                    fec_uncorrected: s.fec_uncorrected,
+                    bip_errors: s.bip_errors,
                     eth_speed_mbps: None,
                     extended: if s.ont_rx_power_dbm.is_some()
                         || s.ont_temperature_c.is_some()
@@ -1470,6 +1683,139 @@ mod tests {
         assert_eq!(st.status, OntStatus::Online);
         assert!(!st.dying_gasp);
         assert!(st.last_down_cause.is_none());
+    }
+
+    // ── Octet + FEC/BIP counters via v-ani-ref join ─────────────────────────
+
+    #[test]
+    fn test_octets_and_fec_flow_into_ont_data_via_v_ani_ref() {
+        let map = DashMap::new();
+        let now = chrono::Utc::now();
+
+        // onu-state entries carrying v-ani-ref (bbf-xpon-onu-state rev
+        // 2024-04-23 leaf); interface naming from the real OB-BAA payload
+        // data/external/adtran-samples/obbaa-examples/vomci-end-to-end-config/
+        // 9-create_onu_on_olt.xml ("vAni_ont1").
+        AdtranCollector::apply_state_entries(
+            &map,
+            &[
+                xml::OntStateEntry {
+                    serial_number: "ADTN-A".into(),
+                    onu_id: 1,
+                    channel_term: "CTP-0/1".into(),
+                    state: OntYangState::OnlineOnIntended,
+                    detected_datetime: None,
+                    v_ani_ref: Some("vAni_ont1".into()),
+                },
+                xml::OntStateEntry {
+                    serial_number: "ADTN-B".into(),
+                    onu_id: 2,
+                    channel_term: "CTP-0/1".into(),
+                    state: OntYangState::OnlineOnIntended,
+                    detected_datetime: None,
+                    v_ani_ref: None, // no v-ANI → counters must stay None
+                },
+            ],
+            now,
+        );
+
+        AdtranCollector::apply_interface_stats(
+            &map,
+            &[
+                xml::InterfaceStatsEntry {
+                    name: "vAni_ont1".into(),
+                    in_octets: Some(123_456_789),
+                    out_octets: Some(987_654_321),
+                },
+                // An uplink interface no ONT references — must be ignored.
+                xml::InterfaceStatsEntry {
+                    name: "eth-uplink-1".into(),
+                    in_octets: Some(1),
+                    out_octets: Some(2),
+                },
+            ],
+        );
+        AdtranCollector::apply_phy_pm(
+            &map,
+            &[xml::XponPhyPmEntry {
+                interface_name: "vAni_ont1".into(),
+                corrected_fec_codewords: Some(18_234),
+                uncorrectable_fec_codewords: Some(2),
+                in_bip_errors: Some(7),
+            }],
+        );
+
+        let onts = AdtranCollector::snapshot_ont_data(&map);
+        let a = onts.iter().find(|o| o.serial_number == "ADTN-A").unwrap();
+        assert_eq!(a.in_octets, Some(123_456_789));
+        assert_eq!(a.out_octets, Some(987_654_321));
+        assert_eq!(a.fec_corrected, Some(18_234));
+        assert_eq!(a.fec_uncorrected, Some(2));
+        assert_eq!(a.bip_errors, Some(7));
+
+        let b = onts.iter().find(|o| o.serial_number == "ADTN-B").unwrap();
+        assert_eq!(b.in_octets, None);
+        assert_eq!(b.fec_corrected, None);
+        assert_eq!(b.bip_errors, None);
+    }
+
+    #[test]
+    fn test_stale_counters_cleared_when_fetch_yields_nothing() {
+        // A counter must come from the current cycle or be None: replaying
+        // last cycle's octets/FEC bin under a fresh timestamp fakes a
+        // zero-traffic / error-free interval.
+        let map = DashMap::new();
+        let now = chrono::Utc::now();
+        let mut st = mk_state("ADTN-STALE", OntStatus::Online, now, false);
+        st.v_ani_ref = Some("vAni_ont1".into());
+        st.in_octets = Some(111);
+        st.out_octets = Some(222);
+        st.fec_corrected = Some(5);
+        st.fec_uncorrected = Some(1);
+        st.bip_errors = Some(9);
+        map.insert("ADTN-STALE".to_string(), st);
+
+        AdtranCollector::apply_interface_stats(&map, &[]);
+        AdtranCollector::apply_phy_pm(&map, &[]);
+
+        let st = map.get("ADTN-STALE").unwrap();
+        assert_eq!(st.in_octets, None);
+        assert_eq!(st.out_octets, None);
+        assert_eq!(st.fec_corrected, None);
+        assert_eq!(st.fec_uncorrected, None);
+        assert_eq!(st.bip_errors, None);
+    }
+
+    #[test]
+    fn test_counters_never_cross_onts_on_shared_prefix_names() {
+        // "vAni_ont1" vs "vAni_ont11": the join is by exact interface name,
+        // never prefix matching.
+        let map = DashMap::new();
+        let now = chrono::Utc::now();
+        for (serial, v_ani) in [("ADTN-1", "vAni_ont1"), ("ADTN-11", "vAni_ont11")] {
+            AdtranCollector::apply_state_entries(
+                &map,
+                &[xml::OntStateEntry {
+                    serial_number: serial.into(),
+                    onu_id: 1,
+                    channel_term: "CTP-0/1".into(),
+                    state: OntYangState::OnlineOnIntended,
+                    detected_datetime: None,
+                    v_ani_ref: Some(v_ani.into()),
+                }],
+                now,
+            );
+        }
+        AdtranCollector::apply_interface_stats(
+            &map,
+            &[xml::InterfaceStatsEntry {
+                name: "vAni_ont11".into(),
+                in_octets: Some(42),
+                out_octets: Some(43),
+            }],
+        );
+        assert_eq!(map.get("ADTN-11").unwrap().in_octets, Some(42));
+        assert_eq!(map.get("ADTN-1").unwrap().in_octets, None);
     }
 
     // ── Dying-gasp notifications ────────────────────────────────────────────

@@ -74,6 +74,8 @@ pub struct DatacomCollector {
     config: OltConfig,
     snmp: Option<SnmpPoller>,
     olt_id: String,
+    /// One-time telemetry-coverage log guard (see collect_onts_snmp).
+    coverage_logged: std::sync::atomic::AtomicBool,
 }
 
 impl DatacomCollector {
@@ -85,12 +87,26 @@ impl DatacomCollector {
             olt_id: format!("datacom-{}", config.ip.replace('.', "-")),
             config: config.clone(),
             snmp,
+            coverage_logged: std::sync::atomic::AtomicBool::new(false),
         })
     }
 
     async fn collect_onts_snmp(&self) -> anyhow::Result<Vec<OntData>> {
         let snmp = self.snmp.as_ref()
             .ok_or_else(|| anyhow::anyhow!("SNMP not configured"))?;
+
+        // Telemetry coverage — once per OLT, not per cycle.
+        if !self.coverage_logged.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            tracing::debug!(
+                olt = %self.olt_id,
+                "Datacom SNMP coverage: optical rx/tx + per-ONU octet counters \
+                 collected; DDM temperature/voltage/bias and FEC/BIP are NOT \
+                 collected — the verified DmOS onuIfTable columns (MIB Reference \
+                 204.4381.02, see module header) expose only power strings, and \
+                 the real DM4610 capture (data/external/snmp-dumps/datacom/) \
+                 contains no per-ONU DDM table"
+            );
+        }
 
         // GPON-ONU-IF-MIB onuIfTable. Walk errors (incl. partial walks)
         // propagate — never silently degrade to "OLT with zero ONTs".
