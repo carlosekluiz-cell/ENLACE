@@ -36,6 +36,12 @@ export interface DemoUser {
   email: string;
   password: string;
   name: string;
+  /**
+   * Optional engineer phone — enables direct wa.me dispatch from the
+   * supervisor board. Placeholder from the Ofcom drama range (not a real
+   * number); demo-only.
+   */
+  phone: string | null;
 }
 
 function kebab(id: PersonaId): string {
@@ -51,4 +57,5 @@ export const DEMO_USERS: DemoUser[] = PERSONAS.map((p) => ({
   email: `${kebab(p.id)}@demo.enlace.network`,
   password: `demo-${kebab(p.id)}`,
   name: p.label,
+  phone: p.id === "field_engineer" ? "+44 7700 900123" : null,
 }));

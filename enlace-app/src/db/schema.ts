@@ -43,6 +43,11 @@ export const users = sqliteTable(
     role: text("role", { enum: ROLES }).notNull(),
     /** Lens: home route + default framing. Never grants capability. */
     persona: text("persona").notNull(),
+    /**
+     * Optional engineer phone (E.164-ish, nullable) — enables direct
+     * `wa.me/<phone>` dispatch from the supervisor board (Wave C1).
+     */
+    phone: text("phone"),
     createdAt: text("created_at").notNull(),
     disabled: integer("disabled").notNull().default(0),
   },

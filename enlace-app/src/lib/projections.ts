@@ -21,6 +21,7 @@ import {
   type AuditRow,
 } from "@/lib/auditStore";
 import { ticketsWithState } from "@/lib/ticketStore";
+import { getTenantInfo, tenantAssumptionLines } from "@/lib/tenantSettings";
 import type { SessionClaims } from "@/lib/jwt";
 import type {
   ExecProjection,
@@ -127,6 +128,7 @@ export function supervisorProjection(
       name: tables.users.name,
       role: tables.users.role,
       persona: tables.users.persona,
+      phone: tables.users.phone,
     })
     .from(tables.users)
     .where(eq(tables.users.tenantId, session.tenant_id))
@@ -162,6 +164,17 @@ export function execProjection(
     byPriority[t.ticket.priority] = (byPriority[t.ticket.priority] ?? 0) + 1;
   }
 
+  // Tenant assumption constants (admin-editable) — surfaced ALONGSIDE the
+  // agent-declared assumptions, never merged into them: this audit's figures
+  // were computed by the agent with the assumptions echoed in the result;
+  // settings changes feed future estimate math (the agent seam).
+  const tenant = getTenantInfo(session.tenant_id);
+  const a = tenant?.assumptions ?? {
+    arpu_gbp_month: null,
+    truck_roll_cost_gbp: null,
+    currency: null,
+  };
+
   return {
     ...base,
     summary: result.summary,
@@ -187,6 +200,14 @@ export function execProjection(
       available: false,
       reason:
         "health-score trend not available yet — trending needs multiple audits over time; this view renders one persisted audit",
+    },
+    tenant_assumptions: {
+      source: "tenant settings (admin-editable)",
+      arpu_gbp_month: a.arpu_gbp_month,
+      truck_roll_cost_gbp: a.truck_roll_cost_gbp,
+      currency: a.currency,
+      lines: tenantAssumptionLines(a),
+      note: "These constants feed FUTURE estimate math (agent runs). This audit's estimated_* figures carry the assumptions the agent declared at audit time and are never retroactively recomputed.",
     },
   };
 }

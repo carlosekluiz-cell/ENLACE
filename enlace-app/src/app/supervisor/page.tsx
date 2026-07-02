@@ -4,7 +4,10 @@
 // ticket queue GROUPED BY LIFECYCLE STATUS with priority/SLA aging,
 // assign-to-engineer control (tenant users with role viewer/analyst),
 // ack and reassign. This is the work-order dispatch flow: an engineer
-// receives the job in /field the moment it's assigned.
+// receives the job in /field the moment it's assigned — and can get it on
+// their phone via share-to-WhatsApp (wa.me prefilled message with the
+// ticket deep link; NOT the Business API). When the assignee has a phone
+// on file the chat opens directly with them.
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -25,6 +28,7 @@ import AppShell from "@/components/AppShell";
 import AssumptionBadge from "@/components/AssumptionBadge";
 import ImportReportBanner from "@/components/ImportReportBanner";
 import NoAuditState from "@/components/NoAuditState";
+import ShareTicketActions from "@/components/ShareTicketActions";
 import StatCard from "@/components/StatCard";
 import { ticketStatusColor } from "@/components/TicketStatusPill";
 
@@ -235,6 +239,16 @@ function StatusGroup({
                     <span className="inline-flex items-center gap-2 flex-wrap">
                       <AckControl t={t} auditRowId={auditRowId} />
                       <AssignControl t={t} team={team} auditRowId={auditRowId} />
+                      <ShareTicketActions
+                        t={t}
+                        auditRowId={auditRowId}
+                        // Direct wa.me chat when the assignee has a phone on
+                        // file; otherwise the sender picks the recipient.
+                        phone={
+                          team.find((u) => u.id === t.state.assigned_user_id)
+                            ?.phone ?? null
+                        }
+                      />
                     </span>
                   </td>
                 </tr>
@@ -348,6 +362,7 @@ function SupervisorBoard() {
                   style={{ color: "var(--text-on-dark-secondary)" }}
                 >
                   {u.name} · {u.role} · {u.persona}
+                  {u.phone ? ` · ${u.phone}` : ""}
                 </span>
               ))}
             </div>

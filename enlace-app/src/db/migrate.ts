@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   role          TEXT NOT NULL CHECK (role IN ('viewer','analyst','manager','admin')),
   persona       TEXT NOT NULL,
+  phone         TEXT,
   created_at    TEXT NOT NULL,
   disabled      INTEGER NOT NULL DEFAULT 0
 );
@@ -78,4 +79,14 @@ CREATE INDEX IF NOT EXISTS audit_log_tenant_idx ON audit_log (tenant_id);
 
 export function migrate(sqlite: DatabaseType.Database): void {
   sqlite.exec(DDL);
+
+  // ── Additive column migrations (idempotent, pragma-guarded) ──
+  // Pre-existing DBs were created before these columns; CREATE TABLE IF NOT
+  // EXISTS won't add them, so guard with table_info and ALTER once.
+  const userCols = sqlite.pragma("table_info(users)") as Array<{
+    name: string;
+  }>;
+  if (!userCols.some((c) => c.name === "phone")) {
+    sqlite.exec("ALTER TABLE users ADD COLUMN phone TEXT");
+  }
 }

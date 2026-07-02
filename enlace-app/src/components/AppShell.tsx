@@ -19,10 +19,13 @@ import SourceBadge from "@/components/SourceBadge";
 export default function AppShell({
   title,
   meta,
+  actions,
   children,
 }: {
   title: string;
   meta: FeedMeta | null;
+  /** Optional view-specific header actions (e.g. the exec PDF download). */
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   const { session, logout } = useAuth();
@@ -147,6 +150,7 @@ export default function AppShell({
             {title}
           </h1>
           <div className="flex items-center gap-3">
+            {actions}
             <AuditPicker />
             {meta && <SourceBadge meta={meta} />}
           </div>

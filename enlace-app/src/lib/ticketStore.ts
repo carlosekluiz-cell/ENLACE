@@ -18,6 +18,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db, tables } from "@/db";
 import type { AuditRow } from "@/lib/auditStore";
 import { parseResult } from "@/lib/auditStore";
+import { deriveTicketLocation } from "@/lib/ticketLocation";
 import type { Ticket } from "@/lib/types";
 import type {
   TicketStateInfo,
@@ -156,6 +157,11 @@ export function ticketsWithState(
       ticket,
       state: row ? toStateInfo(row, names) : OPEN_STATE,
       ...slaOf(ticket),
+      // Derived fault location (C2) — honest `none` when the audit has no
+      // distance/geo data for the affected ONTs. Server-derived once, so the
+      // tickets API + field/supervisor projections render it without
+      // recomputing client-side.
+      location: deriveTicketLocation(result, ticket),
     };
   });
 

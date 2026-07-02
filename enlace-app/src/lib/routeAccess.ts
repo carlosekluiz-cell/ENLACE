@@ -23,6 +23,7 @@ export const ROUTE_ROLE_FLOORS: ReadonlyArray<{
   { prefix: "/supervisor", minRole: "manager" },
   { prefix: "/exec", minRole: "manager" },
   { prefix: "/field", minRole: "viewer" },
+  { prefix: "/admin", minRole: "admin" },
 ];
 
 export function isPublicPath(pathname: string): boolean {

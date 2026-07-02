@@ -4,16 +4,32 @@
 // redirect. A live session skips straight to its persona home. The five
 // demo personas are listed as one-click fill (pilot demo UX): clicking a
 // persona fills its seeded credentials — it still goes through real login.
+//
+// Deep-link support (Wave C1): middleware sends unauthenticated visitors
+// here with `?next=<path>`; after login the user lands back on that path
+// (e.g. a WhatsApp-dispatched ticket URL). Same-origin RELATIVE paths only —
+// anything else falls back to the persona home.
 
-import { useEffect, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DEMO_USERS } from "@/lib/demoCredentials";
 import { personaById } from "@/lib/roles";
 import { useAuth } from "@/lib/auth";
 
-export default function LoginPage() {
+/** Only same-origin relative paths survive (no `//host`, no scheme, no `\`). */
+function safeNextPath(raw: string | null): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) {
+    return null;
+  }
+  return raw;
+}
+
+function LoginForm() {
   const { session, ready, login } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -21,9 +37,11 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (ready && session) {
-      router.replace(personaById(session.persona)?.home ?? "/noc");
+      router.replace(
+        nextPath ?? personaById(session.persona)?.home ?? "/noc",
+      );
     }
-  }, [ready, session, router]);
+  }, [ready, session, router, nextPath]);
 
   if (!ready || session) {
     return (
@@ -42,7 +60,7 @@ export default function LoginPage() {
     setError(null);
     try {
       const persona = await login(email, password);
-      router.push(persona.home);
+      router.push(nextPath ?? persona.home);
     } catch (err) {
       setError(err instanceof Error ? err.message : "login failed");
       setSubmitting(false);
@@ -160,5 +178,26 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  // useSearchParams (the `next=` deep-link redirect) requires a Suspense
+  // boundary in the app router.
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <p
+            className="font-mono text-sm"
+            style={{ color: "var(--text-on-dark-muted)" }}
+          >
+            …
+          </p>
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

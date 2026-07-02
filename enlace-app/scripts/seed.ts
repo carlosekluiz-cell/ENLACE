@@ -42,6 +42,7 @@ async function main() {
         passwordHash,
         role: u.role,
         persona: u.persona,
+        phone: u.phone,
         createdAt: now,
         disabled: 0,
       })
@@ -53,6 +54,7 @@ async function main() {
           passwordHash,
           role: u.role,
           persona: u.persona,
+          phone: u.phone,
           disabled: 0,
         },
       })

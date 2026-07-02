@@ -90,8 +90,14 @@ export interface ProjectionState<T extends ProjectionBase> {
   error: string | null;
 }
 
-function useOpsFetch<T extends ProjectionBase>(path: string): ProjectionState<T> {
+function useOpsFetch<T extends ProjectionBase>(
+  path: string,
+  auditOverride?: string | null,
+): ProjectionState<T> {
   const { selectedAuditId, version } = useOpsSnapshot();
+  // Deep links (?audit= on /field/ticket/[id]) pin the audit explicitly and
+  // win over the per-tab picker selection.
+  const effectiveAuditId = auditOverride ?? selectedAuditId;
   const [state, setState] = useState<ProjectionState<T>>({
     data: null,
     unavailable: null,
@@ -102,8 +108,8 @@ function useOpsFetch<T extends ProjectionBase>(path: string): ProjectionState<T>
 
   useEffect(() => {
     let cancelled = false;
-    const url = selectedAuditId
-      ? `${path}?audit=${encodeURIComponent(selectedAuditId)}`
+    const url = effectiveAuditId
+      ? `${path}?audit=${encodeURIComponent(effectiveAuditId)}`
       : path;
 
     Promise.all([
@@ -165,7 +171,7 @@ function useOpsFetch<T extends ProjectionBase>(path: string): ProjectionState<T>
     return () => {
       cancelled = true;
     };
-  }, [path, selectedAuditId, version]);
+  }, [path, effectiveAuditId, version]);
 
   return state;
 }
@@ -179,9 +185,15 @@ export function useProjection<T extends ProjectionBase>(
   return useOpsFetch<T>(`/api/projections/${kind}`);
 }
 
-/** Role-scoped ticket list (viewer: own; analyst+: all) for the current audit. */
-export function useTicketList<T extends ProjectionBase>(): ProjectionState<T> {
-  return useOpsFetch<T>("/api/tickets");
+/**
+ * Role-scoped ticket list (viewer: own; analyst+: all) for the current audit.
+ * `auditOverride` pins an explicit audit (deep links); null/undefined falls
+ * back to the picker selection, then the tenant's most recent audit.
+ */
+export function useTicketList<T extends ProjectionBase>(
+  auditOverride?: string | null,
+): ProjectionState<T> {
+  return useOpsFetch<T>("/api/tickets", auditOverride);
 }
 
 // ── Audit listing (picker data) ──

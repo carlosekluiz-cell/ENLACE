@@ -2,35 +2,130 @@
 
 // /field/ticket/[id] — ticket detail: agent evidence + ALWAYS-VISIBLE
 // assumptions, priority/SLA, lifecycle state (ack info, assignment), the
-// persisted close-out form (note + confirm), and an honest location section
-// (telemetry has no coordinates; geo arrives when customer records are
-// joined). Data: GET /api/tickets (role-scoped rows) — never shipped JSON.
+// persisted close-out form (note + confirm), the server-derived location
+// card (distance estimate / map when real coordinates exist / honest empty
+// state), and share-to-WhatsApp dispatch (Wave C1/C2).
+// Data: GET /api/tickets (role-scoped rows) — never shipped JSON.
+// Deep links: ?audit=<row id> pins the audit so a WhatsApp link opens the
+// exact ticket even after newer audits land.
 
-import { useMemo, useState, type FormEvent } from "react";
+import { Suspense, useMemo, useState, type FormEvent } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { ArrowLeft, CheckCircle2, MapPin } from "lucide-react";
+import { useParams, useSearchParams } from "next/navigation";
+import { ArrowLeft, CheckCircle2, ExternalLink, MapPin, Share2 } from "lucide-react";
 import { RoleGuard, useAuth } from "@/lib/auth";
 import { daysUntil, fmtDate, fmtMoney, severityColor, slaDue } from "@/lib/format";
 import { roleAtLeast } from "@/lib/roles";
-import type { TicketListResponse, TicketWithState } from "@/lib/opsTypes";
+import type { TicketListResponse, TicketLocation, TicketWithState } from "@/lib/opsTypes";
+import { googleMapsUrl } from "@/lib/shareTicket";
 import { closeTicketAction, useTicketList } from "@/lib/useOps";
 import AppShell from "@/components/AppShell";
 import AssumptionBadge from "@/components/AssumptionBadge";
 import NoAuditState from "@/components/NoAuditState";
+import ShareTicketActions from "@/components/ShareTicketActions";
 import TicketStatusPill from "@/components/TicketStatusPill";
 
-function LocationSection() {
-  // Telemetry carries no coordinates; the app never invents a pin.
+// maplibre touches browser APIs — load it client-side only, and only when a
+// ticket genuinely has coordinates.
+const TicketLocationMap = dynamic(
+  () => import("@/components/TicketLocationMap"),
+  { ssr: false },
+);
+
+/**
+ * Location card driven by the SERVER-derived location object. Three honest
+ * shapes: real coordinates → map + Google Maps link; ONT ranging data →
+ * distance estimate labeled as an estimate; nothing → say so.
+ */
+function LocationSection({ location }: { location: TicketLocation }) {
   return (
     <div className="op-card p-4">
       <div className="flex items-center gap-2 mb-2">
         <MapPin size={14} style={{ color: "var(--text-on-dark-muted)" }} />
         <span className="op-label">location</span>
+        {location.kind === "distance-estimate" && (
+          <span
+            className="font-mono text-[10px] px-1.5 py-0.5"
+            style={{ border: "1px dashed var(--status-warn)", color: "var(--status-warn)" }}
+          >
+            estimated
+          </span>
+        )}
       </div>
-      <p className="text-sm" style={{ color: "var(--text-on-dark-muted)" }}>
-        No location data in this audit — telemetry carries no coordinates.
-        Geo appears here once customer records are joined to ONT serials.
+
+      {location.kind === "coordinates" && location.coordinates && (
+        <div className="flex flex-col gap-2">
+          <TicketLocationMap
+            lat={location.coordinates.lat}
+            lon={location.coordinates.lon}
+            label={location.coordinates.label}
+          />
+          <p className="text-sm" style={{ color: "var(--text-on-dark-secondary)" }}>
+            {location.summary}
+          </p>
+          <a
+            href={googleMapsUrl(location.coordinates.lat, location.coordinates.lon)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 font-mono text-xs"
+            style={{ color: "var(--accent-hover)" }}
+          >
+            <ExternalLink size={12} />
+            Open in Google Maps
+          </a>
+        </div>
+      )}
+
+      {location.kind === "distance-estimate" && (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm" style={{ color: "var(--text-on-dark-secondary)" }}>
+            {location.summary}
+          </p>
+          {location.evidence.length > 0 && (
+            <ul className="flex flex-col gap-1">
+              {location.evidence.map((line) => (
+                <li
+                  key={line}
+                  className="font-mono text-[11px]"
+                  style={{ color: "var(--text-on-dark-muted)" }}
+                >
+                  {line}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {location.kind === "none" && (
+        <p className="text-sm" style={{ color: "var(--text-on-dark-muted)" }}>
+          {location.summary}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Share-to-WhatsApp dispatch + copy link (honest: not the Business API). */
+function ShareSection({
+  t,
+  auditRowId,
+}: {
+  t: TicketWithState;
+  auditRowId: string;
+}) {
+  return (
+    <div className="op-card p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Share2 size={14} style={{ color: "var(--text-on-dark-muted)" }} />
+        <span className="op-label">share job</span>
+      </div>
+      <ShareTicketActions t={t} auditRowId={auditRowId} />
+      <p className="mt-2 font-mono text-[10px]" style={{ color: "var(--text-on-dark-muted)" }}>
+        opens your WhatsApp with the dispatch message prefilled
+        (share-to-WhatsApp, not the Business API) — the link pins this ticket
+        and audit, and survives login
       </p>
     </div>
   );
@@ -162,9 +257,11 @@ function CloseOutForm({
 
 function TicketDetail() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const { session } = useAuth();
+  // ?audit= (from a shared deep link) pins the audit explicitly.
   const { data, unavailable, meta, loading, error } =
-    useTicketList<TicketListResponse>();
+    useTicketList<TicketListResponse>(searchParams.get("audit"));
 
   const entry = useMemo(() => {
     const id = decodeURIComponent(params.id ?? "");
@@ -336,7 +433,9 @@ function TicketDetail() {
                   </div>
                 </div>
 
-                <LocationSection />
+                <LocationSection location={entry.location} />
+
+                <ShareSection t={entry} auditRowId={data.provenance.id} />
 
                 <CloseOutForm
                   t={entry}
@@ -354,9 +453,12 @@ function TicketDetail() {
 }
 
 export default function TicketPage() {
+  // Suspense: useSearchParams (deep-link ?audit=) requires a boundary.
   return (
     <RoleGuard minRole="viewer">
-      <TicketDetail />
+      <Suspense fallback={null}>
+        <TicketDetail />
+      </Suspense>
     </RoleGuard>
   );
 }

@@ -35,9 +35,17 @@ export async function middleware(req: NextRequest) {
   }
 
   if (!claims) {
+    // Deep links (e.g. a WhatsApp-dispatched ticket URL) must survive the
+    // auth flow: send the intended path+query along as `next=` so the login
+    // page can land the user back on it. Same-origin relative path only —
+    // the login page re-validates before redirecting.
     const login = req.nextUrl.clone();
     login.pathname = "/";
     login.search = "";
+    const next = pathname + req.nextUrl.search;
+    if (next !== "/" && next.startsWith("/") && !next.startsWith("//")) {
+      login.searchParams.set("next", next);
+    }
     return NextResponse.redirect(login);
   }
 

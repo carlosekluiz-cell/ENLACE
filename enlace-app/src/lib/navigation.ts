@@ -7,6 +7,7 @@ import {
   ClipboardList,
   LayoutList,
   Radio,
+  Settings,
   TrendingUp,
   type LucideIcon,
 } from "lucide-react";
@@ -25,4 +26,5 @@ export const NAV_ITEMS: NavItem[] = [
   { labelKey: "nav.field", href: "/field", icon: ClipboardList, minRole: "viewer" },
   { labelKey: "nav.supervisor", href: "/supervisor", icon: LayoutList, minRole: "manager" },
   { labelKey: "nav.exec", href: "/exec", icon: TrendingUp, minRole: "manager" },
+  { labelKey: "nav.admin", href: "/admin", icon: Settings, minRole: "admin" },
 ];

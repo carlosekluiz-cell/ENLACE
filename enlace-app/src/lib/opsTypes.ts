@@ -92,6 +92,26 @@ export interface TicketStateInfo {
   updated_at: string | null;
 }
 
+// ── Fault location (Wave C2) ──
+// Derived server-side from what the audit ACTUALLY contains: ONT ranging
+// distances (onts[].distance_meters, faults[].affected_onts[].distance_meters).
+// `coordinates` is only ever set when real lat/lon exists in the data — the
+// app never invents a pin (ONTOLOGY.md §5 "missing is missing").
+
+export interface TicketLocation {
+  kind: "distance-estimate" | "coordinates" | "none";
+  /** One honest sentence: what we know, or why we know nothing. */
+  summary: string;
+  /** Estimated distance from the OLT, metres — an ESTIMATE from ONT ranging. */
+  distance_m_range?: { min: number; max: number };
+  /** PON port(s) the affected ONTs sit on (comma-joined when several). */
+  pon_port?: string;
+  /** Only when genuine lat/lon exists in the audit data (geo join / ONT geo). */
+  coordinates?: { lat: number; lon: number; label?: string };
+  /** Per-ONT measured lines behind the estimate (serial · distance · port). */
+  evidence: string[];
+}
+
 /** Agent ticket VERBATIM + operational state overlay + derived SLA schedule. */
 export interface TicketWithState {
   /** Stable reference = the agent's ticket_id within this audit. */
@@ -101,6 +121,8 @@ export interface TicketWithState {
   /** generated_at + sla_days (derived scheduling data, not a measurement). */
   sla_due: string;
   days_to_sla: number;
+  /** Derived fault location (server-side; honest `none` when data lacks it). */
+  location: TicketLocation;
 }
 
 export interface TicketListResponse {
@@ -155,6 +177,8 @@ export interface TeamMember {
   name: string;
   role: string;
   persona: string;
+  /** Optional engineer phone (E.164-ish) — enables direct wa.me dispatch. */
+  phone: string | null;
 }
 
 /** Dispatch-board lens (manager+): full queue + dispatchable team. */
@@ -179,6 +203,23 @@ export interface ExecTrendPlaceholder {
   reason: string;
 }
 
+/**
+ * Tenant assumption constants (admin-editable via /admin/settings), surfaced
+ * in the exec lens WITH the seam stated: the agent computed this audit's
+ * estimates with the assumptions it declared at audit time; these settings
+ * feed FUTURE estimate math and are never used to retro-recompute a
+ * persisted audit.
+ */
+export interface ExecTenantAssumptions {
+  source: "tenant settings (admin-editable)";
+  arpu_gbp_month: number | null;
+  truck_roll_cost_gbp: number | null;
+  currency: string | null;
+  /** Labeled assumption lines (same wording the PDF honesty page uses). */
+  lines: string[];
+  note: string;
+}
+
 /** Rollup lens for exec personas (manager+). */
 export interface ExecProjection extends ProjectionBase {
   summary: AuditSummary;
@@ -193,6 +234,8 @@ export interface ExecProjection extends ProjectionBase {
   impact: Impact;
   /** Honest-empty until multi-audit trending is built. */
   trend: ExecTrendPlaceholder;
+  /** Admin-editable estimate constants, labeled — never merged into agent figures. */
+  tenant_assumptions: ExecTenantAssumptions;
 }
 
 export type Projection<T extends ProjectionBase> = T | ProjectionUnavailable;

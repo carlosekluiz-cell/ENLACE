@@ -8,6 +8,7 @@
 // until multi-audit trending exists.
 
 import { useMemo } from "react";
+import { FileDown } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -53,8 +54,32 @@ function ExecDashboard() {
 
   const anySplitterAssumed = data?.capacity.some((c) => c.splitter_assumed) ?? false;
 
+  // Server-rendered executive PDF for the CURRENT audit (manager+ route,
+  // tenant-scoped; each generation is logged to audit_log server-side).
+  const reportHref = meta?.auditRowId
+    ? `/api/reports/audit/${encodeURIComponent(meta.auditRowId)}.pdf`
+    : null;
+
   return (
-    <AppShell title="Executive KPIs" meta={meta}>
+    <AppShell
+      title="Executive KPIs"
+      meta={meta}
+      actions={
+        reportHref ? (
+          <a
+            href={reportHref}
+            className="flex items-center gap-1.5 font-mono text-[11px] px-3 py-1.5 whitespace-nowrap"
+            style={{
+              color: "var(--accent-hover)",
+              border: "1px solid var(--accent)",
+            }}
+          >
+            <FileDown size={13} />
+            Download report (PDF)
+          </a>
+        ) : null
+      }
+    >
       {loading && (
         <p className="font-mono text-sm" style={{ color: "var(--text-on-dark-muted)" }}>
           loading KPIs…
