@@ -5,3 +5,6 @@ out/
 next-env.d.ts
 .env*.local
 .env
+
+# app DB + generated dev auth secret (see .env.example)
+/data/

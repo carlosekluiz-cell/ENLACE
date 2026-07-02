@@ -117,8 +117,9 @@ export default function AppShell({
               <button
                 type="button"
                 onClick={() => {
-                  logout();
-                  router.replace("/");
+                  // Revoke server-side first so middleware sees a dead
+                  // cookie before we land on the login page.
+                  void logout().then(() => router.replace("/"));
                 }}
                 title={t("nav.logout")}
                 className="cursor-pointer p-1"

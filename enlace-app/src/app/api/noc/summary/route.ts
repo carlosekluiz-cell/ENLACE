@@ -5,8 +5,9 @@
 // returns { available: false, reason } and the UI states "live feed not
 // connected — showing audit data". It NEVER fabricates liveness.
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import type { NocSummaryResponse } from "@/lib/types";
+import { authzResponse, requireSession } from "@/lib/serverAuth";
 
 const INDEX_PATTERN = "enlace-ont-*";
 
@@ -18,7 +19,15 @@ interface EsAggResponse {
   };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Any authenticated session: the SourceBadge on every persona view shows
+  // honest live-feed availability, so viewer+ may read this aggregate.
+  try {
+    await requireSession(req);
+  } catch (err) {
+    return authzResponse(err);
+  }
+
   const url = process.env.ELASTIC_URL;
   if (!url) {
     const body: NocSummaryResponse = {

@@ -1,15 +1,25 @@
 // GET /api/audit/[id] — server-side proxy to the pulso-agent audit server,
 // injecting the bearer token. Token and bind address never reach the browser.
+//
+// Auth: any authenticated session (viewer+) — every persona reads audits;
+// persona projections trim rows, never evidence fields.
 
 import { NextRequest, NextResponse } from "next/server";
+import { authzResponse, requireSession } from "@/lib/serverAuth";
 
 const AUDIT_SERVER =
   process.env.PULSO_AUDIT_SERVER ?? "http://127.0.0.1:8080";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  try {
+    await requireSession(req);
+  } catch (err) {
+    return authzResponse(err);
+  }
+
   const token = process.env.PULSO_AUDIT_TOKEN;
   if (!token) {
     return NextResponse.json(

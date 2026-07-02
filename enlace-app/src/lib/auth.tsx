@@ -1,15 +1,15 @@
 "use client";
 
-// ── Demo session auth ──
-// Persona-picker session persisted in localStorage (read through
-// useSyncExternalStore so SSR/hydration stay consistent). The Session shape
-// mirrors JWT claims so swapping in real auth is a transport change, not a
-// data-model change.
+// ── Session-backed auth (client side) ──
 //
-// TODO(auth): wire python/api JWT — POST /auth/login → { access_token };
-// decode claims { sub, name, role } into Session, store the token in an
-// httpOnly cookie via a Next server route, and have RoleGuard read the
-// session from /api/me instead of localStorage.
+// The session lives in an httpOnly cookie issued by /api/auth/login; the
+// client can't read the JWT, so it asks GET /api/auth/session for the
+// verified claims. The answer is held in a module-level external store read
+// through useSyncExternalStore (the app convention — no setState-in-effect).
+//
+// Server-side enforcement is middleware.ts + requireSession/requireRole in
+// routes; RoleGuard below is UX only (redirects, ACCESS DENIED panel), not
+// load-bearing.
 
 import {
   createContext,
@@ -21,76 +21,135 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import {
-  localStorageGet,
-  localStorageSet,
-  subscribeLocalStorage,
-} from "@/lib/clientStore";
 import { personaById, roleAtLeast, type Persona, type Role } from "@/lib/roles";
 
+/** Mirror of the JWT claims (minus jti/exp) — see lib/jwt.ts SessionClaims. */
 export interface Session {
-  /** Subject — demo: persona id. JWT-ready. */
+  /** Subject — user id from the users table. */
   sub: string;
   name: string;
+  tenantId: string;
   persona: Persona["id"];
   role: Role;
-  loggedInAt: string;
 }
 
-const STORAGE_KEY = "enlace.session";
-/** Pre-hydration marker: the server cannot see localStorage. */
-const SERVER_SENTINEL = "__server__";
+interface SessionWire {
+  session: {
+    sub: string;
+    name: string;
+    tenant_id: string;
+    role: Role;
+    persona: Persona["id"];
+  };
+}
+
+// ── External store ──
+
+interface AuthState {
+  /** False until /api/auth/session has answered once (avoids redirect flicker). */
+  ready: boolean;
+  session: Session | null;
+}
+
+const SERVER_STATE: AuthState = { ready: false, session: null };
+
+let state: AuthState = SERVER_STATE;
+const listeners = new Set<() => void>();
+
+function setState(next: AuthState): void {
+  state = next;
+  for (const l of listeners) l();
+}
+
+function subscribe(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+
+function fromWire(body: SessionWire): Session {
+  const s = body.session;
+  return {
+    sub: s.sub,
+    name: s.name,
+    tenantId: s.tenant_id,
+    role: s.role,
+    persona: s.persona,
+  };
+}
+
+let initialFetch: Promise<void> | null = null;
+
+function ensureSessionFetched(): void {
+  initialFetch ??= (async () => {
+    try {
+      const res = await fetch("/api/auth/session", { cache: "no-store" });
+      if (res.ok) {
+        setState({ ready: true, session: fromWire((await res.json()) as SessionWire) });
+      } else {
+        setState({ ready: true, session: null });
+      }
+    } catch {
+      setState({ ready: true, session: null });
+    }
+  })();
+}
+
+// ── Provider / hook ──
 
 interface AuthContextValue {
   session: Session | null;
-  /** False until the client store has been consulted (avoids redirect flicker). */
+  /** False until the server has been consulted once. */
   ready: boolean;
-  login: (personaId: Persona["id"], name: string) => Persona | undefined;
-  logout: () => void;
+  /**
+   * Real login: POST /api/auth/login. Resolves to the user's persona on
+   * success; throws Error with a display message on failure.
+   */
+  login: (email: string, password: string) => Promise<Persona>;
+  /** Revokes the session server-side (jti denylist) and clears the cookie. */
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const raw = useSyncExternalStore(
-    subscribeLocalStorage,
-    () => localStorageGet(STORAGE_KEY),
-    () => SERVER_SENTINEL,
+  const snapshot = useSyncExternalStore(
+    subscribe,
+    () => state,
+    () => SERVER_STATE,
   );
 
-  const ready = raw !== SERVER_SENTINEL;
+  useEffect(() => {
+    ensureSessionFetched();
+  }, []);
 
-  const session = useMemo<Session | null>(() => {
-    if (!ready || !raw) return null;
-    try {
-      const parsed = JSON.parse(raw) as Session;
-      return personaById(parsed.persona) ? parsed : null;
-    } catch {
-      return null; // corrupt session — treat as logged out
+  const login = useCallback(async (email: string, password: string) => {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(body?.error ?? `login failed (${res.status})`);
     }
-  }, [raw, ready]);
-
-  const login = useCallback((personaId: Persona["id"], name: string) => {
-    const persona = personaById(personaId);
-    if (!persona) return undefined;
-    const next: Session = {
-      sub: persona.id,
-      name: name.trim() || persona.label,
-      persona: persona.id,
-      role: persona.role,
-      loggedInAt: new Date().toISOString(),
-    };
-    localStorageSet(STORAGE_KEY, JSON.stringify(next));
+    const session = fromWire((await res.json()) as SessionWire);
+    setState({ ready: true, session });
+    const persona = personaById(session.persona);
+    if (!persona) throw new Error(`unknown persona "${session.persona}"`);
     return persona;
   }, []);
 
-  const logout = useCallback(() => {
-    localStorageSet(STORAGE_KEY, null);
+  const logout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      setState({ ready: true, session: null });
+    }
   }, []);
 
   const value = useMemo(
-    () => ({ session, ready, login, logout }),
-    [session, ready, login, logout],
+    () => ({ session: snapshot.session, ready: snapshot.ready, login, logout }),
+    [snapshot, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -102,7 +161,10 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
-/** Gates children on a minimum role. Redirects to / when logged out. */
+/**
+ * Gates children on a minimum role. Redirects to / when logged out.
+ * UX layer only — middleware.ts enforces the same floors server-side.
+ */
 export function RoleGuard({
   minRole,
   children,
