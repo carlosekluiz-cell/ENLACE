@@ -1,35 +1,47 @@
-import Link from "next/link";
+"use client";
 
-const footerColumns = [
+import Link from "next/link";
+import { useI18n } from "@/lib/i18n";
+
+interface FooterLink {
+  labelKey: string;
+  href: string;
+  external?: boolean;
+  literal?: string;
+}
+
+const footerColumns: { titleKey: string; links: FooterLink[] }[] = [
   {
-    title: "Product",
+    titleKey: "footer.product",
     links: [
-      { label: "Features", href: "/features" },
-      { label: "Examples", href: "/examples" },
-      { label: "Request a pilot", href: "/contact" },
+      { labelKey: "footer.features", href: "/features" },
+      { labelKey: "footer.examples", href: "/examples" },
+      { labelKey: "footer.requestPilot", href: "/contact" },
     ],
   },
   {
-    title: "Resources",
+    titleKey: "footer.resources",
     links: [
-      { label: "Examples", href: "/examples" },
-      { label: "Contact", href: "/contact" },
+      { labelKey: "footer.examples", href: "/examples" },
+      { labelKey: "footer.contact", href: "/contact" },
     ],
   },
   {
-    title: "Company",
+    titleKey: "footer.company",
     links: [
-      { label: "About", href: "/about" },
+      { labelKey: "footer.about", href: "/about" },
       {
-        label: "Pulso Technologies",
+        labelKey: "",
+        literal: "Pulso Technologies",
         href: "https://find-and-update.company-information.service.gov.uk/company/17151141",
         external: true,
       },
     ],
   },
-] as const;
+];
 
 export default function Footer() {
+  const { t } = useI18n();
   return (
     <footer
       className="grain relative"
@@ -46,33 +58,33 @@ export default function Footer() {
         {/* Columns */}
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           {footerColumns.map((col) => (
-            <div key={col.title}>
+            <div key={col.titleKey}>
               <h3
                 className="text-xs font-semibold uppercase tracking-widest mb-4"
                 style={{ color: "var(--text-on-dark-muted)" }}
               >
-                {col.title}
+                {t(col.titleKey)}
               </h3>
               <ul className="space-y-2.5 list-none p-0 m-0">
                 {col.links.map((link) => {
-                  const isExternal = "external" in link && link.external;
+                  const label = link.literal ?? t(link.labelKey);
                   return (
-                    <li key={link.label}>
-                      {isExternal ? (
+                    <li key={label}>
+                      {link.external ? (
                         <a
                           href={link.href}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="footer-link text-sm"
                         >
-                          {link.label}
+                          {label}
                         </a>
                       ) : (
                         <Link
                           href={link.href}
                           className="footer-link text-sm"
                         >
-                          {link.label}
+                          {label}
                         </Link>
                       )}
                     </li>
@@ -91,10 +103,8 @@ export default function Footer() {
             color: "var(--text-on-dark-muted)",
           }}
         >
-          <span>&copy; 2026 Pulso Technologies. All rights reserved.</span>
-          <span>
-            Read-only telemetry · multi-vendor · your data stays yours
-          </span>
+          <span>{t("footer.copyright")}</span>
+          <span>{t("footer.tagline")}</span>
         </div>
 
         {/* Legal */}
@@ -102,8 +112,7 @@ export default function Footer() {
           className="mt-4 text-xs"
           style={{ color: "var(--text-on-dark-muted)" }}
         >
-          Pulso Technologies Limited &middot; Registered in England &amp; Wales
-          &middot; company no. 17151141
+          {t("footer.legal")}
         </p>
       </div>
     </footer>

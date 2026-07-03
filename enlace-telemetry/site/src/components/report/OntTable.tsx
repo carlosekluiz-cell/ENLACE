@@ -2,6 +2,8 @@
 
 import { useState, useMemo } from "react";
 import type { AuditResult, OntData } from "@/lib/audit-types";
+import { useI18n } from "@/lib/i18n";
+type TFn = (key: string, params?: Record<string, string | number>) => string;
 
 interface OntTableProps {
   result: AuditResult;
@@ -44,12 +46,12 @@ function statusDot(status: string): string {
   return "#f59e0b";
 }
 
-function statusLabel(status: string): string {
+function statusLabel(status: string, t: TFn): string {
   const s = status.toUpperCase();
   if (s === "ONLINE" || s === "ACTIVE") return "ONLINE";
   if (s === "OFFLINE" || s === "DOWN" || s === "INACTIVE") return "OFFLINE";
-  if (s === "FIBERCUT") return "OFFLINE (LOS)";
-  if (s === "LOWSIGNAL") return "LOW SIGNAL";
+  if (s === "FIBERCUT") return t("table.status.offlineLos");
+  if (s === "LOWSIGNAL") return t("table.status.lowSignal");
   return s;
 }
 
@@ -60,6 +62,7 @@ function rowBgColor(severity: "critical" | "warning" | "info" | null): string {
 }
 
 export default function OntTable({ result, filter }: OntTableProps) {
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("rxDbm");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -129,36 +132,40 @@ export default function OntTable({ result, filter }: OntTableProps) {
 
       // Priority: rogue > fault > ghost > churn > flapping > reflectance > optical_budget > diagnostic alert
       if (rogueSerials.has(s)) {
-        issue = "Rogue suspect";
+        issue = t("table.issue.rogue");
         issueSeverity = "critical";
         filterKey = "rogue";
       } else if (faultSerials.has(s)) {
-        issue = "Fault affected";
+        issue = t("table.issue.fault");
         issueSeverity = "critical";
         filterKey = "faults";
       } else if (ghostSerials.has(s)) {
-        issue = "Ghost customer";
+        issue = t("table.issue.ghost");
         issueSeverity = "warning";
         filterKey = "ghosts";
       } else if (churnSerials.has(s)) {
         const cr = churnSerials.get(s)!;
-        issue = `Degrading (${cr.days_degrading}d, ~${(cr.estimated_churn_probability_90day * 100).toFixed(0)}% est. churn)`;
+        issue = t("table.issue.degrading", {
+          days: cr.days_degrading,
+          pct: (cr.estimated_churn_probability_90day * 100).toFixed(0),
+        });
         issueSeverity =
           cr.estimated_churn_probability_90day > 0.3 ? "critical" : "warning";
         filterKey = "churn_risk";
       } else if (flappingSerials.has(s)) {
-        issue = "Flapping";
+        issue = t("table.issue.flapping");
         issueSeverity = "warning";
         filterKey = "flapping";
       } else if (reflectanceSerials.has(s)) {
-        issue = "Reflectance issue";
+        issue = t("table.issue.reflectance");
         issueSeverity = "warning";
         filterKey = "reflectance";
       } else if (opticalBudgetSerials.has(s)) {
-        issue = "Low optical margin";
+        issue = t("table.issue.optical");
         issueSeverity = "warning";
         filterKey = "optical_budget";
       } else if (alertsBySerial.has(s)) {
+        // Diagnostic alert_type comes straight from the engine output.
         issue = alertsBySerial.get(s)!;
         issueSeverity = "info";
         filterKey = null;
@@ -172,7 +179,7 @@ export default function OntTable({ result, filter }: OntTableProps) {
         ont.rx_power_dbm < -28 &&
         (st === "ONLINE" || st === "ACTIVE")
       ) {
-        issue = "Low signal";
+        issue = t("table.issue.lowSignal");
         issueSeverity = "warning";
       }
 
@@ -186,7 +193,7 @@ export default function OntTable({ result, filter }: OntTableProps) {
         filterKey,
       };
     });
-  }, [result]);
+  }, [result, t]);
 
   // Filter + search
   const filtered = useMemo(() => {
@@ -310,7 +317,7 @@ export default function OntTable({ result, filter }: OntTableProps) {
       <div className="flex items-center gap-3 mb-3">
         <input
           type="text"
-          placeholder="Search by serial..."
+          placeholder={t("table.search")}
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -344,11 +351,11 @@ export default function OntTable({ result, filter }: OntTableProps) {
             >
               {(
                 [
-                  { key: "serial" as SortKey, label: "Serial" },
-                  { key: "ponPort" as SortKey, label: "PON Port" },
-                  { key: "rxDbm" as SortKey, label: "Rx dBm" },
-                  { key: "status" as SortKey, label: "Status" },
-                  { key: "issue" as SortKey, label: "Issue" },
+                  { key: "serial" as SortKey, label: t("table.col.serial") },
+                  { key: "ponPort" as SortKey, label: t("table.col.pon") },
+                  { key: "rxDbm" as SortKey, label: t("table.col.rx") },
+                  { key: "status" as SortKey, label: t("table.col.status") },
+                  { key: "issue" as SortKey, label: t("table.col.issue") },
                 ] as const
               ).map((col) => (
                 <th
@@ -403,7 +410,7 @@ export default function OntTable({ result, filter }: OntTableProps) {
                       className="font-mono text-xs uppercase"
                       style={{ color: statusDot(row.status) }}
                     >
-                      {statusLabel(row.status)}
+                      {statusLabel(row.status, t)}
                     </span>
                   </span>
                 </td>
@@ -428,7 +435,7 @@ export default function OntTable({ result, filter }: OntTableProps) {
                   className="px-3 py-8 text-center font-mono text-sm"
                   style={{ color: "var(--text-on-dark-muted)" }}
                 >
-                  No ONTs match the current filter
+                  {t("table.noMatch")}
                 </td>
               </tr>
             )}
@@ -445,13 +452,13 @@ export default function OntTable({ result, filter }: OntTableProps) {
             onClick={() => setPage(page - 1)}
             style={{ opacity: page === 0 ? 0.4 : 1, height: 32, paddingLeft: 12, paddingRight: 12 }}
           >
-            Previous
+            {t("table.prev")}
           </button>
           <span
             className="font-mono text-xs"
             style={{ color: "var(--text-on-dark-muted)" }}
           >
-            Page {page + 1} of {totalPages}
+            {t("table.page", { page: page + 1, total: totalPages })}
           </span>
           <button
             className="enlace-btn-ghost font-mono text-xs"
@@ -459,7 +466,7 @@ export default function OntTable({ result, filter }: OntTableProps) {
             onClick={() => setPage(page + 1)}
             style={{ opacity: page >= totalPages - 1 ? 0.4 : 1, height: 32, paddingLeft: 12, paddingRight: 12 }}
           >
-            Next
+            {t("table.next")}
           </button>
         </div>
       )}

@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import Section from "@/components/ui/Section";
+import { useI18n } from "@/lib/i18n";
 import {
   AlertTriangle,
   TrendingDown,
@@ -39,6 +42,61 @@ const vendors = [
 /* ───────────────────────────── page ─────────────────────────────── */
 
 export default function Home() {
+  const { t } = useI18n();
+
+  const featureCards = [
+    {
+      icon: AlertTriangle,
+      titleKey: "home.feat.fault.title",
+      anchor: "/features#fault-detection",
+      descKey: "home.feat.fault.desc",
+      metricKey: "home.feat.fault.metric",
+    },
+    {
+      icon: TrendingDown,
+      titleKey: "home.feat.signal.title",
+      anchor: "/features#signal-prediction",
+      descKey: "home.feat.signal.desc",
+      metricKey: "home.feat.signal.metric",
+    },
+    {
+      icon: UserMinus,
+      titleKey: "home.feat.churn.title",
+      anchor: "",
+      descKey: "home.feat.churn.desc",
+      metricKey: "home.feat.churn.metric",
+    },
+    {
+      icon: BarChart3,
+      titleKey: "home.feat.capacity.title",
+      anchor: "/features#capacity-planning",
+      descKey: "home.feat.capacity.desc",
+      metricKey: "home.feat.capacity.metric",
+    },
+    {
+      icon: Layers,
+      titleKey: "home.feat.vendor.title",
+      anchor: "/features#multi-vendor",
+      descKey: "home.feat.vendor.desc",
+      metricKey: "home.feat.vendor.metric",
+    },
+    {
+      icon: Activity,
+      titleKey: "home.feat.diag.title",
+      anchor: "/features#diagnostics",
+      descKey: "home.feat.diag.desc",
+      metricKey: "home.feat.diag.metric",
+    },
+  ];
+
+  const trustItems = [
+    { icon: Shield, key: "home.trust.1" },
+    { icon: Lock, key: "home.trust.2" },
+    { icon: Scale, key: "home.trust.3" },
+    { icon: Database, key: "home.trust.4" },
+    { icon: BookOpen, key: "home.trust.5" },
+  ];
+
   return (
     <>
       {/* ── SECTION 1: HERO ─────────────────────────────────────── */}
@@ -54,12 +112,12 @@ export default function Home() {
             </p>
 
             <h1 className="font-serif text-4xl font-bold leading-tight md:text-6xl md:leading-[1.1]">
-              Your network is talking.
+              {t("home.hero.title1")}
               <span
                 className="block mt-2"
                 style={{ color: "var(--text-on-dark-muted)" }}
               >
-                Now you can listen.
+                {t("home.hero.title2")}
               </span>
             </h1>
 
@@ -67,28 +125,23 @@ export default function Home() {
               className="mt-6 max-w-xl text-lg leading-relaxed"
               style={{ color: "var(--text-on-dark-secondary)" }}
             >
-              Enlace reads the telemetry your OLTs already produce — read-only —
-              and turns it into early warnings: fibre faults, degrading signal,
-              ghost connections, churn risk. 12+ OLT vendors. 60-second
-              intervals. One 8.7&nbsp;MB static binary.
+              {t("home.hero.lead")}
             </p>
 
             <p
               className="mt-4 max-w-xl text-sm leading-relaxed"
               style={{ color: "var(--text-on-dark-muted)" }}
             >
-              Enlace is the first product from Pulso Technologies, a UK
-              telecom-technology startup. We&apos;re pre-launch — onboarding a
-              small number of fibre operators as validation partners.
+              {t("home.hero.sub")}
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">
               <Link href="/contact" className="enlace-btn-dark gap-2">
-                Request a pilot
+                {t("common.requestPilot")}
                 <ArrowRight size={16} />
               </Link>
               <Link href="/examples" className="enlace-btn-ghost gap-2">
-                See an example
+                {t("common.seeExample")}
                 <ArrowRight size={16} />
               </Link>
             </div>
@@ -99,14 +152,14 @@ export default function Home() {
               style={{ borderTop: "1px solid var(--border-dark-strong)" }}
             >
               {[
-                ["8.7 MB", "Binary size"],
-                ["12+", "OLT vendors"],
-                ["60s", "Poll interval"],
-                ["0.12s", "1,000-ONT audit"],
-                ["5", "Protocols"],
-                ["0", "Credentials sent"],
-              ].map(([value, label]) => (
-                <div key={label} className="pt-5">
+                ["8.7 MB", "home.metric.binarySize"],
+                ["12+", "home.metric.oltVendors"],
+                ["60s", "home.metric.pollInterval"],
+                ["0.12s", "home.metric.audit"],
+                ["5", "home.metric.protocols"],
+                ["0", "home.metric.credentials"],
+              ].map(([value, labelKey]) => (
+                <div key={labelKey} className="pt-5">
                   <p
                     className="font-mono text-xl font-bold"
                     style={{ color: "var(--accent)" }}
@@ -117,7 +170,7 @@ export default function Home() {
                     className="font-mono text-[11px] uppercase tracking-wide mt-1"
                     style={{ color: "var(--text-on-dark-muted)" }}
                   >
-                    {label}
+                    {t(labelKey)}
                   </p>
                 </div>
               ))}
@@ -126,11 +179,11 @@ export default function Home() {
               className="mt-4 font-mono text-[11px]"
               style={{ color: "var(--text-on-dark-muted)" }}
             >
-              Figures from internal validation.
+              {t("home.hero.figuresNote")}
             </p>
           </div>
 
-          {/* Right column — terminal mockup */}
+          {/* Right column — terminal mockup (literal agent console output) */}
           <div className="terminal-frame">
             <div className="terminal-frame-header">
               <span
@@ -175,9 +228,9 @@ export default function Home() {
                 1,923 active sessions
               </span>
               {"\n\n"}
-              <span style={{ color: "#eab308" }}>{"  \u26A0"}</span>
+              <span style={{ color: "#eab308" }}>{"  ⚠"}</span>
               {" 3 ONTs with degrading signal (est. failure: 8-21 days)\n"}
-              <span style={{ color: "#22c55e" }}>{"  \u2713"}</span>
+              <span style={{ color: "#22c55e" }}>{"  ✓"}</span>
               {" Last sync: 4s ago | Buffer: 0 pending"}
             </div>
           </div>
@@ -208,13 +261,13 @@ export default function Home() {
           className="font-mono text-xs font-semibold uppercase tracking-widest mb-4"
           style={{ color: "var(--accent)" }}
         >
-          THE PROBLEM
+          {t("home.problem.eyebrow")}
         </p>
 
         <h2 className="font-serif text-3xl font-bold md:text-5xl">
-          Your NOC is reactive.
+          {t("home.problem.title1")}
           <span className="block mt-2" style={{ color: "var(--text-muted)" }}>
-            Your customers know before you do.
+            {t("home.problem.title2")}
           </span>
         </h2>
 
@@ -231,19 +284,12 @@ export default function Home() {
               className="font-mono text-xs font-semibold uppercase tracking-widest mb-6"
               style={{ color: "var(--danger)" }}
             >
-              Before
+              {t("home.problem.before")}
             </p>
             <ul className="space-y-4 list-none p-0 m-0">
-              {[
-                "Customer calls with complaint",
-                "Technician dispatched blind",
-                "Signal degrading undetected for weeks",
-                "No per-ONT visibility",
-                "Truck roll: £80–150 each",
-                "15–25% are 'no fault found'",
-              ].map((item) => (
+              {[1, 2, 3, 4, 5, 6].map((n) => (
                 <li
-                  key={item}
+                  key={n}
                   className="flex gap-3 items-start text-sm"
                   style={{ color: "var(--text-on-dark-secondary)" }}
                 >
@@ -252,7 +298,7 @@ export default function Home() {
                     className="mt-0.5 shrink-0"
                     style={{ color: "var(--danger)" }}
                   />
-                  {item}
+                  {t(`home.problem.before.${n}`)}
                 </li>
               ))}
             </ul>
@@ -273,19 +319,12 @@ export default function Home() {
               className="font-mono text-xs font-semibold uppercase tracking-widest mb-6"
               style={{ color: "var(--accent)" }}
             >
-              After
+              {t("home.problem.after")}
             </p>
             <ul className="space-y-4 list-none p-0 m-0">
-              {[
-                "Per-ONT monitoring every 60 seconds",
-                "Tech gets diagnosis before customer calls",
-                "Continuous failure prediction",
-                "Dashboard with signal, distance, trend",
-                "70% of calls resolved by help desk",
-                "Churn risk scored before the customer calls",
-              ].map((item) => (
+              {[1, 2, 3, 4, 5, 6].map((n) => (
                 <li
-                  key={item}
+                  key={n}
                   className="flex gap-3 items-start text-sm"
                   style={{ color: "var(--text-primary)" }}
                 >
@@ -294,7 +333,7 @@ export default function Home() {
                     className="mt-0.5 shrink-0"
                     style={{ color: "var(--success)" }}
                   />
-                  {item}
+                  {t(`home.problem.after.${n}`)}
                 </li>
               ))}
             </ul>
@@ -308,13 +347,13 @@ export default function Home() {
           className="font-mono text-xs font-semibold uppercase tracking-widest mb-4"
           style={{ color: "var(--accent)" }}
         >
-          HOW IT WORKS
+          {t("home.how.eyebrow")}
         </p>
 
         <h2 className="font-serif text-3xl font-bold md:text-5xl">
-          One binary. Five minutes.
+          {t("home.how.title1")}
           <span className="block mt-2" style={{ color: "var(--text-muted)" }}>
-            From blind to predictive.
+            {t("home.how.title2")}
           </span>
         </h2>
 
@@ -333,12 +372,14 @@ export default function Home() {
             >
               01
             </span>
-            <h3 className="font-serif text-xl font-bold mt-2">Install</h3>
+            <h3 className="font-serif text-xl font-bold mt-2">
+              {t("home.how.install.title")}
+            </h3>
             <p
               className="mt-2 text-sm leading-relaxed"
               style={{ color: "var(--text-secondary)" }}
             >
-              One command. Under 10 seconds.
+              {t("home.how.install.desc")}
             </p>
             <div
               className="mt-4 p-3 font-mono text-[11px] leading-relaxed overflow-x-auto whitespace-pre-wrap"
@@ -370,12 +411,14 @@ export default function Home() {
             >
               02
             </span>
-            <h3 className="font-serif text-xl font-bold mt-2">Configure</h3>
+            <h3 className="font-serif text-xl font-bold mt-2">
+              {t("home.how.configure.title")}
+            </h3>
             <p
               className="mt-2 text-sm leading-relaxed"
               style={{ color: "var(--text-secondary)" }}
             >
-              One TOML file. Add your OLTs, set the interval, done.
+              {t("home.how.configure.desc")}
             </p>
             <div
               className="mt-4 p-3 font-mono text-[11px] leading-relaxed overflow-x-auto whitespace-pre-wrap"
@@ -411,12 +454,14 @@ export default function Home() {
             >
               03
             </span>
-            <h3 className="font-serif text-xl font-bold mt-2">Collect</h3>
+            <h3 className="font-serif text-xl font-bold mt-2">
+              {t("home.how.collect.title")}
+            </h3>
             <p
               className="mt-2 text-sm leading-relaxed"
               style={{ color: "var(--text-secondary)" }}
             >
-              The agent connects to each OLT using the right protocol and pulls per-ONT data.
+              {t("home.how.collect.desc")}
             </p>
             <div
               className="mt-4 p-3 font-mono text-[11px] leading-relaxed overflow-x-auto whitespace-pre-wrap"
@@ -436,7 +481,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Step 4: Act */}
+          {/* Step 4: Connect */}
           <div
             className="p-6"
             style={{
@@ -450,12 +495,14 @@ export default function Home() {
             >
               04
             </span>
-            <h3 className="font-serif text-xl font-bold mt-2">Connect</h3>
+            <h3 className="font-serif text-xl font-bold mt-2">
+              {t("home.how.connect.title")}
+            </h3>
             <p
               className="mt-2 text-sm leading-relaxed"
               style={{ color: "var(--text-secondary)" }}
             >
-              Data flows to Elasticsearch, Slack, and webhooks. Plug into what you already use.
+              {t("home.how.connect.desc")}
             </p>
             <div
               className="mt-4 p-3 font-mono text-[11px] leading-relaxed overflow-x-auto whitespace-pre-wrap"
@@ -483,64 +530,21 @@ export default function Home() {
           className="font-mono text-xs font-semibold uppercase tracking-widest mb-4"
           style={{ color: "var(--accent)" }}
         >
-          CAPABILITIES
+          {t("home.features.eyebrow")}
         </p>
 
         <h2 className="font-serif text-3xl font-bold md:text-5xl">
-          17 intelligence modules.
+          {t("home.features.title1")}
           <span
             className="block mt-2"
             style={{ color: "var(--text-on-dark-muted)" }}
           >
-            Six highlighted here. Each one replaces a manual process.
+            {t("home.features.title2")}
           </span>
         </h2>
 
         <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {[
-            {
-              icon: AlertTriangle,
-              title: "Fault Detection",
-              anchor: "/features#fault-detection",
-              desc: "Fibre cut vs power outage. Multi-ONT correlation on the same PON port. Instant classification.",
-              metric: "Per-cycle detection",
-            },
-            {
-              icon: TrendingDown,
-              title: "Signal Prediction",
-              anchor: "/features#signal-prediction",
-              desc: "Linear regression on dBm history. Continuous failure forecast per ONT.",
-              metric: "Continuous forecast",
-            },
-            {
-              icon: UserMinus,
-              title: "Churn Scoring",
-              anchor: "",
-              desc: "Degrading signal + micro-dropouts = estimated 90-day churn probability and revenue at risk — with every assumption stated inline.",
-              metric: "Assumptions stated",
-            },
-            {
-              icon: BarChart3,
-              title: "Capacity Planning",
-              anchor: "/features#capacity-planning",
-              desc: "PON port utilisation tracking. Watch above 50% when filling within 6 months; warning above 75%, critical above 90%.",
-              metric: "Months-to-full forecast",
-            },
-            {
-              icon: Layers,
-              title: "Multi-Vendor",
-              anchor: "/features#multi-vendor",
-              desc: "Huawei, ZTE, FiberHome, Adtran, Nokia, Datacom + more. One dashboard.",
-              metric: "12+ vendors",
-            },
-            {
-              icon: Activity,
-              title: "Real-time Diagnostics",
-              anchor: "/features#diagnostics",
-              desc: "Per-ONT signal level, distance, status, temperature. Customer health card for the help desk.",
-              metric: "60s intervals",
-            },
-          ].map((feature) => {
+          {featureCards.map((feature) => {
             const content = (
               <>
                 <feature.icon
@@ -551,26 +555,26 @@ export default function Home() {
                   className="font-serif text-lg font-bold mt-4"
                   style={{ color: "var(--text-on-dark)" }}
                 >
-                  {feature.title}
+                  {t(feature.titleKey)}
                 </h3>
                 <p
                   className="mt-2 text-sm leading-relaxed"
                   style={{ color: "var(--text-on-dark-secondary)" }}
                 >
-                  {feature.desc}
+                  {t(feature.descKey)}
                 </p>
                 <p
                   className="mt-4 font-mono text-xs font-semibold"
                   style={{ color: "var(--accent)" }}
                 >
-                  {feature.metric}
+                  {t(feature.metricKey)}
                 </p>
                 {feature.anchor && (
                   <p
                     className="mt-3 text-sm font-medium"
                     style={{ color: "var(--text-on-dark-muted)" }}
                   >
-                    {"Learn more \u2193"}
+                    {t("common.learnMore")}
                   </p>
                 )}
               </>
@@ -578,7 +582,7 @@ export default function Home() {
 
             return feature.anchor ? (
               <a
-                key={feature.title}
+                key={feature.titleKey}
                 href={feature.anchor}
                 className="block p-6 transition-colors no-underline"
                 style={{
@@ -590,7 +594,7 @@ export default function Home() {
               </a>
             ) : (
               <div
-                key={feature.title}
+                key={feature.titleKey}
                 className="block p-6"
                 style={{
                   backgroundColor: "var(--bg-dark-surface)",
@@ -610,13 +614,13 @@ export default function Home() {
           className="font-mono text-xs font-semibold uppercase tracking-widest mb-4"
           style={{ color: "var(--accent)" }}
         >
-          VENDOR SUPPORT
+          {t("home.vendors.eyebrow")}
         </p>
 
         <h2 className="font-serif text-3xl font-bold md:text-5xl">
-          12+ OLT vendors.
+          {t("home.vendors.title1")}
           <span className="block mt-2" style={{ color: "var(--text-muted)" }}>
-            Every protocol. One agent.
+            {t("home.vendors.title2")}
           </span>
         </h2>
 
@@ -632,19 +636,19 @@ export default function Home() {
                   className="text-left py-3 pr-4 font-mono text-xs uppercase tracking-wider"
                   style={{ color: "var(--text-muted)" }}
                 >
-                  Vendor
+                  {t("home.vendors.col.vendor")}
                 </th>
                 <th
                   className="text-left py-3 pr-4 font-mono text-xs uppercase tracking-wider"
                   style={{ color: "var(--text-muted)" }}
                 >
-                  Models
+                  {t("home.vendors.col.models")}
                 </th>
                 <th
                   className="text-left py-3 font-mono text-xs uppercase tracking-wider"
                   style={{ color: "var(--text-muted)" }}
                 >
-                  Protocols
+                  {t("home.vendors.col.protocols")}
                 </th>
               </tr>
             </thead>
@@ -658,7 +662,7 @@ export default function Home() {
                 ],
                 ["ZTE", "C320, C300, C600, C650", "SNMP + SSH"],
                 ["FiberHome", "AN5516, AN6001", "SNMP + SSH"],
-                ["Adtran", "SDX 6320", "NETCONF/YANG + SNMP + CSV import"],
+                ["Adtran", "SDX 6320", t("home.vendors.proto.adtran")],
                 ["Datacom", "DM4610, DM4615", "SNMP + NETCONF"],
                 ["Nokia", "ISAM/Lightspan", "SNMP + NETCONF"],
                 ["Parks", "FiberLink 200/300/400", "SNMP + SSH"],
@@ -691,7 +695,7 @@ export default function Home() {
                   className="pt-6 pb-2 font-mono text-[11px] uppercase tracking-widest"
                   style={{ color: "var(--text-muted)" }}
                 >
-                  Partial support
+                  {t("home.vendors.partial")}
                 </td>
               </tr>
               {[
@@ -727,13 +731,13 @@ export default function Home() {
                   className="pt-6 pb-2 font-mono text-[11px] uppercase tracking-widest"
                   style={{ color: "var(--text-muted)" }}
                 >
-                  Also collected
+                  {t("home.vendors.alsoCollected")}
                 </td>
               </tr>
               {[
-                ["MikroTik", "—", "RouterOS API (PPPoE, BGP, traffic)"],
-                ["RADIUS", "—", "UDP 1813 (sessions, bytes, duration)"],
-                ["TR-069 CPE", "—", "GenieACS API (WiFi, SNR, devices)"],
+                ["MikroTik", "—", t("home.vendors.proto.mikrotik")],
+                ["RADIUS", "—", t("home.vendors.proto.radius")],
+                ["TR-069 CPE", "—", t("home.vendors.proto.tr069")],
               ].map(([vendor, models, protocols]) => (
                 <tr
                   key={vendor}
@@ -762,10 +766,7 @@ export default function Home() {
           className="mt-4 font-mono text-xs leading-relaxed"
           style={{ color: "var(--text-muted)" }}
         >
-          Validated collection paths today: SNMP v2c/v3, NETCONF, RouterOS
-          API, passive RADIUS, and TR-069 (GenieACS). SSH CLI and gRPC
-          streaming are implemented but still in validation against real
-          firmware.
+          {t("home.vendors.footnote")}
         </p>
       </Section>
 
@@ -775,43 +776,20 @@ export default function Home() {
           className="font-mono text-xs font-semibold uppercase tracking-widest mb-4"
           style={{ color: "var(--accent)" }}
         >
-          TRUST
+          {t("home.trust.eyebrow")}
         </p>
 
         <h2 className="font-serif text-3xl font-bold md:text-5xl">
-          Read-only &amp; verifiable.
+          {t("home.trust.title1")}
           <span className="block mt-2" style={{ color: "var(--text-muted)" }}>
-            No lock-in by design.
+            {t("home.trust.title2")}
           </span>
         </h2>
 
         <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {[
-            {
-              icon: Shield,
-              title: "Read-only — the agent never writes to your kit",
-            },
-            {
-              icon: Lock,
-              title: "Your credentials stay on your network",
-            },
-            {
-              icon: Scale,
-              title:
-                "Vendor-agnostic via open standards (SNMP/NETCONF) — no single-vendor lock-in",
-            },
-            {
-              icon: Database,
-              title: "Your data stays yours",
-            },
-            {
-              icon: BookOpen,
-              title:
-                "We'll walk your engineers through exactly what the agent does — read-only — so they can verify it without us handing over source",
-            },
-          ].map((item) => (
+          {trustItems.map((item) => (
             <div
-              key={item.title}
+              key={item.key}
               className="flex gap-4 items-start p-6"
               style={{
                 backgroundColor: "var(--bg-surface)",
@@ -824,7 +802,7 @@ export default function Home() {
                 style={{ color: "var(--accent)" }}
               />
               <p className="text-sm font-medium leading-relaxed">
-                {item.title}
+                {t(item.key)}
               </p>
             </div>
           ))}
@@ -837,16 +815,16 @@ export default function Home() {
           className="font-mono text-xs font-semibold uppercase tracking-widest mb-4"
           style={{ color: "var(--accent)" }}
         >
-          COMPARISON
+          {t("home.calix.eyebrow")}
         </p>
 
         <h2 className="font-serif text-3xl font-bold md:text-5xl">
-          Calix Cloud charges per subscriber.
+          {t("home.calix.title1")}
           <span
             className="block mt-2"
             style={{ color: "var(--text-on-dark-muted)" }}
           >
-            And only works with Calix hardware.
+            {t("home.calix.title2")}
           </span>
         </h2>
 
@@ -862,7 +840,7 @@ export default function Home() {
                   className="text-left py-3 pr-4 font-mono text-xs uppercase tracking-wider"
                   style={{ color: "var(--text-on-dark-muted)" }}
                 >
-                  Feature
+                  {t("home.calix.col.feature")}
                 </th>
                 <th
                   className="text-left py-3 pr-4 font-mono text-xs uppercase tracking-wider"
@@ -880,25 +858,17 @@ export default function Home() {
             </thead>
             <tbody>
               {[
-                ["OLT vendors", "Calix only", "12+ vendors"],
-                ["Per-ONT telemetry", "Yes", "Yes"],
-                ["Predictive maintenance", "Yes", "Yes"],
-                ["Read-only / no lock-in", "Closed", "Yes — open standards"],
-                ["Vendor lock-in", "Total", "None"],
-                ["Pricing model", "Per subscriber", "Free pilot at launch"],
-                [
-                  "Install",
-                  "Cloud onboarding project",
-                  "One command, minutes",
-                ],
-                [
-                  "Credentials & management",
-                  "Live in the vendor cloud",
-                  "Stay on your network",
-                ],
-              ].map(([feature, calix, enlace]) => (
+                "vendors",
+                "telemetry",
+                "predictive",
+                "readonly",
+                "lockin",
+                "pricing",
+                "install",
+                "creds",
+              ].map((row) => (
                 <tr
-                  key={feature}
+                  key={row}
                   style={{
                     borderBottom: "1px solid var(--border-dark-strong)",
                   }}
@@ -907,19 +877,19 @@ export default function Home() {
                     className="py-3 pr-4 font-medium"
                     style={{ color: "var(--text-on-dark)" }}
                   >
-                    {feature}
+                    {t(`home.calix.row.${row}.f`)}
                   </td>
                   <td
                     className="py-3 pr-4"
                     style={{ color: "var(--text-on-dark-muted)" }}
                   >
-                    {calix}
+                    {t(`home.calix.row.${row}.c`)}
                   </td>
                   <td
                     className="py-3 font-medium"
                     style={{ color: "var(--text-on-dark)" }}
                   >
-                    {enlace}
+                    {t(`home.calix.row.${row}.e`)}
                   </td>
                 </tr>
               ))}
@@ -935,29 +905,27 @@ export default function Home() {
             className="font-mono text-xs font-semibold uppercase tracking-widest mb-4"
             style={{ color: "var(--accent)" }}
           >
-            LAUNCH PARTNERS
+            {t("home.pilot.eyebrow")}
           </p>
 
           <h2 className="font-serif text-3xl font-bold md:text-5xl">
-            Free pilot for launch partners
+            {t("home.pilot.title")}
           </h2>
 
           <p
             className="mt-6 text-lg leading-relaxed"
             style={{ color: "var(--text-secondary)" }}
           >
-            We&apos;re onboarding a small number of fibre operators to validate
-            Enlace on real networks — free during the pilot, with preferential
-            pricing at launch.
+            {t("home.pilot.lead")}
           </p>
 
           <div className="mt-8 flex flex-wrap gap-4 justify-center">
             <Link href="/contact" className="enlace-btn-primary gap-2">
-              Request a pilot
+              {t("common.requestPilot")}
               <ArrowRight size={16} />
             </Link>
             <Link href="/examples" className="enlace-btn-outline">
-              See an example
+              {t("common.seeExample")}
             </Link>
           </div>
         </div>
@@ -967,12 +935,12 @@ export default function Home() {
       <Section background="dark" grain>
         <div className="text-center max-w-2xl mx-auto">
           <h2 className="font-serif text-3xl font-bold md:text-5xl">
-            Your network has the data.
+            {t("home.cta.title1")}
             <span
               className="block mt-2"
               style={{ color: "var(--text-on-dark-muted)" }}
             >
-              Stop flying blind.
+              {t("home.cta.title2")}
             </span>
           </h2>
 
@@ -980,17 +948,16 @@ export default function Home() {
             className="mt-6 text-lg leading-relaxed"
             style={{ color: "var(--text-on-dark-secondary)" }}
           >
-            See an example of what Enlace finds, then request a pilot to run it
-            against your own network.
+            {t("home.cta.lead")}
           </p>
 
           <div className="mt-8 flex flex-wrap gap-4 justify-center">
             <Link href="/contact" className="enlace-btn-dark gap-2">
-              Request a pilot
+              {t("common.requestPilot")}
               <ArrowRight size={16} />
             </Link>
             <Link href="/examples" className="enlace-btn-ghost gap-2">
-              See an example
+              {t("common.seeExample")}
               <ArrowRight size={16} />
             </Link>
           </div>

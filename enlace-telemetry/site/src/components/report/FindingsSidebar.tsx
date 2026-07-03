@@ -1,6 +1,7 @@
 "use client";
 
 import type { AuditResult } from "@/lib/audit-types";
+import { useI18n } from "@/lib/i18n";
 
 interface FindingsSidebarProps {
   result: AuditResult;
@@ -27,20 +28,22 @@ export default function FindingsSidebar({
   activeFilter,
   onFilterChange,
 }: FindingsSidebarProps) {
+  const { t } = useI18n();
   const categories: FindingCategory[] = [];
 
   if (result.faults.length > 0) {
     const byType: Record<string, number> = {};
     for (const f of result.faults) {
-      const t = f.fault_type || "unknown";
-      byType[t] = (byType[t] || 0) + 1;
+      const ft = f.fault_type || "unknown";
+      byType[ft] = (byType[ft] || 0) + 1;
     }
+    // Fault-type tokens come straight from the engine output — kept verbatim.
     const sub = Object.entries(byType)
-      .map(([t, c]) => `${c} ${t}`)
+      .map(([ft, c]) => `${c} ${ft}`)
       .join(", ");
     categories.push({
       key: "faults",
-      label: "Fault Events",
+      label: t("report.cat.faults"),
       count: result.faults.length,
       severity: "critical",
       subtitle: sub,
@@ -53,20 +56,23 @@ export default function FindingsSidebar({
     ).length;
     categories.push({
       key: "churn_risk",
-      label: "Churn Risk",
+      label: t("report.cat.churn"),
       count: result.churn_risk.length,
       severity: "warning",
-      subtitle: severe > 0 ? `${severe} severe (assumed model)` : "monitoring",
+      subtitle:
+        severe > 0
+          ? t("report.sub.severe", { n: severe })
+          : t("report.sub.monitoring"),
     });
   }
 
   if (result.ghosts.length > 0) {
     categories.push({
       key: "ghosts",
-      label: "Ghost Customers",
+      label: t("report.cat.ghosts"),
       count: result.ghosts.length,
       severity: "warning",
-      subtitle: `revenue leakage detected`,
+      subtitle: t("report.sub.ghosts"),
     });
   }
 
@@ -78,14 +84,22 @@ export default function FindingsSidebar({
     const maxUtil = Math.max(...result.capacity.map((c) => c.utilisation_pct));
     categories.push({
       key: "capacity",
-      label: "PON Capacity",
+      label: t("report.cat.capacity"),
       count: alerting.length > 0 ? alerting.length : result.capacity.length,
       severity:
         critical > 0 ? "critical" : alerting.length > 0 ? "warning" : "info",
       subtitle:
         alerting.length > 0
-          ? `${alerting.length} port${alerting.length === 1 ? "" : "s"} alerting`
-          : `${result.capacity.length} ports tracked · peak ${maxUtil.toFixed(0)}%`,
+          ? t(
+              alerting.length === 1
+                ? "report.sub.capacity.alerting.one"
+                : "report.sub.capacity.alerting",
+              { n: alerting.length }
+            )
+          : t("report.sub.capacity.tracked", {
+              n: result.capacity.length,
+              peak: maxUtil.toFixed(0),
+            }),
     });
   }
 
@@ -99,10 +113,10 @@ export default function FindingsSidebar({
       ).length;
       categories.push({
         key: "sfp_health",
-        label: "PON-wide Trend",
+        label: t("report.cat.sfp"),
         count: trending.length,
         severity: critical > 0 ? "critical" : "warning",
-        subtitle: "shared-plant degradation",
+        subtitle: t("report.sub.sfp"),
       });
     }
   }
@@ -110,21 +124,22 @@ export default function FindingsSidebar({
   if ((result.rogue?.length ?? 0) > 0) {
     categories.push({
       key: "rogue",
-      label: "Rogue ONT Suspects",
+      label: t("report.cat.rogue"),
       count: result.rogue!.length,
       severity: "critical",
-      subtitle: "needs vendor confirmation",
+      subtitle: t("report.sub.rogue"),
     });
   }
 
   if (result.tickets.length > 0) {
     categories.push({
       key: "tickets",
-      label: "Tickets Raised",
+      label: t("report.cat.tickets"),
       count: result.tickets.length,
       severity: "info",
+      // Priority + fault-type tokens come straight from the engine output.
       subtitle: result.tickets
-        .map((t) => `${t.priority} ${t.fault_type}`)
+        .map((tk) => `${tk.priority} ${tk.fault_type}`)
         .join(", "),
     });
   }
@@ -132,30 +147,30 @@ export default function FindingsSidebar({
   if (result.flapping.length > 0) {
     categories.push({
       key: "flapping",
-      label: "Flapping ONTs",
+      label: t("report.cat.flapping"),
       count: result.flapping.length,
       severity: "warning",
-      subtitle: "unstable connections",
+      subtitle: t("report.sub.flapping"),
     });
   }
 
   if (result.weather_correlation.length > 0) {
     categories.push({
       key: "weather_correlation",
-      label: "Weather Correlation",
+      label: t("report.cat.weather"),
       count: result.weather_correlation.length,
       severity: "info",
-      subtitle: "environment-linked faults",
+      subtitle: t("report.sub.weather"),
     });
   }
 
   if (result.reflectance.length > 0) {
     categories.push({
       key: "reflectance",
-      label: "Reflectance",
+      label: t("report.cat.reflectance"),
       count: result.reflectance.length,
       severity: "warning",
-      subtitle: "connector issues",
+      subtitle: t("report.sub.reflectance"),
     });
   }
 
@@ -167,10 +182,10 @@ export default function FindingsSidebar({
     if (lowMargin.length > 0) {
       categories.push({
         key: "optical_budget",
-        label: "Optical Budget",
+        label: t("report.cat.optical"),
         count: lowMargin.length,
         severity: "warning",
-        subtitle: `of ${result.optical_budget.length} links assessed`,
+        subtitle: t("report.sub.optical", { n: result.optical_budget.length }),
       });
     }
   }
@@ -184,7 +199,7 @@ export default function FindingsSidebar({
         className="font-mono text-xs uppercase tracking-widest mb-3 px-1"
         style={{ color: "var(--text-on-dark-muted)" }}
       >
-        Findings
+        {t("report.findings")}
       </p>
 
       {/* Clear filter */}
@@ -198,7 +213,7 @@ export default function FindingsSidebar({
             border: "1px solid var(--accent)",
           }}
         >
-          Clear filter
+          {t("report.clearFilter")}
         </button>
       )}
 
@@ -254,7 +269,7 @@ export default function FindingsSidebar({
               className="font-mono text-sm"
               style={{ color: "var(--text-on-dark-muted)" }}
             >
-              No findings
+              {t("report.noFindings")}
             </p>
           </div>
         )}

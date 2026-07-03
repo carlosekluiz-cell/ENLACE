@@ -19,10 +19,13 @@ export const DEMO_TENANT = {
    * figures and must always surface as assumptions, never measurements.
    */
   settings: {
+    // Brazilian-market demo defaults (R$). Field keys keep their legacy
+    // `_gbp` names for schema stability; the `currency` string is what
+    // surfaces in projections/reports. All admin-editable per tenant.
     assumptions: {
-      arpu_gbp_month: 25,
-      truck_roll_cost_gbp: 150,
-      currency: "GBP",
+      arpu_gbp_month: 89.9,
+      truck_roll_cost_gbp: 250,
+      currency: "R$",
       note: "demo assumption constants — admin-editable tenant settings, echoed into estimates",
     },
   },

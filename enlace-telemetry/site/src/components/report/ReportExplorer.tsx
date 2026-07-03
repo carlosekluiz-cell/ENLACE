@@ -5,6 +5,7 @@ import type { AuditResult } from "@/lib/audit-types";
 import HealthScore from "@/components/report/HealthScore";
 import FindingsSidebar from "@/components/report/FindingsSidebar";
 import OntTable from "@/components/report/OntTable";
+import { useI18n } from "@/lib/i18n";
 
 interface ReportExplorerProps {
   result: AuditResult;
@@ -14,6 +15,7 @@ interface ReportExplorerProps {
 // Wires the report components together with local filter state.
 // No network calls — the data is bundled in by the caller.
 export default function ReportExplorer({ result }: ReportExplorerProps) {
+  const { t } = useI18n();
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
   const faultsCount = result.faults.length;
@@ -89,7 +91,7 @@ export default function ReportExplorer({ result }: ReportExplorerProps) {
             className="font-mono text-xs uppercase tracking-widest mt-4 mb-3"
             style={{ color: "var(--text-on-dark-muted)" }}
           >
-            Analysis coverage — stated, not assumed
+            {t("report.cover.title")}
           </p>
           <div className="grid gap-3 md:grid-cols-3">
             {fec && (
@@ -104,8 +106,10 @@ export default function ReportExplorer({ result }: ReportExplorerProps) {
                   className="font-mono text-xs font-semibold mb-1"
                   style={{ color: "var(--text-on-dark)" }}
                 >
-                  Pre-FEC health — {fec.onts_with_fec_data}/{fec.total_onts}{" "}
-                  ONTs covered
+                  {t("report.cover.fec", {
+                    a: fec.onts_with_fec_data,
+                    b: fec.total_onts,
+                  })}
                 </p>
                 <p
                   className="font-mono text-xs leading-relaxed"
@@ -127,16 +131,22 @@ export default function ReportExplorer({ result }: ReportExplorerProps) {
                   className="font-mono text-xs font-semibold mb-1"
                   style={{ color: "var(--text-on-dark)" }}
                 >
-                  Laser end-of-life — {laser.coverage.onts_with_bias}/
-                  {laser.coverage.onts_total} ONTs reporting bias current
+                  {t("report.cover.laser", {
+                    a: laser.coverage.onts_with_bias,
+                    b: laser.coverage.onts_total,
+                  })}
                 </p>
                 <p
                   className="font-mono text-xs leading-relaxed"
                   style={{ color: "var(--text-on-dark-muted)" }}
                 >
                   {laser.coverage.onts_with_bias === 0
-                    ? "No bias-current telemetry in this dataset, so no laser predictions were made — absence of a finding is not evidence of health."
-                    : `${laser.coverage.onts_analyzed} analysed, ${laser.coverage.onts_flagged} flagged, ${laser.coverage.onts_temperature_detrended} temperature-detrended.`}
+                    ? t("report.cover.laser.none")
+                    : t("report.cover.laser.some", {
+                        analyzed: laser.coverage.onts_analyzed,
+                        flagged: laser.coverage.onts_flagged,
+                        detrended: laser.coverage.onts_temperature_detrended,
+                      })}
                 </p>
               </div>
             )}
@@ -152,18 +162,21 @@ export default function ReportExplorer({ result }: ReportExplorerProps) {
                   className="font-mono text-xs font-semibold mb-1"
                   style={{ color: "var(--text-on-dark)" }}
                 >
-                  Rogue ONT scan — {rogueCount} port
-                  {rogueCount === 1 ? "" : "s"} flagged
+                  {t(
+                    rogueCount === 1
+                      ? "report.cover.rogue.one"
+                      : "report.cover.rogue",
+                    { n: rogueCount }
+                  )}
                 </p>
                 <p
                   className="font-mono text-xs leading-relaxed"
                   style={{ color: "var(--text-on-dark-muted)" }}
                 >
-                  Passive multi-victim upstream-corruption scoring ran across
-                  all PON ports.{" "}
+                  {t("report.cover.rogue.intro")}
                   {rogueCount === 0
-                    ? "No rogue-suspect events in this window."
-                    : "Candidates require vendor-native confirmation."}
+                    ? t("report.cover.rogue.none")
+                    : t("report.cover.rogue.some")}
                 </p>
               </div>
             )}

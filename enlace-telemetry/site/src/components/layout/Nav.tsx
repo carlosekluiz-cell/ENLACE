@@ -3,15 +3,18 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
+import LanguageToggle from "@/components/layout/LanguageToggle";
 
 const navLinks = [
-  { label: "Features", href: "/features" },
-  { label: "Examples", href: "/examples" },
-  { label: "UK Intelligence", href: "/intelligence/" },
-  { label: "Contact", href: "/contact" },
+  { key: "nav.features", href: "/features" },
+  { key: "nav.examples", href: "/examples" },
+  { key: "nav.intelligence", href: "/intelligence/" },
+  { key: "nav.contact", href: "/contact" },
 ] as const;
 
 export default function Nav() {
+  const { t } = useI18n();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -74,32 +77,37 @@ export default function Nav() {
               className="text-sm font-medium no-underline"
               style={{ color: linkColor }}
             >
-              {link.label}
+              {t(link.key)}
             </a>
           ))}
+
+          <LanguageToggle onDark={!scrolled} />
 
           <Link
             href="/contact"
             className={scrolled ? "enlace-btn-primary" : "enlace-btn-dark"}
           >
-            Request a pilot
+            {t("nav.requestPilot")}
           </Link>
         </div>
 
-        {/* Mobile hamburger */}
-        <button
-          className="md:hidden p-1"
-          onClick={() => setMobileOpen(!mobileOpen)}
-          aria-label={mobileOpen ? "Close menu" : "Open menu"}
-          style={{
-            color: scrolled ? "var(--text-primary)" : "var(--text-on-dark)",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-          }}
-        >
-          {mobileOpen ? <X size={22} /> : <Menu size={22} />}
-        </button>
+        {/* Mobile controls */}
+        <div className="md:hidden flex items-center gap-4">
+          <LanguageToggle onDark={!scrolled} />
+          <button
+            className="p-1"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label={mobileOpen ? t("nav.closeMenu") : t("nav.openMenu")}
+            style={{
+              color: scrolled ? "var(--text-primary)" : "var(--text-on-dark)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile menu */}
@@ -123,7 +131,7 @@ export default function Nav() {
                 className="text-sm font-medium py-1.5 no-underline"
                 style={{ color: linkColor }}
               >
-                {link.label}
+                {t(link.key)}
               </a>
             ))}
 
@@ -132,7 +140,7 @@ export default function Nav() {
               className={scrolled ? "enlace-btn-primary" : "enlace-btn-dark"}
               onClick={() => setMobileOpen(false)}
             >
-              Request a pilot
+              {t("nav.requestPilot")}
             </Link>
           </div>
         </div>

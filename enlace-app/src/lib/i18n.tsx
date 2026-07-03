@@ -46,7 +46,7 @@ const en: Record<string, string> = {
   "status.Unknown": "Unknown",
 };
 
-// pt-BR stub — missing keys fall back to English.
+// pt-BR — complete translation. Missing keys still fall back to English.
 const ptBR: Record<string, string> = {
   "app.name": "Enlace Operações",
   "nav.noc": "Painel NOC",
@@ -59,9 +59,16 @@ const ptBR: Record<string, string> = {
   "common.loading": "Carregando…",
   "common.noData": "Nenhum dado disponível",
   "common.notMeasured": "não medido",
+  "source.live": "AO VIVO — feed Elasticsearch",
+  "source.audit": "AUDITORIA — CSV enviado, saída real do agente",
+  "source.demo": "DEMO — amostra incluída, saída real do agente",
   "source.liveDown": "feed ao vivo não conectado — exibindo dados de auditoria",
   "status.Online": "Online",
   "status.Offline": "Offline",
+  "status.LowSignal": "Sinal baixo",
+  "status.Dying": "Em falha",
+  "status.PowerFail": "Falha de energia",
+  "status.FiberCut": "Fibra rompida",
   "status.Unknown": "Desconhecido",
 };
 
