@@ -44,6 +44,8 @@ A telemetry export covering one area, ideally including per-ONT, time-series:
 | Distance (m) | `812` | Preferred (enables fault location) |
 | Eth speed (Mbps) | `1000` | Optional (ghost detection) |
 | Last-down cause | `LOS` / `dying-gasp` | Optional |
+| DDM: ONT temperature (°C), bias current (mA), voltage (V) | `41.2` / `18.5` / `3.28` | Preferred (laser end-of-life and SFP-health prediction) |
+| OLT-side upstream Rx per ONT (dBm) | `-24.7` | Preferred (per-direction optical budget; separates upstream vs downstream loss) |
 
 - **Cadence:** whatever your OLT exports — 5-minute polling is ideal; 15–60 min still works.
 - **Volume:** ~50+ ONTs over ~30 days is plenty to demonstrate value; more is better.

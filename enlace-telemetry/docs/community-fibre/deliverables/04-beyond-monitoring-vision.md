@@ -81,6 +81,10 @@ We'd rather under-promise. Here's the honest split.
   map segment, not a precise pin.
 - *Calibrated "weeks-to-failure" forecasting.* Today this is a trend-and-threshold projection ("Rx declining,
   projected below the loss threshold in ~N days"); a fully calibrated model matures with your data.
+- *Infrastructure sensing beyond telecom (research-stage).* At fleet scale the same read-only telemetry
+  doubles as a passive infrastructure sensor — recurring co-outage patterns can map low-voltage grid
+  domains that no distribution operator currently observes. Pre-registered validation tests already ship
+  in the agent; no verdict on real data yet, and we won't claim one until there is.
 
 ---
 
