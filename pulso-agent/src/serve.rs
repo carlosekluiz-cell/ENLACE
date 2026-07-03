@@ -806,6 +806,7 @@ mod serve_tests {
             fec_health: json!({}),
             laser_health: json!({}),
             rogue: json!([]),
+            dqt: json!({}),
             churn_risk: json!([]),
             tickets: json!([]),
             diagnostics: json!([]),

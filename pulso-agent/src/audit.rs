@@ -56,6 +56,12 @@ pub struct AuditResult {
     pub laser_health: serde_json::Value,
     /// Passive rogue-ONT findings (hypotheses with confirmation steps).
     pub rogue: serde_json::Value,
+    /// EXPERIMENTAL — Dual-Field Quasi-Static Tomography research report:
+    /// four pre-registered falsification tests (grid co-failure communities,
+    /// diurnal phase-lag, FEC waterfall gain, wavelength asymmetry) over the
+    /// same readings. Research evidence only: never feeds tickets or the
+    /// health score, and every verdict carries its kill-threshold.
+    pub dqt: serde_json::Value,
     pub churn_risk: serde_json::Value,
     pub tickets: serde_json::Value,
     pub diagnostics: serde_json::Value,
@@ -248,6 +254,9 @@ pub fn run_audit_with_options(
     let fec_health = crate::detection::fec_health::analyze_fec_health(&readings);
     let laser_health = crate::predictions::laser_health::analyze_laser_health(&readings);
     let rogue = crate::detection::rogue::detect_rogue_onts(&readings);
+    // DQT (experimental research module): pre-registered falsification
+    // tests over the same readings. Never feeds tickets or health score.
+    let dqt = crate::detection::dqt::run_dqt(&readings);
 
     // Reflectance: run per unique port
     let unique_ports: Vec<String> = {
@@ -385,6 +394,7 @@ pub fn run_audit_with_options(
         fec_health: serde_json::to_value(&fec_health)?,
         laser_health: serde_json::to_value(&laser_health)?,
         rogue: serde_json::to_value(&rogue)?,
+        dqt: serde_json::to_value(&dqt)?,
         churn_risk: serde_json::to_value(&churn_risks)?,
         tickets: serde_json::to_value(&tickets)?,
         diagnostics: serde_json::to_value(&diag)?,

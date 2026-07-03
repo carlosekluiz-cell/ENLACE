@@ -22,6 +22,7 @@ pub mod sfp_health;
 pub mod optical_budget;
 pub mod fec_health;
 pub mod rogue;
+pub mod dqt;
 
 use std::collections::HashMap;
 
