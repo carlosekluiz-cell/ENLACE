@@ -55,7 +55,7 @@ import type {
   UkTopologyComparison,
 } from './types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.pulso.network';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.enlace.network';
 const TOKEN_KEY = 'pulso_access_token';
 
 // ---------------------------------------------------------------------------
@@ -415,11 +415,41 @@ export const api = {
     terrainProfile: (
       startLat: number, startLon: number,
       endLat: number, endLon: number,
-      stepM?: number
-    ) =>
-      fetchApi<any>(
-        `/api/v1/design/profile?start_lat=${startLat}&start_lon=${startLon}&end_lat=${endLat}&end_lon=${endLon}${stepM ? `&step_m=${stepM}` : ''}`
-      ),
+      stepM?: number,
+      opts?: {
+        surface?: 'dtm' | 'dsm' | 'ground';
+        txHeightM?: number;
+        rxHeightM?: number;
+        frequencyMhz?: number;
+        buildings?: boolean;
+      }
+    ) => {
+      const qs = new URLSearchParams({
+        start_lat: String(startLat),
+        start_lon: String(startLon),
+        end_lat: String(endLat),
+        end_lon: String(endLon),
+        ...(stepM ? { step_m: String(stepM) } : {}),
+        ...(opts?.surface ? { surface: opts.surface } : {}),
+        ...(opts?.txHeightM !== undefined ? { tx_height_m: String(opts.txHeightM) } : {}),
+        ...(opts?.rxHeightM !== undefined ? { rx_height_m: String(opts.rxHeightM) } : {}),
+        ...(opts?.frequencyMhz !== undefined ? { frequency_mhz: String(opts.frequencyMhz) } : {}),
+        ...(opts?.buildings ? { buildings: 'true' } : {}),
+      });
+      return fetchApi<any>(`/api/v1/design/profile?${qs}`);
+    },
+    elevation: (lat: number, lon: number) =>
+      fetchApi<any>(`/api/v1/design/elevation?lat=${lat}&lon=${lon}`),
+    terrainStatus: () => fetchApi<any>('/api/v1/design/terrain/status'),
+    calibrationStatus: () => fetchApi<any>('/api/v1/design/calibration/status'),
+    terrainEnsure: (params: {
+      min_lat: number; min_lon: number; max_lat: number; max_lon: number;
+      surfaces?: string[];
+    }) =>
+      fetchApi<any>('/api/v1/design/terrain/ensure', {
+        method: 'POST',
+        body: JSON.stringify(params),
+      }),
     ftthDesign: (params: FtthDesignRequest) =>
       fetchApi<FtthDesignResult>('/api/v1/design/ftth', {
         method: 'POST',

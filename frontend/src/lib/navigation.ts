@@ -66,6 +66,7 @@ export const navSections: NavSection[] = [
     label: 'Infraestrutura',
     items: [
       { label: 'Projeto de Rede', labelKey: 'sidebar.design', href: '/projeto', icon: Cable },
+      { label: 'Propagação', href: '/propagacao', icon: Radio, badge: 'NEW' },
       { label: 'Satélite', href: '/satelite', icon: Satellite },
       { label: 'Fibra', href: '/fibra', icon: Building2, badge: 'NEW' },
       { label: 'Cobertura', href: '/compartilhamento', icon: Share2, badge: 'NEW' },

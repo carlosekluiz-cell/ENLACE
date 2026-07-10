@@ -3,11 +3,14 @@
 Source: OpenTopography S3 (no auth required)
   - Bucket: raster, prefix: SRTM_GL1/SRTM_GL1_srtm/
   - Endpoint: https://opentopography.s3.sdsc.edu
-Format: HGT files (3601x3601 int16 big-endian), 1° x 1° tiles
+Upstream format: GeoTIFF ({tile}.tif) — OpenTopography does NOT serve
+.hgt keys. Tiles are converted to HGT (3601x3601 int16 big-endian) by
+TerrainTileStore so the RF engine can memory-map them.
 Resolution: ~30m (SRTM1)
 
-Downloads HGT tiles covering all municipalities in the DB,
-uploads to MinIO, and registers metadata in terrain_tiles table.
+Ensures HGT tiles covering all municipalities in the DB via the shared
+terrain tile store, uploads to MinIO, and registers metadata in the
+terrain_tiles table.
 """
 import logging
 import math
@@ -15,8 +18,6 @@ import os
 from pathlib import Path
 
 import boto3
-from botocore import UNSIGNED
-from botocore.config import Config
 
 import pandas as pd
 
@@ -96,12 +97,10 @@ class SRTMTerrainPipeline(BasePipeline):
 
         logger.info(f"Need {len(tiles_to_download)} SRTM tiles")
 
-        # Set up S3 client for OpenTopography (unsigned/public)
-        s3 = boto3.client(
-            "s3",
-            endpoint_url=self.urls.srtm_s3_endpoint,
-            config=Config(signature_version=UNSIGNED),
-        )
+        # Shared store: downloads the upstream GeoTIFF and converts to .hgt
+        from python.api.services.terrain_tiles import TerrainTileStore
+
+        store = TerrainTileStore(root=self.cache_dir)
 
         # Set up MinIO client for upload
         minio_s3 = boto3.client(
@@ -127,18 +126,17 @@ class SRTMTerrainPipeline(BasePipeline):
 
         for tile_info in tiles_to_download:
             tile_name = tile_info["tile_name"]
-            s3_key = f"{self.urls.srtm_s3_prefix}{tile_name}.hgt"
-            local_path = self.cache_dir / f"{tile_name}.hgt"
+            local_path = store.tile_path(tile_name, "dtm")
             minio_key = f"srtm/{tile_name}.hgt"
 
             try:
-                # Download from OpenTopography S3
-                if not local_path.exists():
-                    s3.download_file(
-                        self.urls.srtm_s3_bucket,
-                        s3_key,
-                        str(local_path),
-                    )
+                # Download + convert via the shared store (no-op if cached)
+                status = store.ensure_tiles([tile_name], "dtm")[0]
+                if status.status in ("error", "outside_coverage"):
+                    raise RuntimeError(f"{status.status}: {status.detail}")
+                if status.status == "ocean":
+                    logger.info(f"Tile {tile_name} is open water — skipped")
+                    continue
 
                 file_size = local_path.stat().st_size
 

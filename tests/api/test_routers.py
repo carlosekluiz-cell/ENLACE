@@ -15,6 +15,7 @@ Test categories
 from __future__ import annotations
 
 import pytest
+import uuid
 import httpx
 
 
@@ -43,7 +44,8 @@ class TestAuthLogin:
         assert body["token_type"] == "bearer"
         assert body["email"] == "test@test.com"
         assert body["role"] == "admin"
-        assert body["user_id"] == "test"
+        # Login returns the DB user id (auto-created in dev mode)
+        assert body["user_id"]
 
     async def test_login_missing_email(self, client: httpx.AsyncClient):
         resp = await client.post(
@@ -68,10 +70,12 @@ class TestAuthRegister:
     """POST /api/v1/auth/register"""
 
     async def test_register_success(self, client: httpx.AsyncClient):
+        # Unique email per run: registrations persist in the dev DB
+        email = f"new-{uuid.uuid4().hex[:8]}@example.com"
         resp = await client.post(
             "/api/v1/auth/register",
             json={
-                "email": "new@example.com",
+                "email": email,
                 "password": "secure123",
                 "name": "New User",
                 "organization": "TestOrg",
@@ -81,7 +85,7 @@ class TestAuthRegister:
         assert resp.status_code == 200
         body = resp.json()
         assert "access_token" in body
-        assert body["email"] == "new@example.com"
+        assert body["email"] == email
         assert body["organization"] == "TestOrg"
         assert body["token_type"] == "bearer"
 
@@ -420,7 +424,9 @@ class TestDesignCoverage:
         )
         assert resp.status_code == 200
         body = resp.json()
-        assert "stats" in body
+        # Router flattens the engine response for the frontend CoverageResult type
+        assert "coverage_pct" in body
+        assert "grid" in body
 
     async def test_coverage_missing_tower_lat(
         self, client: httpx.AsyncClient, auth_headers: dict

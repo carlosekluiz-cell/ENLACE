@@ -157,8 +157,9 @@ class TestCreateTenant:
         assert t.rate_limit == 600
 
     def test_invalid_plan_raises_value_error(self):
+        # "starter" became a real paid tier; use a name that stays invalid
         with pytest.raises(ValueError, match="Invalid plan"):
-            create_tenant("Bad Plan ISP", plan="starter")
+            create_tenant("Bad Plan ISP", plan="platinum")
 
     def test_country_code_default(self):
         t = create_tenant("BR ISP")

@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from passlib.context import CryptContext
+from python.api.auth.passwords import pwd_context
 
 from python.api.auth.jwt_handler import create_access_token
 from python.api.auth.dependencies import get_current_user, require_auth
@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 DEV_MODE = os.getenv("DEV_MODE", "1").strip().lower() in ("1", "true", "yes")
 
@@ -206,8 +205,12 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
 @router.get("/me", response_model=UserProfileResponse)
 async def get_me(user: dict = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     """Get current user profile from DB."""
-    result = await db.execute(select(User).where(User.id == int(user["user_id"])))
-    db_user = result.scalar_one_or_none()
+    # JWT-only tokens (dev/legacy) carry a non-numeric sub — no DB row to look up.
+    user_id_raw = str(user.get("user_id", ""))
+    db_user = None
+    if user_id_raw.isdigit():
+        result = await db.execute(select(User).where(User.id == int(user_id_raw)))
+        db_user = result.scalar_one_or_none()
 
     if db_user is None:
         # Fallback for JWT-only users (dev mode legacy)

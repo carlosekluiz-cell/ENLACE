@@ -1,0 +1,27 @@
+[package]
+name = "pulso-service"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "pulso-rf-engine"
+path = "src/main.rs"
+
+[dependencies]
+pulso-terrain = { path = "../pulso-terrain" }
+pulso-propagation = { path = "../pulso-propagation" }
+pulso-optimizer = { path = "../pulso-optimizer" }
+pulso-raster = { path = "../pulso-raster" }
+tonic = { workspace = true }
+prost = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = "0.1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[build-dependencies]
+tonic-build = "0.12"

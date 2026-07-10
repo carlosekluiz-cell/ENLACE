@@ -35,32 +35,32 @@ class RfEngineStub(object):
             channel: A grpc.Channel.
         """
         self.CalculatePathLoss = channel.unary_unary(
-                '/enlace.rf.RfEngine/CalculatePathLoss',
+                '/pulso.rf.RfEngine/CalculatePathLoss',
                 request_serializer=rf__service__pb2.PathLossRequest.SerializeToString,
                 response_deserializer=rf__service__pb2.PathLossResponse.FromString,
                 _registered_method=True)
         self.ComputeCoverage = channel.unary_unary(
-                '/enlace.rf.RfEngine/ComputeCoverage',
+                '/pulso.rf.RfEngine/ComputeCoverage',
                 request_serializer=rf__service__pb2.CoverageRequest.SerializeToString,
                 response_deserializer=rf__service__pb2.CoverageResponse.FromString,
                 _registered_method=True)
         self.OptimizeTowers = channel.unary_stream(
-                '/enlace.rf.RfEngine/OptimizeTowers',
+                '/pulso.rf.RfEngine/OptimizeTowers',
                 request_serializer=rf__service__pb2.OptimizeRequest.SerializeToString,
                 response_deserializer=rf__service__pb2.OptimizeProgress.FromString,
                 _registered_method=True)
         self.LinkBudget = channel.unary_unary(
-                '/enlace.rf.RfEngine/LinkBudget',
+                '/pulso.rf.RfEngine/LinkBudget',
                 request_serializer=rf__service__pb2.LinkBudgetRequest.SerializeToString,
                 response_deserializer=rf__service__pb2.LinkBudgetResponse.FromString,
                 _registered_method=True)
         self.TerrainProfile = channel.unary_unary(
-                '/enlace.rf.RfEngine/TerrainProfile',
+                '/pulso.rf.RfEngine/TerrainProfile',
                 request_serializer=rf__service__pb2.ProfileRequest.SerializeToString,
                 response_deserializer=rf__service__pb2.ProfileResponse.FromString,
                 _registered_method=True)
         self.Health = channel.unary_unary(
-                '/enlace.rf.RfEngine/Health',
+                '/pulso.rf.RfEngine/Health',
                 request_serializer=rf__service__pb2.HealthRequest.SerializeToString,
                 response_deserializer=rf__service__pb2.HealthResponse.FromString,
                 _registered_method=True)
@@ -140,9 +140,9 @@ def add_RfEngineServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'enlace.rf.RfEngine', rpc_method_handlers)
+            'pulso.rf.RfEngine', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('enlace.rf.RfEngine', rpc_method_handlers)
+    server.add_registered_method_handlers('pulso.rf.RfEngine', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -163,7 +163,7 @@ class RfEngine(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/enlace.rf.RfEngine/CalculatePathLoss',
+            '/pulso.rf.RfEngine/CalculatePathLoss',
             rf__service__pb2.PathLossRequest.SerializeToString,
             rf__service__pb2.PathLossResponse.FromString,
             options,
@@ -190,7 +190,7 @@ class RfEngine(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/enlace.rf.RfEngine/ComputeCoverage',
+            '/pulso.rf.RfEngine/ComputeCoverage',
             rf__service__pb2.CoverageRequest.SerializeToString,
             rf__service__pb2.CoverageResponse.FromString,
             options,
@@ -217,7 +217,7 @@ class RfEngine(object):
         return grpc.experimental.unary_stream(
             request,
             target,
-            '/enlace.rf.RfEngine/OptimizeTowers',
+            '/pulso.rf.RfEngine/OptimizeTowers',
             rf__service__pb2.OptimizeRequest.SerializeToString,
             rf__service__pb2.OptimizeProgress.FromString,
             options,
@@ -244,7 +244,7 @@ class RfEngine(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/enlace.rf.RfEngine/LinkBudget',
+            '/pulso.rf.RfEngine/LinkBudget',
             rf__service__pb2.LinkBudgetRequest.SerializeToString,
             rf__service__pb2.LinkBudgetResponse.FromString,
             options,
@@ -271,7 +271,7 @@ class RfEngine(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/enlace.rf.RfEngine/TerrainProfile',
+            '/pulso.rf.RfEngine/TerrainProfile',
             rf__service__pb2.ProfileRequest.SerializeToString,
             rf__service__pb2.ProfileResponse.FromString,
             options,
@@ -298,7 +298,7 @@ class RfEngine(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/enlace.rf.RfEngine/Health',
+            '/pulso.rf.RfEngine/Health',
             rf__service__pb2.HealthRequest.SerializeToString,
             rf__service__pb2.HealthResponse.FromString,
             options,

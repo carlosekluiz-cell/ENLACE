@@ -318,7 +318,7 @@ function ProvedorTab() {
     if (!searchQuery.trim()) return;
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'https://api.pulso.network'}/api/v1/public/raio-x?q=${encodeURIComponent(searchQuery)}`
+        `${process.env.NEXT_PUBLIC_API_URL || 'https://api.enlace.network'}/api/v1/public/raio-x?q=${encodeURIComponent(searchQuery)}`
       );
       const json = await res.json();
       if (json.provider) {
@@ -458,7 +458,7 @@ function MunicipioTab() {
     if (!searchQuery.trim()) return;
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'https://api.pulso.network'}/api/v1/municipalities/search?q=${encodeURIComponent(searchQuery)}`
+        `${process.env.NEXT_PUBLIC_API_URL || 'https://api.enlace.network'}/api/v1/municipalities/search?q=${encodeURIComponent(searchQuery)}`
       );
       const json = await res.json();
       if (json.length > 0) {
@@ -644,7 +644,7 @@ function EmpregoTab() {
     if (!searchQuery.trim()) return;
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'https://api.pulso.network'}/api/v1/municipalities/search?q=${encodeURIComponent(searchQuery)}`
+        `${process.env.NEXT_PUBLIC_API_URL || 'https://api.enlace.network'}/api/v1/municipalities/search?q=${encodeURIComponent(searchQuery)}`
       );
       const json = await res.json();
       if (json.length > 0) {
@@ -787,7 +787,7 @@ function GazetteTab() {
     // Try municipality search first
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'https://api.pulso.network'}/api/v1/municipalities/search?q=${encodeURIComponent(searchQuery)}`
+        `${process.env.NEXT_PUBLIC_API_URL || 'https://api.enlace.network'}/api/v1/municipalities/search?q=${encodeURIComponent(searchQuery)}`
       );
       const json = await res.json();
       if (json.length > 0) {

@@ -1,0 +1,13 @@
+[package]
+name = "pulso-propagation"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+pulso-terrain = { path = "../pulso-terrain" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+rayon = { workspace = true }

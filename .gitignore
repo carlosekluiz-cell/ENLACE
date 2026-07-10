@@ -33,6 +33,7 @@ Thumbs.db
 # Data
 data/raw/
 data/downloads/
+data/terrain/
 *.hgt
 *.pbf
 *.tif

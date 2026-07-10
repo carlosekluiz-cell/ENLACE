@@ -41,7 +41,7 @@ export default function RootLayout({
       >
         <Script
           defer
-          src="https://api.pulso.network/umami/script.js"
+          src={`${process.env.NEXT_PUBLIC_API_URL || 'https://api.enlace.network'}/umami/script.js`}
           data-website-id="ecfe3a7c-1795-44a5-af9d-a15851765c05"
           strategy="afterInteractive"
         />

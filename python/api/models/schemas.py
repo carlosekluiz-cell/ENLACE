@@ -145,6 +145,9 @@ class CoverageRequest(BaseModel):
     grid_resolution_m: float = 30
     apply_vegetation: bool = True
     country_code: str = "BR"
+    # "urban" | "suburban" | "rural" | "open" | "auto" (infer from MapBiomas
+    # land cover around the tower).
+    environment: str = "auto"
 
 
 class DesignJobStatus(BaseModel):

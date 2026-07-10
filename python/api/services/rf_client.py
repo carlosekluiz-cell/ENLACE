@@ -149,6 +149,7 @@ class RfEngineClient:
         model: str = "fspl",
         apply_vegetation: bool = True,
         country_code: str = "BR",
+        environment: str = "rural",
     ) -> dict:
         """Calculate path loss between two points.
 
@@ -181,6 +182,7 @@ class RfEngineClient:
                     model=model,
                     apply_vegetation=apply_vegetation,
                     country_code=country_code,
+                    environment=environment,
                 )
                 response = self._stub.CalculatePathLoss(request)
                 return {
@@ -223,6 +225,7 @@ class RfEngineClient:
         min_signal_dbm: float = -95,
         apply_vegetation: bool = True,
         country_code: str = "BR",
+        environment: str = "rural",
     ) -> dict:
         """Compute coverage footprint for a tower.
 
@@ -256,6 +259,7 @@ class RfEngineClient:
                     min_signal_dbm=min_signal_dbm,
                     apply_vegetation=apply_vegetation,
                     country_code=country_code,
+                    environment=environment,
                 )
                 response = self._stub.ComputeCoverage(request)
                 points = [
@@ -276,6 +280,8 @@ class RfEngineClient:
                     "avg_signal_dbm": response.stats.avg_signal_dbm,
                     "min_signal_dbm": response.stats.min_signal_dbm,
                     "max_signal_dbm": response.stats.max_signal_dbm,
+                    "coverage_pct_p90": response.stats.coverage_pct_p90,
+                    "sigma_db": response.stats.sigma_db,
                 }
                 return {"points": points, "stats": stats}
             except Exception as e:
@@ -495,6 +501,7 @@ class RfEngineClient:
         end_lon: float,
         step_m: float = 30,
         k_factor: float = 1.333,
+        surface: str = "dtm",
     ) -> dict:
         """Extract terrain profile between two points.
 
@@ -505,6 +512,8 @@ class RfEngineClient:
             end_lon: End longitude (decimal degrees).
             step_m: Sample spacing in meters (default 30).
             k_factor: Effective Earth radius factor (default 4/3).
+            surface: Elevation surface — "dtm" (bare earth) or "dsm"
+                (surface model with buildings/vegetation).
 
         Returns:
             Dict with points (list of profile points), total_distance_m,
@@ -519,6 +528,7 @@ class RfEngineClient:
                     end_lon=end_lon,
                     step_m=step_m,
                     k_factor=k_factor,
+                    surface=surface,
                 )
                 response = self._stub.TerrainProfile(request)
                 points = [
@@ -536,9 +546,31 @@ class RfEngineClient:
                     "max_elevation_m": response.max_elevation_m,
                     "min_elevation_m": response.min_elevation_m,
                     "num_obstructions": response.num_obstructions,
+                    "surface": surface or "dtm",
+                    "source": "rf_engine",
                 }
             except Exception as e:
                 logger.error(f"TerrainProfile RPC failed: {e}")
+
+        # No gRPC engine: read local .hgt tiles directly — same data, same
+        # math, just slower. Only if tiles are absent do we fall back to mock.
+        try:
+            from python.api.services.terrain_reader import extract_profile, get_reader
+
+            local = extract_profile(
+                start_lat,
+                start_lon,
+                end_lat,
+                end_lon,
+                step_m=step_m,
+                k_factor=k_factor,
+                surface=surface or "dtm",
+                reader=get_reader(surface or "dtm"),
+            )
+            if local is not None:
+                return local
+        except Exception as e:
+            logger.error(f"Local terrain profile failed: {e}")
 
         # Mock terrain profile
         distance_m = _haversine_distance(start_lat, start_lon, end_lat, end_lon)
