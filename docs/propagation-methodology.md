@@ -144,6 +144,15 @@ dB/decade, consistent with sector vertical-pattern elevation angle) on an
 The calibrated near-station field model is therefore accurate to 7–8 dB
 (1σ) out-of-sample.
 
+**Tier-2: measurements without station attribution (the other 54%).**
+The 2.0 M measurements whose station field reads "N/I" are scored against
+the composite of ALL licensed stations within 1 km (incoherent power sum
+over a precomputed per-station EIRP table; every sampled point had ≥1
+station in range, average 26). Held-out calibration of this blind
+proximity model: urban 28.6 → **8.34 dB** (n = 359,914), suburban → 8.46,
+rural → 8.77. With both tiers, **3.55 M of the 3.88 M measurements are
+scored** — the remainder are below the 0.05 V/m noise floor.
+
 **Per-band decomposition (v2).** Measurements at single-band stations
 isolate frequency behavior. After the distance/environment correction,
 low bands out-perform the composite assumption (700 MHz +11.8 dB,

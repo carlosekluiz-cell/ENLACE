@@ -319,20 +319,24 @@ def calibration_summary() -> dict:
         # Calibrated model v1: held-out evaluation, if the fit has run.
         try:
             cur.execute(
-                """SELECT environment, n_test,
+                """SELECT model, environment, n_test,
                           ROUND(rmse_before::numeric,2) AS rmse_before,
                           ROUND(rmse_after::numeric,2) AS rmse_after
-                   FROM rf_calibration_eval ORDER BY n_test DESC"""
+                   FROM rf_calibration_eval ORDER BY model, n_test DESC"""
             )
             rows = cur.fetchall()
             if rows:
-                summary["calibrated"] = {
-                    r["environment"]: {
+                calibrated: dict = {}
+                for r in rows:
+                    calibrated.setdefault(r["model"], {})[r["environment"]] = {
                         "n_test": r["n_test"],
                         "rmse_before_db": float(r["rmse_before"]),
                         "rmse_after_db": float(r["rmse_after"]),
                     }
-                    for r in rows
+                # Back-compat: top-level env keys mirror the tier-1 model
+                summary["calibrated"] = {
+                    **calibrated.get("composite_v1", {}),
+                    "by_model": calibrated,
                 }
         except Exception:
             conn.rollback()  # eval table absent on fresh installs

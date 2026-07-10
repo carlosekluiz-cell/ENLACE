@@ -36,7 +36,7 @@ def main() -> None:
         SELECT r.measurement_id, m.lat, m.lon
         FROM rf_residuals r
         JOIN rf_measurements m ON m.id = r.measurement_id
-        WHERE r.model = 'composite_v1' AND r.clutter IS NULL
+        WHERE r.model IN ('composite_v1', 'composite_v2_prox') AND r.clutter IS NULL
         ORDER BY floor(m.lat), floor(m.lon)
     """)
     upd = conn.cursor()

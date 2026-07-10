@@ -37,34 +37,23 @@ WITH todo AS (
   LIMIT %(chunk)s
 ),
 contrib AS (
+  -- anatel_station_eirp is precomputed (one row per station with total
+  -- effective EIRP), so this lateral is a pure GiST lookup + arithmetic.
   SELECT t.id, t.e_field_vm,
          sum(x.eirp_w / (4 * pi() * x.d * x.d)) AS s_total,
          min(x.d) FILTER (WHERE x.rnk = 1) AS d_strongest
   FROM todo t
   CROSS JOIN LATERAL (
-    SELECT eirp_w, d,
-           row_number() OVER (ORDER BY eirp_w / (d*d) DESC) AS rnk
-    FROM (
-      SELECT sum((CASE
-                    WHEN g.band IN ('700','850','900') THEN 1000.0
-                    WHEN g.band IN ('1800','2100') THEN 1258.9
-                    WHEN g.band IN ('2300','2500') THEN 1584.9
-                    WHEN g.band = '3500' THEN 3162.3
-                    ELSE 1000.0
-                  END) * ceil(g.cnt / 3.0)) AS eirp_w,
-             greatest(min(g.dmin), 20.0) AS d
-      FROM (
-        SELECT a.station_number, a.band, count(*) AS cnt,
-               min(earth_distance(ll_to_earth(t.lat, t.lon),
-                                  ll_to_earth(a.lat, a.lon))) AS dmin
-        FROM anatel_stations a
-        WHERE earth_box(ll_to_earth(t.lat, t.lon), 1000) @> ll_to_earth(a.lat, a.lon)
-          AND earth_distance(ll_to_earth(t.lat, t.lon), ll_to_earth(a.lat, a.lon)) <= 1000
-          AND a.situacao IS DISTINCT FROM 'Cancelada'
-        GROUP BY a.station_number, a.band
-      ) g
-      GROUP BY g.station_number
-    ) per_station
+    SELECT e.eirp_w,
+           greatest(earth_distance(ll_to_earth(t.lat, t.lon),
+                                   ll_to_earth(e.lat, e.lon)), 20.0) AS d,
+           row_number() OVER (
+             ORDER BY e.eirp_w / (greatest(earth_distance(ll_to_earth(t.lat, t.lon),
+                                                          ll_to_earth(e.lat, e.lon)), 20.0)^2) DESC
+           ) AS rnk
+    FROM anatel_station_eirp e
+    WHERE earth_box(ll_to_earth(t.lat, t.lon), 1000) @> ll_to_earth(e.lat, e.lon)
+      AND earth_distance(ll_to_earth(t.lat, t.lon), ll_to_earth(e.lat, e.lon)) <= 1000
   ) x
   GROUP BY t.id, t.e_field_vm
 )

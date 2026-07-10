@@ -87,17 +87,41 @@ Rust suites green) and UNCOMMITTED on branch `pilot-green-finishing-pass`**.
   `scripts/classify_residuals.py`), truncate `/var/log/kern.log`. A
   session watchdog pauses tier-2 scoring below 4 GB. Check `df -h /`
   before any large job.
+- **Disk crisis RESOLVED 2026-07-10 ~23:30**: sibling geodesia session
+  freed its 13 GB scene zips after a coordination note in its BLOCKERS.md
+  (the working channel between sessions on this box) → 24 G free. A 512 M
+  Postgres ballast remains at `/home/dev/enlace/.pg-emergency-ballast`
+  (delete only to give PG emergency headroom).
 - **Tier-2 proximity scoring** (`scripts/benchmark_v2_proximity.py`,
-  `logs/tier2.log`): scores the ~2.08 M unattributed measurements against
-  all licensed stations within 1 km (~50-80 rows/s ≈ overnight). Resumable
-  — rerun the script and it continues. After completion: re-fetch
-  landcover, run classify_residuals (extend its WHERE to include
-  model='composite_v2_prox'), fit tier-2 curves, update methodology doc.
+  `logs/tier2.log`): RUNNING (resumed 23:30 from 120 k / 2.08 M; ~50-80
+  rows/s ≈ overnight). Resumable — rerun the script and it continues.
+  **Landcover prefetch DEFERRED** — running it concurrently with the
+  geodesia session's SNAP processing (multi-GB transient temps) spiked the
+  disk to 0 at 2026-07-10 23:59 (PG survived; ballast + cleanup recovered
+  22 G). Rule: only run the 7 GB landcover prefetch when the sibling
+  pipeline is quiet AND >12 G free, ideally with a free-space guard in the
+  loop. After tier-2 scoring completes: prefetch landcover, run
+  classify_residuals with WHERE extended to model='composite_v2_prox',
+  fit tier-2 curves, update methodology doc + validation artifact.
 - **pkill -f is a footgun on this box**: patterns match your own shell and
   Monitor scripts (exit 144). Use `pgrep -f 'name[_]part'` bracket trick
   or kill by port (`fuser -k PORT/tcp`).
-- **Everything uncommitted** on `pilot-green-finishing-pass`. Commit when the
-  user asks.
+- **`/home/dev/ENLACE/data/uk` (60 GB) is LIVE production data** (user
+  confirmed 2026-07-11) — serves the UK pilot (pulso-uk-api reads it).
+  Never delete, move, or compress it.
+- Disk reclaim done 2026-07-11: docker build cache (12.6 G) + unused
+  images (2.7 G) pruned → 30 G free. Next candidates if needed: 24 unused
+  docker volumes (74 G "reclaimable" but volumes hold data — inspect names
+  with `sudo docker volume ls -f dangling=true` and prune only clearly-dead
+  ones, with user).
+- Core propagation work **committed (d17ea4f) and pushed** to
+  origin/pilot-green-finishing-pass on 2026-07-10 as disk-crisis protection.
+  Remaining untracked files (PDFs, screenshots, data/, other subprojects)
+  intentionally not committed.
+- Tier-2 scoring PAUSED at ~120k/2.08M (disk contention with the
+  geodesia/worldtwin session's Sentinel downloads — `worldtwin-sentinel`
+  poller still active). Resume `scripts/benchmark_v2_proximity.py` when
+  `df -h /` shows >8G free.
 - passlib was replaced by `python/api/auth/passwords.py` (bcrypt 5
   incompatibility broke all login) — don't reintroduce passlib.
 

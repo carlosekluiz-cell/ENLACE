@@ -19,6 +19,7 @@ SRTM_TILE_DIR=data/terrain/dtm DSM_TILE_DIR=data/terrain/dsm GROUND_TILE_DIR=dat
 
 TERRAIN_TILE_DIR=data/terrain \
   CALIBRATION_UPLOAD_TOKEN="${CALIBRATION_UPLOAD_TOKEN:-}" \
+  RF_ENGINE_TLS_CA= \
   CORS_ORIGINS='["http://localhost:3000","http://127.0.0.1:3901","http://localhost:3901"]' \
   nohup python3 -m uvicorn python.api.main:app --port 8897 >>logs/api.log 2>&1 &
 
