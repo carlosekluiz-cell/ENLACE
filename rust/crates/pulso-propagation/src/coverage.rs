@@ -37,6 +37,45 @@ pub struct TowerConfig {
     pub antenna_pattern: AntennaPattern,
     /// Environment classification (drives base-loss model selection).
     pub environment: Environment,
+    /// Optional sector antenna (None = omnidirectional).
+    pub sector: Option<Sector>,
+}
+
+/// Sector antenna definition with a 3GPP TR 36.814-style pattern.
+#[derive(Debug, Clone, Copy)]
+pub struct Sector {
+    /// Boresight azimuth in degrees (0 = north, clockwise).
+    pub azimuth_deg: f64,
+    /// Horizontal half-power beamwidth in degrees (e.g. 65, 90, 120).
+    pub beamwidth_deg: f64,
+    /// Mechanical downtilt in degrees (positive = down).
+    pub downtilt_deg: f64,
+}
+
+impl Sector {
+    /// Pattern attenuation (dB >= 0) toward a point at `bearing_deg` and
+    /// `elev_angle_deg` (negative = below horizon) from the antenna.
+    /// A(az) = min(12*(Δ/HPBW)^2, 25 dB); vertical HPBW fixed at 10°,
+    /// A(el) = min(12*((θ+tilt)/10)^2, 20 dB) — standard 3GPP shapes.
+    pub fn attenuation_db(&self, bearing_deg: f64, elev_angle_deg: f64) -> f64 {
+        let mut d_az = (bearing_deg - self.azimuth_deg).abs() % 360.0;
+        if d_az > 180.0 {
+            d_az = 360.0 - d_az;
+        }
+        let a_h = (12.0 * (d_az / self.beamwidth_deg.max(1.0)).powi(2)).min(25.0);
+        let d_el = elev_angle_deg + self.downtilt_deg; // 0 when aimed at point
+        let a_v = (12.0 * (d_el / 10.0).powi(2)).min(20.0);
+        (a_h + a_v).min(30.0)
+    }
+}
+
+/// Initial bearing from (lat1,lon1) to (lat2,lon2), degrees clockwise from north.
+fn bearing_deg(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+    let (p1, p2) = (lat1.to_radians(), lat2.to_radians());
+    let dl = (lon2 - lon1).to_radians();
+    let y = dl.sin() * p2.cos();
+    let x = p1.cos() * p2.sin() - p1.sin() * p2.cos() * dl.cos();
+    (y.atan2(x).to_degrees() + 360.0) % 360.0
 }
 
 /// Regular lat/lon elevation raster held in memory for fast ray sampling.
@@ -287,6 +326,7 @@ pub fn compute_coverage(
     let tx_ground = terrain
         .and_then(|g| g.elevation_at(tower.latitude, tower.longitude))
         .unwrap_or(0.0);
+    let tx_amsl_for_sector = tx_ground + tower.antenna_height_m;
     // Keep the per-ray terrain walk bounded (<=400 samples) on large areas.
     let ray_step_m = resolution.max(area.radius_m / 200.0).max(30.0);
 
@@ -321,13 +361,24 @@ pub fn compute_coverage(
                     );
                 }
             }
-            let signal_strength = eirp - path_loss;
+            // Sector pattern: attenuate off-boresight directions.
+            let mut pattern_db = 0.0;
+            if let Some(sec) = &tower.sector {
+                let brg = bearing_deg(tower.latitude, tower.longitude, lat, lon);
+                let rx_g = terrain
+                    .and_then(|g| g.elevation_at(lat, lon))
+                    .unwrap_or(tx_ground);
+                let dh = (rx_g + rx_height_m) - tx_amsl_for_sector;
+                let elev_angle = dh.atan2(distance_clamped).to_degrees();
+                pattern_db = sec.attenuation_db(brg, elev_angle);
+            }
+            let signal_strength = eirp - path_loss - pattern_db;
 
             CoveragePoint {
                 latitude: lat,
                 longitude: lon,
                 signal_strength_dbm: signal_strength,
-                path_loss_db: path_loss,
+                path_loss_db: path_loss + pattern_db,
                 sigma_db,
             }
         })
@@ -419,7 +470,21 @@ mod tests {
             antenna_gain_dbi: 15.0,
             antenna_pattern: AntennaPattern::Omnidirectional,
             environment: Environment::Rural,
+            sector: None,
         }
+    }
+
+    #[test]
+    fn test_sector_pattern_attenuation() {
+        let s = Sector { azimuth_deg: 0.0, beamwidth_deg: 90.0, downtilt_deg: 3.0 };
+        // Boresight, aimed elevation: ~0 dB
+        assert!(s.attenuation_db(0.0, -3.0) < 0.2);
+        // 45° off a 90° HPBW: 12*(0.5)^2 = 3 dB horizontal
+        assert!((s.attenuation_db(45.0, -3.0) - 3.0).abs() < 0.2);
+        // Behind the antenna: capped
+        assert!(s.attenuation_db(180.0, -3.0) >= 25.0 - 0.01);
+        // Wraparound: 350° is 10° off boresight 0°
+        assert!(s.attenuation_db(350.0, -3.0) < 0.5);
     }
 
     #[test]

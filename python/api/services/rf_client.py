@@ -226,6 +226,9 @@ class RfEngineClient:
         apply_vegetation: bool = True,
         country_code: str = "BR",
         environment: str = "rural",
+        azimuth_deg: float = 0,
+        beamwidth_deg: float = 0,
+        downtilt_deg: float = 0,
     ) -> dict:
         """Compute coverage footprint for a tower.
 
@@ -260,6 +263,9 @@ class RfEngineClient:
                     apply_vegetation=apply_vegetation,
                     country_code=country_code,
                     environment=environment,
+                    azimuth_deg=azimuth_deg,
+                    beamwidth_deg=beamwidth_deg,
+                    downtilt_deg=downtilt_deg,
                 )
                 response = self._stub.ComputeCoverage(request)
                 points = [

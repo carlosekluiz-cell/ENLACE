@@ -86,6 +86,9 @@ export default function PropagacaoPage() {
   const [antGain, setAntGain] = useState(16);
   const [radiusM, setRadiusM] = useState(5000);
   const [gridRes, setGridRes] = useState(100);
+  const [azimuth, setAzimuth] = useState(0);
+  const [beamwidth, setBeamwidth] = useState(0); // 0 = omni
+  const [downtilt, setDowntilt] = useState(0);
 
   const [profile, setProfile] = useState<any>(null);
   const [coverage, setCoverage] = useState<any>(null);
@@ -218,6 +221,9 @@ export default function PropagacaoPage() {
         grid_resolution_m: gridRes,
         apply_vegetation: true,
         country_code: 'BR',
+        azimuth_deg: azimuth,
+        beamwidth_deg: beamwidth,
+        downtilt_deg: downtilt,
       });
       setCoverage(result);
       setShowResults(true);
@@ -226,7 +232,7 @@ export default function PropagacaoPage() {
     } finally {
       setCovLoading(false);
     }
-  }, [tx, txHeight, freqMhz, txPower, antGain, radiusM, gridRes]);
+  }, [tx, txHeight, freqMhz, txPower, antGain, radiusM, gridRes, azimuth, beamwidth, downtilt]);
 
   const handleMapClick = useCallback(
     (info: any) => {
@@ -576,6 +582,18 @@ export default function PropagacaoPage() {
               <div>
                 <label className={lblCls} style={{ color: 'var(--text-secondary)' }}>Grade (m)</label>
                 <input type="number" className={inputCls} value={gridRes} onChange={(e) => setGridRes(+e.target.value)} />
+              </div>
+              <div>
+                <label className={lblCls} style={{ color: 'var(--text-secondary)' }}>Setor: abertura (°)</label>
+                <input type="number" className={inputCls} value={beamwidth} onChange={(e) => setBeamwidth(+e.target.value)} placeholder="0 = omni" />
+              </div>
+              <div>
+                <label className={lblCls} style={{ color: 'var(--text-secondary)' }}>Azimute (°)</label>
+                <input type="number" className={inputCls} value={azimuth} onChange={(e) => setAzimuth(+e.target.value)} disabled={!beamwidth} />
+              </div>
+              <div>
+                <label className={lblCls} style={{ color: 'var(--text-secondary)' }}>Downtilt (°)</label>
+                <input type="number" className={inputCls} value={downtilt} onChange={(e) => setDowntilt(+e.target.value)} disabled={!beamwidth} />
               </div>
             </>
           )}

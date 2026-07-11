@@ -447,6 +447,10 @@ export interface CoverageRequest {
   grid_resolution_m: number;
   apply_vegetation: boolean;
   country_code: string;
+  environment?: string;
+  azimuth_deg?: number;
+  beamwidth_deg?: number;
+  downtilt_deg?: number;
 }
 
 export interface CoverageResult {

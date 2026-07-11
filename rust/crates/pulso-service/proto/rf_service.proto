@@ -53,6 +53,10 @@ message CoverageRequest {
     string country_code = 11;
     // Environment: "urban" | "suburban" | "rural" | "open" (default rural).
     string environment = 12;
+    // Sector antenna (all zero = omnidirectional).
+    double azimuth_deg = 13;
+    double beamwidth_deg = 14;
+    double downtilt_deg = 15;
 }
 
 message CoverageResponse {

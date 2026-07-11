@@ -13,7 +13,7 @@ use tracing::{info, warn};
 
 use pulso_propagation::common::{haversine_distance, Polarization};
 use pulso_propagation::coverage::{
-    compute_coverage as prop_compute_coverage, CoverageArea, TerrainGrid, TowerConfig,
+    compute_coverage as prop_compute_coverage, CoverageArea, Sector, TerrainGrid, TowerConfig,
 };
 use pulso_propagation::models::fspl::FsplModel;
 use pulso_propagation::models::hata::{CitySize, HataModel};
@@ -256,6 +256,15 @@ impl RfEngine for RfEngineService {
             "ComputeCoverage request"
         );
 
+        let sector = if req.beamwidth_deg > 0.0 {
+            Some(Sector {
+                azimuth_deg: req.azimuth_deg,
+                beamwidth_deg: req.beamwidth_deg,
+                downtilt_deg: req.downtilt_deg,
+            })
+        } else {
+            None
+        };
         let tower = TowerConfig {
             latitude: req.tower_lat,
             longitude: req.tower_lon,
@@ -265,6 +274,7 @@ impl RfEngine for RfEngineService {
             antenna_gain_dbi: req.antenna_gain_dbi,
             antenna_pattern: AntennaPattern::Omnidirectional,
             environment: parse_environment(&req.environment)?,
+            sector,
         };
 
         let area = CoverageArea {

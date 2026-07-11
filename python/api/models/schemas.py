@@ -148,6 +148,10 @@ class CoverageRequest(BaseModel):
     # "urban" | "suburban" | "rural" | "open" | "auto" (infer from MapBiomas
     # land cover around the tower).
     environment: str = "auto"
+    # Sector antenna (beamwidth 0 = omnidirectional)
+    azimuth_deg: float = 0
+    beamwidth_deg: float = 0
+    downtilt_deg: float = 0
 
 
 class DesignJobStatus(BaseModel):

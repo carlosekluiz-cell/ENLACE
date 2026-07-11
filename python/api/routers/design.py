@@ -183,6 +183,9 @@ async def compute_coverage(
                 apply_vegetation=request.apply_vegetation,
                 country_code=request.country_code,
                 environment=environment,
+                azimuth_deg=request.azimuth_deg,
+                beamwidth_deg=request.beamwidth_deg,
+                downtilt_deg=request.downtilt_deg,
             )
             result["environment"] = environment
             return result
