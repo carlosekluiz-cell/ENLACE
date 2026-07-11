@@ -145,6 +145,10 @@ Rust suites green) and UNCOMMITTED on branch `pilot-green-finishing-pass`**.
    (pt-BR, only verified numbers) → `outputs/prospectus/` AND published at
    `https://enlace.network/prospectos/enlace-prospecto-{01..09}-*.pdf`
    (site `public/prospectos/`; rebuild site to update).
+   **Whitepaper (2026-07-12)**: `scripts/whitepaper.py` → 9-page investor/user
+   PDF with 6 flow diagrams (custom FlowDiagram flowable) + live screenshots,
+   LIVE at `enlace.network/whitepaper/enlace-rf-whitepaper.pdf` (linked from
+   /validation). Numbers pulled from rf_calibration_eval/rf_band_offsets.
 2. **Payment integration LAST** (user directive): pricing published at
    https://enlace.network/pricing; activation by contact until then. This is
    the only remaining productization item and starts only on user's go.
