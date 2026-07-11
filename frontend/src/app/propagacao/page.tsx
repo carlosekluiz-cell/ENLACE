@@ -271,6 +271,37 @@ export default function PropagacaoPage() {
     }
   }, [projectId, snapshotState, mode, refreshProjects]);
 
+  const exportStudy = useCallback(
+    async (fmt: 'pdf' | 'kmz' | 'geojson') => {
+      const study = {
+        kind: mode,
+        tx, rx,
+        params: { freqMhz, txHeight, rxHeight, txPower, antGain, radiusM, gridRes, surface, useBuildings },
+        profile, linkBudget, coverage,
+      };
+      try {
+        const base = (process.env.NEXT_PUBLIC_API_URL || 'https://api.enlace.network');
+        const token = typeof window !== 'undefined' ? localStorage.getItem('pulso_access_token') : null;
+        const r = await fetch(`${base}/api/v1/design/study/export/${fmt}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify(study),
+        });
+        if (!r.ok) throw new Error(String(r.status));
+        const blob = await r.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `estudo-${mode}.${fmt === 'geojson' ? 'geojson' : fmt}`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch {
+        setSaveMsg('Falha ao exportar');
+        setTimeout(() => setSaveMsg(null), 2500);
+      }
+    },
+    [mode, tx, rx, freqMhz, txHeight, rxHeight, txPower, antGain, radiusM, gridRes, surface, useBuildings, profile, linkBudget, coverage]
+  );
+
   const loadProject = useCallback(async (id: number) => {
     try {
       const p = await api.rfProjects.get(id);
@@ -661,7 +692,19 @@ export default function PropagacaoPage() {
         >
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Cobertura RF</span>
-            <button onClick={() => setShowResults(false)}><X size={13} style={{ color: 'var(--text-muted)' }} /></button>
+            <span className="flex items-center gap-2">
+              {(['pdf', 'kmz', 'geojson'] as const).map((f) => (
+                <button
+                  key={f}
+                  className="rounded px-1.5 py-0.5 text-[9px] font-medium uppercase"
+                  style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                  onClick={() => exportStudy(f)}
+                >
+                  {f}
+                </button>
+              ))}
+              <button onClick={() => setShowResults(false)}><X size={13} style={{ color: 'var(--text-muted)' }} /></button>
+            </span>
           </div>
           {isMockCoverage && (
             <div className="mb-2 rounded px-2 py-1 text-[10px]" style={{ background: 'color-mix(in srgb, var(--warning) 15%, transparent)', color: 'var(--warning)' }}>
@@ -745,9 +788,21 @@ export default function PropagacaoPage() {
                 ] || profile.clutter_summary.environment}
               </span>
             )}
-            <button className="ml-auto" onClick={() => setShowResults(false)}>
-              <X size={14} style={{ color: 'var(--text-muted)' }} />
-            </button>
+            <span className="ml-auto flex items-center gap-2">
+              {(['pdf', 'kmz', 'geojson'] as const).map((f) => (
+                <button
+                  key={f}
+                  className="rounded px-2 py-0.5 text-[10px] font-medium uppercase"
+                  style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                  onClick={() => exportStudy(f)}
+                >
+                  {f}
+                </button>
+              ))}
+              <button onClick={() => setShowResults(false)}>
+                <X size={14} style={{ color: 'var(--text-muted)' }} />
+              </button>
+            </span>
           </div>
           <div style={{ height: 190 }}>
             <ResponsiveContainer width="100%" height="100%">

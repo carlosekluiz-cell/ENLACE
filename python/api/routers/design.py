@@ -642,6 +642,47 @@ async def terrain_ensure(
 
 
 # ---------------------------------------------------------------------------
+# Study exports (PDF / KMZ / GeoJSON) — planner posts its own snapshot
+# ---------------------------------------------------------------------------
+
+@router.post("/study/export/{fmt}")
+async def export_study(
+    fmt: str,
+    study: dict,
+    user: dict = Depends(require_auth),
+):
+    """Render a link/coverage study as pdf | kmz | geojson."""
+    from fastapi.responses import JSONResponse, Response
+
+    from python.api.services import study_export
+
+    loop = asyncio.get_event_loop()
+    try:
+        if fmt == "pdf":
+            data = await loop.run_in_executor(None, study_export.study_pdf, study)
+            return Response(
+                content=data,
+                media_type="application/pdf",
+                headers={"Content-Disposition": 'attachment; filename="estudo-enlace.pdf"'},
+            )
+        if fmt == "kmz":
+            data = await loop.run_in_executor(None, study_export.study_kmz, study)
+            return Response(
+                content=data,
+                media_type="application/vnd.google-earth.kmz",
+                headers={"Content-Disposition": 'attachment; filename="estudo-enlace.kmz"'},
+            )
+        if fmt == "geojson":
+            return JSONResponse(study_export.study_geojson(study))
+        raise HTTPException(status_code=400, detail="formato: pdf | kmz | geojson")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Study export failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="falha ao exportar estudo")
+
+
+# ---------------------------------------------------------------------------
 # Calibration: measurements -> residuals -> published benchmark
 # ---------------------------------------------------------------------------
 
