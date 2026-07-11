@@ -1,0 +1,20 @@
+[Unit]
+Description=Enlace RF planning API (FastAPI :8897)
+After=network.target postgresql.service enlace-rf-engine.service
+Wants=enlace-rf-engine.service
+
+[Service]
+User=dev
+Group=dev
+WorkingDirectory=/home/dev/enlace
+EnvironmentFile=/home/dev/enlace/.env
+Environment=DEV_MODE=0
+Environment=TERRAIN_TILE_DIR=/home/dev/enlace/data/terrain
+Environment=RF_ENGINE_TLS_CA=
+Environment="CORS_ORIGINS=[\"https://app.enlace.network\",\"http://127.0.0.1:3901\",\"http://localhost:3901\"]"
+ExecStart=/usr/bin/python3 -m uvicorn python.api.main:app --host 127.0.0.1 --port 8897
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

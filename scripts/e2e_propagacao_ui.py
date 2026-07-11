@@ -7,13 +7,14 @@ Prerequisites (run from repo root):
   4. Test user:  register e2e-test@enlace.dev / E2eTest!2026 via POST /api/v1/auth/register
 Then: python3 scripts/e2e_propagacao_ui.py  (exits 0 when all checks pass)
 """
+import os
 import re
 import sys
 import time
 
 from playwright.sync_api import sync_playwright, expect
 
-BASE = "http://127.0.0.1:3901"
+BASE = os.environ.get("E2E_BASE", "http://127.0.0.1:3901")
 SHOTS = "outputs"
 EMAIL, PASSWORD = "e2e-test@enlace.dev", "E2eTest!2026"
 

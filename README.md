@@ -51,10 +51,13 @@ DEV_MODE=0 JWT_SECRET_KEY=test-secret python3 -m pytest tests/ --ignore=tests/in
 ## Status & next steps
 
 - **Done**: nationwide data layers · calibrated engine · 3.88 M measurements
-  ingested · benchmark published · planner UI verified end-to-end (Playwright).
-- **Next**: commit current work (all of the above is on
-  `pilot-green-finishing-pass`, uncommitted) · engine-side application of the
-  measured corrections (needs per-station EIRP) · fleet-as-sensor continuous
+  ingested · benchmark published · planner UI verified end-to-end (Playwright)
+  · **LIVE at [app.enlace.network](https://app.enlace.network)** (systemd
+  units in `deploy/systemd/`, DEV_MODE=0, 19/19 e2e against the public URL) ·
+  pricing at [enlace.network/pricing](https://enlace.network/pricing).
+- **Next**: PROD-7 per-client prospectus PDFs (9 profiles) · payment
+  integration (deliberately last) · engine-side application of the measured
+  corrections (needs per-station EIRP) · fleet-as-sensor continuous
   calibration (starts with the first ISP pilot) · GPU ray tracing + ML
   surrogate for instant nationwide maps.
 

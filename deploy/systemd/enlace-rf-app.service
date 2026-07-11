@@ -1,0 +1,17 @@
+[Unit]
+Description=Enlace RF planner frontend (Next.js :3901, app.enlace.network)
+After=network.target enlace-rf-api.service
+
+[Service]
+User=dev
+Group=dev
+WorkingDirectory=/home/dev/enlace/frontend
+Environment=PORT=3901
+Environment=HOSTNAME=127.0.0.1
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

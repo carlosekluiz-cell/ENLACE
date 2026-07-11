@@ -1,7 +1,7 @@
 # ENLACE — Claude operating notes
 
 **Discipline: update this file (and README.md) at the end of every working
-step.** Sessions die; this file is the survival state. Last update: 2026-07-10.
+step.** Sessions die; this file is the survival state. Last update: 2026-07-11.
 
 ## What this repo is
 
@@ -52,8 +52,21 @@ Rust suites green) and UNCOMMITTED on branch `pilot-green-finishing-pass`**.
      single-band held-out subset.
    - Published artifact: https://claude.ai/code/artifact/3bf9cf26-1e7d-45bc-9b14-4d831c64cdcb
 5. **Frontend**: `/propagacao` planner (deck.gl click-anywhere, DSM/DTM/SOLO
-   toggle, buildings checkbox, P50/P90, calibration chip). Built with
-   `NEXT_PUBLIC_API_URL=http://127.0.0.1:8897` for local testing.
+   toggle, buildings checkbox, P50/P90, calibration chip, equipment presets,
+   address search, sector antennas, save/load projects, PDF/KMZ/GeoJSON export).
+6. **PUBLIC as of 2026-07-11 (PROD-6)**: the planner is LIVE at
+   `https://app.enlace.network` (login/register → /propagacao). nginx routes
+   `/api/` → FastAPI :8897 (same-origin, no CORS), `/` → Next :3901,
+   `/umami/` → agent analytics. Three systemd units (enabled, auto-restart):
+   `enlace-rf-engine` (:50051), `enlace-rf-api` (:8897, **DEV_MODE=0** — real
+   auth enforced, anonymous 401), `enlace-rf-app` (:3901). Unit sources
+   versioned in `deploy/systemd/`. **19/19 Playwright e2e pass against the
+   public URL** (`E2E_BASE=https://app.enlace.network python3
+   scripts/e2e_propagacao_ui.py`).
+   **Gotcha that bit twice**: systemd `EnvironmentFile` OVERRIDES `Environment=`
+   lines regardless of order — `DEV_MODE` and `RF_ENGINE_TLS_CA` were therefore
+   REMOVED from `.env` (start_stack.sh sets DEV_MODE=1 explicitly for dev).
+   Marketing site pricing CTAs (Teste/WISP) now link to the app's login page.
 
 ## Runbook
 
@@ -127,13 +140,16 @@ Rust suites green) and UNCOMMITTED on branch `pilot-green-finishing-pass`**.
 
 ## Next steps (in order of value)
 
-1. **Commit the work** (user's call).
-2. **Engine-side correction application**: gated on disentangling per-band
+1. **PROD-7 (ACTIVE)**: per-client prospectus PDFs — one tailored PDF for each
+   of the 9 client profiles (micro-WISPs, FWA integrators, RF consultancies,
+   regional ISPs, M&A funds, tower cos, banks/BNDES, government/Anatel,
+   carriers). Final deliverable of the productization sprint.
+2. **Payment integration LAST** (user directive): pricing published at
+   https://enlace.network/pricing; activation by contact until then.
+3. **Engine-side correction application**: gated on disentangling per-band
    EIRP practice from propagation — needs real station powers (technical
    Mosaico export, not URL-accessible) or pilot fleet telemetry.
-3. **Phase 3 fleet-as-sensor**: pulso-agent CPE telemetry → continuous
+4. **Phase 3 fleet-as-sensor**: pulso-agent CPE telemetry → continuous
    calibration. Gated on a signed pilot.
-4. **Phase 4**: GPU ray tracing over Open Buildings; ML surrogate for
+5. **Phase 4**: GPU ray tracing over Open Buildings; ML surrogate for
    instant nationwide maps. Weeks-scale.
-5. Deploy the new frontend/API publicly (current public build of the app
-   predates today's work).

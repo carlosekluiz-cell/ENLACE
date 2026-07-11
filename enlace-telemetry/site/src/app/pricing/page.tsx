@@ -20,6 +20,7 @@ const PLANS = [
       "Sem exportação",
     ],
     cta: "Criar conta",
+    href: "https://app.enlace.network/login",
     highlight: false,
   },
   {
@@ -36,6 +37,7 @@ const PLANS = [
       "1 usuário",
     ],
     cta: "Começar",
+    href: "https://app.enlace.network/login",
     highlight: true,
   },
   {
@@ -52,6 +54,7 @@ const PLANS = [
       "Suporte prioritário",
     ],
     cta: "Falar com a gente",
+    href: "mailto:contato@enlace.network?subject=Plano%20Provedor",
     highlight: false,
   },
   {
@@ -68,6 +71,7 @@ const PLANS = [
       "Dados de calibração licenciáveis",
     ],
     cta: "Falar com a gente",
+    href: "mailto:contato@enlace.network?subject=Plano%20Enterprise",
     highlight: false,
   },
 ];
@@ -120,7 +124,7 @@ export default function PricingPage() {
                 ))}
               </ul>
               <a
-                href="mailto:contato@enlace.network?subject=Plano%20Enlace%20RF"
+                href={p.href}
                 className="mt-6 inline-block rounded-md px-4 py-2 text-center text-sm font-medium"
                 style={
                   p.highlight

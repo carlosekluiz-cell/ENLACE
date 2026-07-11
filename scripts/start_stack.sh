@@ -18,6 +18,7 @@ SRTM_TILE_DIR=data/terrain/dtm DSM_TILE_DIR=data/terrain/dsm GROUND_TILE_DIR=dat
   nohup ./rust/target/release/pulso-rf-engine >>logs/rf-engine.log 2>&1 &
 
 TERRAIN_TILE_DIR=data/terrain \
+  DEV_MODE=1 \
   CALIBRATION_UPLOAD_TOKEN="${CALIBRATION_UPLOAD_TOKEN:-}" \
   RF_ENGINE_TLS_CA= \
   CORS_ORIGINS='["http://localhost:3000","http://127.0.0.1:3901","http://localhost:3901"]' \
