@@ -642,6 +642,57 @@ async def terrain_ensure(
 
 
 # ---------------------------------------------------------------------------
+# Geocoding (address / CEP -> coordinates) — Nominatim proxy, BR-scoped
+# ---------------------------------------------------------------------------
+
+_geocode_cache: dict[str, list] = {}
+
+
+@router.get("/geocode")
+async def geocode(q: str, user: dict = Depends(require_auth)):
+    """Resolve a Brazilian address/CEP to coordinates (OSM Nominatim)."""
+    import urllib.parse
+    import urllib.request
+
+    q = q.strip()
+    if len(q) < 3:
+        raise HTTPException(status_code=400, detail="consulta muito curta")
+    if q in _geocode_cache:
+        return {"results": _geocode_cache[q]}
+
+    loop = asyncio.get_event_loop()
+
+    def _run():
+        url = (
+            "https://nominatim.openstreetmap.org/search?format=jsonv2"
+            f"&countrycodes=br&limit=5&q={urllib.parse.quote(q)}"
+        )
+        req = urllib.request.Request(url, headers={"User-Agent": "enlace-planner/1.0 (enlace.network)"})
+        import json as _json
+
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = _json.load(resp)
+        return [
+            {
+                "name": d.get("display_name", "")[:120],
+                "lat": float(d["lat"]),
+                "lon": float(d["lon"]),
+            }
+            for d in data
+        ]
+
+    try:
+        results = await loop.run_in_executor(None, _run)
+        if len(_geocode_cache) > 2000:
+            _geocode_cache.clear()
+        _geocode_cache[q] = results
+        return {"results": results}
+    except Exception as e:
+        logger.warning("Geocode failed for %r: %s", q, e)
+        raise HTTPException(status_code=502, detail="geocodificação indisponível")
+
+
+# ---------------------------------------------------------------------------
 # Study exports (PDF / KMZ / GeoJSON) — planner posts its own snapshot
 # ---------------------------------------------------------------------------
 

@@ -442,6 +442,10 @@ export const api = {
       fetchApi<any>(`/api/v1/design/elevation?lat=${lat}&lon=${lon}`),
     terrainStatus: () => fetchApi<any>('/api/v1/design/terrain/status'),
     calibrationStatus: () => fetchApi<any>('/api/v1/design/calibration/status'),
+    geocode: (q: string) =>
+      fetchApi<{ results: { name: string; lat: number; lon: number }[] }>(
+        `/api/v1/design/geocode?q=${encodeURIComponent(q)}`
+      ),
     terrainEnsure: (params: {
       min_lat: number; min_lon: number; max_lat: number; max_lon: number;
       surfaces?: string[];

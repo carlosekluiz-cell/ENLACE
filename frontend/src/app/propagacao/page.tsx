@@ -41,6 +41,20 @@ interface Pt { lat: number; lng: number }
 const EARTH_R = 6371000;
 const K_FACTOR = 4 / 3;
 
+// Equipamentos FWA comuns no Brasil: [nome, freq MHz, potência dBm, ganho dBi]
+const EQUIPMENT_PRESETS: [string, number, number, number][] = [
+  ['Ubiquiti LiteBeam 5AC Gen2', 5800, 25, 23],
+  ['Ubiquiti PowerBeam 5AC 400', 5800, 25, 25],
+  ['Ubiquiti Rocket 5AC + setor 120°', 5800, 27, 16],
+  ['Cambium ePMP Force 300-25', 5800, 25, 25],
+  ['Cambium ePMP 3000 + setor 90°', 5800, 29, 17],
+  ['Mimosa B5c + prato 25 dBi', 5800, 27, 25],
+  ['Mimosa C5x + refletor', 5800, 27, 20],
+  ['Intelbras WOM 5A-23', 5800, 27, 23],
+  ['Macro LTE 700 MHz (setor)', 700, 43, 15],
+  ['5G 3,5 GHz small cell', 3500, 35, 18],
+];
+
 function haversineM(a: Pt, b: Pt): number {
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
   const dLon = ((b.lng - a.lng) * Math.PI) / 180;
@@ -83,6 +97,19 @@ export default function PropagacaoPage() {
   const [projectId, setProjectId] = useState<number | null>(null);
   const [showProjects, setShowProjects] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [searchQ, setSearchQ] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [flyTo, setFlyTo] = useState<{ latitude: number; longitude: number; zoom?: number } | undefined>();
+
+  const runSearch = useCallback(async () => {
+    if (searchQ.trim().length < 3) return;
+    try {
+      const r = await api.design.geocode(searchQ.trim());
+      setSearchResults(r.results || []);
+    } catch {
+      setSearchResults([]);
+    }
+  }, [searchQ]);
   const [loading, setLoading] = useState(false);
   const [covLoading, setCovLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -426,7 +453,7 @@ export default function PropagacaoPage() {
 
   return (
     <div className="relative h-full w-full overflow-hidden">
-      <MapView className="h-full w-full" layers={layers} onMapClick={handleMapClick} initialViewState={initialView} />
+      <MapView className="h-full w-full" layers={layers} onMapClick={handleMapClick} initialViewState={initialView} flyTo={flyTo} />
 
       {(loading || covLoading) && (
         <div className="absolute left-0 right-0 top-0 z-20" style={{ height: '2px' }}>
@@ -455,6 +482,30 @@ export default function PropagacaoPage() {
             : 'Clique no mapa para posicionar a torre.'}
         </p>
 
+        <div className="relative mb-2">
+          <input
+            className="pulso-input w-full text-xs"
+            placeholder="Buscar endereço ou CEP…"
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && runSearch()}
+          />
+          {searchResults.length > 0 && (
+            <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-md" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              {searchResults.map((r, i) => (
+                <button
+                  key={i}
+                  className="block w-full truncate px-2 py-1.5 text-left text-[11px]"
+                  style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}
+                  onClick={() => { setFlyTo({ latitude: r.lat, longitude: r.lon, zoom: 14 }); setSearchResults([]); setSearchQ(''); }}
+                >
+                  {r.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="mb-3 grid grid-cols-2 gap-1 rounded-md p-1" style={{ background: 'var(--bg-subtle)' }}>
           {(['enlace', 'cobertura'] as Mode[]).map((m) => (
             <button
@@ -473,6 +524,23 @@ export default function PropagacaoPage() {
               {m === 'enlace' ? 'Enlace P2P' : 'Cobertura'}
             </button>
           ))}
+        </div>
+
+        <div className="mb-2">
+          <label className={lblCls} style={{ color: 'var(--text-secondary)' }}>Equipamento</label>
+          <select
+            className="pulso-input w-full text-xs"
+            defaultValue=""
+            onChange={(e) => {
+              const p = EQUIPMENT_PRESETS[Number(e.target.value)];
+              if (p) { setFreqMhz(p[1]); setTxPower(p[2]); setAntGain(p[3]); }
+            }}
+          >
+            <option value="">Personalizado…</option>
+            {EQUIPMENT_PRESETS.map((p, i) => (
+              <option key={i} value={i}>{p[0]}</option>
+            ))}
+          </select>
         </div>
 
         <div className="mb-3 grid grid-cols-2 gap-2">
