@@ -55,8 +55,10 @@ DEV_MODE=0 JWT_SECRET_KEY=test-secret python3 -m pytest tests/ --ignore=tests/in
   · **LIVE at [app.enlace.network](https://app.enlace.network)** (systemd
   units in `deploy/systemd/`, DEV_MODE=0, 19/19 e2e against the public URL) ·
   pricing at [enlace.network/pricing](https://enlace.network/pricing).
-- **Next**: PROD-7 per-client prospectus PDFs (9 profiles) · payment
-  integration (deliberately last) · engine-side application of the measured
+- **Done (cont.)**: 9 per-client prospectus PDFs live at
+  `enlace.network/prospectos/` (generator: `scripts/prospectus.py`).
+- **Next**: payment integration (deliberately last, on user's go) ·
+  engine-side application of the measured
   corrections (needs per-station EIRP) · fleet-as-sensor continuous
   calibration (starts with the first ISP pilot) · GPU ray tracing + ML
   surrogate for instant nationwide maps.

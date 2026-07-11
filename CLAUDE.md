@@ -140,12 +140,14 @@ Rust suites green) and UNCOMMITTED on branch `pilot-green-finishing-pass`**.
 
 ## Next steps (in order of value)
 
-1. **PROD-7 (ACTIVE)**: per-client prospectus PDFs — one tailored PDF for each
-   of the 9 client profiles (micro-WISPs, FWA integrators, RF consultancies,
-   regional ISPs, M&A funds, tower cos, banks/BNDES, government/Anatel,
-   carriers). Final deliverable of the productization sprint.
+1. **PRODUCTIZATION SPRINT COMPLETE (2026-07-11)** — PROD-1..7 all shipped.
+   PROD-7 prospectuses: `scripts/prospectus.py` generates 9 per-client PDFs
+   (pt-BR, only verified numbers) → `outputs/prospectus/` AND published at
+   `https://enlace.network/prospectos/enlace-prospecto-{01..09}-*.pdf`
+   (site `public/prospectos/`; rebuild site to update).
 2. **Payment integration LAST** (user directive): pricing published at
-   https://enlace.network/pricing; activation by contact until then.
+   https://enlace.network/pricing; activation by contact until then. This is
+   the only remaining productization item and starts only on user's go.
 3. **Engine-side correction application**: gated on disentangling per-band
    EIRP practice from propagation — needs real station powers (technical
    Mosaico export, not URL-accessible) or pilot fleet telemetry.
