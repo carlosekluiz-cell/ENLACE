@@ -104,6 +104,16 @@ export default function ValidationPage() {
             Open Buildings 2.5D. Scoring and fit scripts ship in the Enlace
             repository.
           </p>
+          <div className="mt-8">
+            <a
+              href="/whitepaper/enlace-rf-whitepaper.pdf"
+              className="inline-block rounded-md px-5 py-2.5 text-sm font-medium"
+              style={{ background: "var(--accent)", color: "#fff" }}
+            >
+              Baixar o whitepaper completo (PDF) — arquitetura, física,
+              calibração e go-to-market
+            </a>
+          </div>
         </div>
       </Section>
     </>
