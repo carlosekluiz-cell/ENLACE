@@ -79,6 +79,10 @@ export default function PropagacaoPage() {
   const [clickInfo, setClickInfo] = useState<any>(null);
   const [terrainStatus, setTerrainStatus] = useState<any>(null);
   const [calibration, setCalibration] = useState<any>(null);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [projectId, setProjectId] = useState<number | null>(null);
+  const [showProjects, setShowProjects] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [covLoading, setCovLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -121,6 +125,7 @@ export default function PropagacaoPage() {
   useEffect(() => {
     api.design.terrainStatus().then(setTerrainStatus).catch(() => {});
     api.design.calibrationStatus().then(setCalibration).catch(() => {});
+    api.rfProjects.list().then((r) => setProjects(r.projects || [])).catch(() => {});
   }, []);
 
   // ── Perfil de terreno (auto ao definir TX+RX ou trocar superfície) ──
@@ -229,6 +234,62 @@ export default function PropagacaoPage() {
     setLinkBudget(null);
     setClickInfo(null);
     setError(null);
+    setProjectId(null);
+  }, []);
+
+  // ── Projetos salvos ─────────────────────────────────────────────────
+  const snapshotState = useCallback(
+    () => ({
+      mode, tx, rx, surface, useBuildings,
+      freqMhz, txHeight, rxHeight, txPower, antGain, radiusM, gridRes,
+    }),
+    [mode, tx, rx, surface, useBuildings, freqMhz, txHeight, rxHeight, txPower, antGain, radiusM, gridRes]
+  );
+
+  const refreshProjects = useCallback(() => {
+    api.rfProjects.list().then((r) => setProjects(r.projects || [])).catch(() => {});
+  }, []);
+
+  const saveProject = useCallback(async () => {
+    const state = snapshotState();
+    try {
+      if (projectId) {
+        await api.rfProjects.update(projectId, { state });
+        setSaveMsg('Projeto atualizado');
+      } else {
+        const name = window.prompt('Nome do projeto:', mode === 'enlace' ? 'Enlace' : 'Cobertura');
+        if (!name) return;
+        const r = await api.rfProjects.create(name, mode, state);
+        setProjectId(r.id);
+        setSaveMsg(`Salvo: ${name}`);
+      }
+      refreshProjects();
+      setTimeout(() => setSaveMsg(null), 2500);
+    } catch (e: any) {
+      setSaveMsg('Falha ao salvar');
+      setTimeout(() => setSaveMsg(null), 2500);
+    }
+  }, [projectId, snapshotState, mode, refreshProjects]);
+
+  const loadProject = useCallback(async (id: number) => {
+    try {
+      const p = await api.rfProjects.get(id);
+      const s = p.state || {};
+      setMode(s.mode ?? 'enlace');
+      setSurface(s.surface ?? 'dsm');
+      setUseBuildings(!!s.useBuildings);
+      setFreqMhz(s.freqMhz ?? 5800);
+      setTxHeight(s.txHeight ?? 30);
+      setRxHeight(s.rxHeight ?? 15);
+      setTxPower(s.txPower ?? 43);
+      setAntGain(s.antGain ?? 16);
+      setRadiusM(s.radiusM ?? 5000);
+      setGridRes(s.gridRes ?? 100);
+      setCoverage(null); setProfile(null); setLinkBudget(null);
+      setTx(s.tx ?? null); setRx(s.rx ?? null);
+      setProjectId(id);
+      setShowProjects(false);
+    } catch { setSaveMsg('Falha ao carregar'); setTimeout(() => setSaveMsg(null), 2500); }
   }, []);
 
   // ── Camadas deck.gl ─────────────────────────────────────────────────
@@ -478,6 +539,49 @@ export default function PropagacaoPage() {
             Limpar
           </button>
         </div>
+
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            className="rounded-md px-3 py-1.5 text-xs font-medium"
+            style={{ border: '1px solid var(--accent)', color: 'var(--accent)' }}
+            onClick={saveProject}
+            disabled={!tx}
+            title={projectId ? 'Atualizar projeto salvo' : 'Salvar como novo projeto'}
+          >
+            {projectId ? 'Salvar alterações' : 'Salvar projeto'}
+          </button>
+          <button
+            className="rounded-md px-3 py-1.5 text-xs"
+            style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+            onClick={() => { setShowProjects((v) => !v); refreshProjects(); }}
+          >
+            Meus projetos ({projects.length})
+          </button>
+        </div>
+        {saveMsg && (
+          <p className="mt-1 text-[11px]" style={{ color: 'var(--accent)' }}>{saveMsg}</p>
+        )}
+        {showProjects && (
+          <div className="mt-2 max-h-44 overflow-y-auto rounded-md" style={{ border: '1px solid var(--border)' }}>
+            {projects.length === 0 && (
+              <p className="p-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>Nenhum projeto salvo ainda.</p>
+            )}
+            {projects.map((p) => (
+              <div key={p.id} className="flex items-center justify-between px-2 py-1.5 text-xs" style={{ borderBottom: '1px solid var(--border)' }}>
+                <button className="truncate text-left" style={{ color: 'var(--text-primary)' }} onClick={() => loadProject(p.id)}>
+                  {p.name} <span style={{ color: 'var(--text-muted)' }}>· {p.kind}</span>
+                </button>
+                <button
+                  title="Excluir"
+                  style={{ color: 'var(--text-muted)' }}
+                  onClick={() => api.rfProjects.remove(p.id).then(refreshProjects)}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {loading && (
           <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>

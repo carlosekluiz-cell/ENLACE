@@ -22,6 +22,7 @@ from python.api.routers import (
     health,
     opportunity,
     design,
+    projects,
     compliance,
     network_health,
     rural,
@@ -121,6 +122,7 @@ app.include_router(market.router)
 app.include_router(health.router)
 app.include_router(opportunity.router)
 app.include_router(design.router)
+app.include_router(projects.router)
 app.include_router(compliance.router)
 app.include_router(network_health.router)
 app.include_router(rural.router)

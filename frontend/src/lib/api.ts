@@ -467,6 +467,24 @@ export const api = {
       }),
   },
 
+  // ── Projetos de propagação (estudos salvos) ─────────────────────────
+  rfProjects: {
+    list: () => fetchApi<any>('/api/v1/projects'),
+    create: (name: string, kind: 'enlace' | 'cobertura', state: any) =>
+      fetchApi<any>('/api/v1/projects', {
+        method: 'POST',
+        body: JSON.stringify({ name, kind, state }),
+      }),
+    get: (id: number) => fetchApi<any>(`/api/v1/projects/${id}`),
+    update: (id: number, patch: { name?: string; state?: any }) =>
+      fetchApi<any>(`/api/v1/projects/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      }),
+    remove: (id: number) =>
+      fetchApi<any>(`/api/v1/projects/${id}`, { method: 'DELETE' }),
+  },
+
   // ── Saúde da rede ───────────────────────────────────────────────────
   networkHealth: {
     weatherRisk: (municipalityId: number) =>
