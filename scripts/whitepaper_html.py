@@ -384,13 +384,16 @@ def build_html():
         4G e <b>5G</b> (TR 38.901, o modelo de canal padronizado do 5G, vale de
         0,5 a 100 GHz). Fibra não tem problema de propagação — luz em vidro chega
         ou o cabo foi rompido; planejar fibra é problema de topologia e custo, e
-        vive em outro produto da plataforma.</p></div>
+        vive em outro produto da plataforma. <b>ISP de fibra? Este produto continua
+        sendo seu:</b> backhaul sem fio entre POPs, FWA de borda para vender antes
+        de o civil chegar, e alcance rural onde a fibra não fecha conta.</p></div>
       <div class="card"><div class="eyebrow">O RESTO DA PLATAFORMA ENLACE</div>
-        <p><b>FTTH / fibra:</b> piloto de conversão de rede completa no Reino
-        Unido, em produção. <b>Telemetria de frota:</b> agente leve em CPEs, hoje
-        servindo auditoria em api.enlace.network. <b>Inteligência de mercado:</b>
-        módulos de fibra, backhaul e concorrência para ISPs. Cada um terá seu
-        próprio material.</p></div>
+        <p><b>FTTH / fibra:</b> motor de conversão de rede completa (topologia,
+        BOM, exportações), em produção no piloto do Reino Unido — adaptação ao
+        cadastro brasileiro está no roteiro. <b>Telemetria de frota:</b> agente
+        leve em CPEs, hoje servindo auditoria em api.enlace.network.
+        <b>Inteligência de mercado:</b> módulos de fibra, backhaul e concorrência
+        para ISPs. Cada um terá seu próprio material.</p></div>
     </div>"""
 
     # ---------- p4: plataforma ----------
@@ -549,7 +552,7 @@ def build_html():
         ["Micro-WISPs", "instalação errada consome a margem", "estudo por clique + presets", "Teste / WISP"],
         ["Integradores FWA", "proposta sem estudo perde", "viabilidade remota + KMZ", "WISP / Provedor"],
         ["Consultorias RF", "laudo precisa de lastro", "benchmark citável + white-label", "Provedor / Ent."],
-        ["ISPs regionais", "priorizar expansão", "cobertura P90 setorial + API", "Provedor"],
+        ["ISPs regionais (fibra + FWA)", "priorizar expansão · backhaul", "backhaul + cobertura P90 + API", "Provedor"],
         ["Fundos / M&A", "cobertura declarada não auditada", "due diligence em lote", "Enterprise"],
         ["Towercos", "precificar verticais", "footprint por torre em lote", "Enterprise"],
         ["Bancos / BNDES", "risco técnico mal precificado", "parecer independente · milestone P90", "Enterprise"],
@@ -570,7 +573,7 @@ def build_html():
     p11 = f"""
     {sec("09", "ROTEIRO E BARREIRAS", "Cada fase aprofunda a vantagem de dados")}
     {figure("FIGURA 6 — ROTEIRO TECNOLÓGICO",
-            "Correção dentro do motor (destravada por potências reais por estação); frota como sensor — cada CPE de cliente reporta sinal georreferenciado, e cada cliente novo melhora o modelo que serve todos; GPU ray tracing sobre os edifícios 2.5D e um surrogate neural para mapas nacionais instantâneos.",
+            "Correção dentro do motor (destravada por potências reais por estação); frota como sensor — cada CPE de cliente reporta sinal georreferenciado, e cada cliente novo melhora o modelo que serve todos; GPU ray tracing sobre os edifícios 2.5D e um surrogate neural para mapas nacionais instantâneos. Em paralelo: o motor de topologia FTTH do piloto britânico, adaptado ao cadastro brasileiro.",
             fig_roadmap())}
     <div class="pull">
       <p><b>Por que é difícil copiar.</b> Os rasters são públicos; a barreira não
