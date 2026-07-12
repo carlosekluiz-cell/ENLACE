@@ -388,6 +388,62 @@ def get_corrections() -> dict[str, float]:
     return corrections
 
 
+_curves_cache: tuple[float, dict] | None = None
+
+# Fitted-domain clamp for distance-resolved corrections: the curves were fit
+# on near-station residuals, overwhelmingly 0-2.5 km. Outside that range the
+# log-distance form extrapolates without data support.
+CURVE_D_MIN_M = 100.0
+CURVE_D_MAX_M = 2500.0
+
+
+def get_correction_curves() -> dict[str, tuple[float, float]]:
+    """Distance-resolved correction curves per environment: a + b*log10(d_m).
+
+    Fitted offline by scripts/fit_corrections.sql on the 80% train split and
+    stored in rf_correction_curves (model='composite_v1'). Cached ~5 min.
+    Returns {} when the table is absent or a group is too thin — callers
+    fall back to the flat per-environment bias from get_corrections().
+    """
+    global _curves_cache
+    import time
+
+    now = time.monotonic()
+    if _curves_cache is not None and now - _curves_cache[0] < _CORRECTIONS_TTL_S:
+        return _curves_cache[1]
+    curves: dict[str, tuple[float, float]] = {}
+    try:
+        conn = _get_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT environment, a, b
+                FROM rf_correction_curves
+                WHERE model = 'composite_v1'
+                  AND environment != 'unknown'
+                  AND n >= %s
+                """,
+                (MIN_GROUP_N,),
+            )
+            for env, a, b in cur.fetchall():
+                curves[env] = (float(a), float(b))
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning("Correction-curve lookup failed: %s", e)
+        curves = {}
+    _curves_cache = (now, curves)
+    return curves
+
+
+def curve_correction_db(curve: tuple[float, float], distance_m: float) -> float:
+    """Evaluate a + b*log10(d) with d clamped to the fitted domain."""
+    a, b = curve
+    d = min(max(distance_m, CURVE_D_MIN_M), CURVE_D_MAX_M)
+    return a + b * math.log10(d)
+
+
 def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     r = 6_371_000.0
     p1, p2 = math.radians(lat1), math.radians(lat2)

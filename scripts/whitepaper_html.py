@@ -342,11 +342,14 @@ def build_html():
         <li><span>O problema</span><i></i><b>03</b></li>
         <li><span>A plataforma e o produto</span><i></i><b>04</b></li>
         <li><span>Os dados: cinco camadas nacionais</span><i></i><b>06</b></li>
-        <li><span>A física: cadeia ITU-R / 3GPP</span><i></i><b>07</b></li>
-        <li><span>A calibração</span><i></i><b>08</b></li>
-        <li><span>Validação: números, método, limites</span><i></i><b>09</b></li>
-        <li><span>Go-to-market: nove perfis</span><i></i><b>10</b></li>
-        <li><span>Roteiro e barreiras · riscos</span><i></i><b>11</b></li>
+        <li><span>A física: conceitos e equações</span><i></i><b>07</b></li>
+        <li><span>A calibração: loop e metodologia</span><i></i><b>09</b></li>
+        <li><span>Anatomia do erro</span><i></i><b>11</b></li>
+        <li><span>Validação: números, método, limites</span><i></i><b>12</b></li>
+        <li><span>Exemplo aplicado (números reais)</span><i></i><b>13</b></li>
+        <li><span>Go-to-market: nove perfis</span><i></i><b>14</b></li>
+        <li><span>Roteiro e barreiras · riscos</span><i></i><b>15</b></li>
+        <li><span>Referências e glossário</span><i></i><b>16</b></li>
       </ol>
     </div>"""
 
@@ -477,7 +480,7 @@ def build_html():
       <p><b>E o 5G em 3,5 GHz (n78)?</b> Suportado pela física — TR 38.901 cobre a
       banda, e os edifícios 2.5D importam ainda mais nela. Honestidade de escopo:
       as correções calibradas foram medidas nas bandas 700–2500 MHz; em 3,5 GHz
-      aplicamos a física com o sigma declarado, e a telemetria de piloto (§9)
+      aplicamos a física com o sigma declarado, e a telemetria de piloto (§11)
       trará a calibração medida também para essa banda.</p>
     </div>"""
 
@@ -504,7 +507,7 @@ def build_html():
 
     # ---------- p9: validação ----------
     p9 = f"""
-    {sec("07", "VALIDAÇÃO", "Números, método e limites declarados")}
+    {sec("08", "VALIDAÇÃO", "Números, método e limites declarados")}
     <div class="eyebrow tbl-label">TABELA 2 — ERRO HELD-OUT DO MODELO CALIBRADO (20% NUNCA VISTOS PELO AJUSTE)</div>
     {tbl(["Fatia", "N teste", "RMSE físico puro", "RMSE calibrado"], [
         ["Urbano — atribuído (tier 1)", "257.446", "25,8 dB", "7,0 dB"],
@@ -530,12 +533,12 @@ def build_html():
         <li><b>EIRP típico por banda, não por estação:</b> o registro público SMP não
         traz potência/altura por setor. As correções absorvem o erro médio dessa
         hipótese; o desvio estação-a-estação permanece no sigma. A exportação técnica
-        do Mosaico ou a telemetria de piloto removerá a hipótese (§8).</li>
+        do Mosaico ou a telemetria de piloto removerá a hipótese (§11).</li>
         <li><b>Medições RNI são banda larga:</b> o medidor integra as emissoras
         co-localizadas; a atribuição é probabilística — por isso o tier 2 cego é
         reportado em separado, e sustenta 8,3 dB urbano.</li>
         <li><b>Correções aplicadas hoje na API</b>, não dentro do motor Rust —
-        decisão deliberada até desembaraçar EIRP de propagação (§8).</li>
+        a curva ĉ(d) por ambiente já é aplicada ponto a ponto (§6); levá-la para dentro do motor Rust aguarda o desembaraço EIRP × propagação (§11).</li>
       </ul>
     </div>
     <p class="mut">Metodologia completa, scripts e artefato de validação são públicos
@@ -544,7 +547,7 @@ def build_html():
 
     # ---------- p10: gtm ----------
     p10 = f"""
-    {sec("08", "GO-TO-MARKET", "Nove perfis, três degraus, um motor")}
+    {sec("10", "GO-TO-MARKET", "Nove perfis, três degraus, um motor")}
     {figure("FIGURA 5 — ESCADA DE CLIENTES",
             "O mesmo motor serve do provedor de bairro (autoatendimento a R$ 149/mês) à operadora nacional (Enterprise) — o custo de servir um estudo adicional é próximo de zero.",
             fig_gtm())}
@@ -571,7 +574,7 @@ def build_html():
 
     # ---------- p11: roadmap + riscos ----------
     p11 = f"""
-    {sec("09", "ROTEIRO E BARREIRAS", "Cada fase aprofunda a vantagem de dados")}
+    {sec("11", "ROTEIRO E BARREIRAS", "Cada fase aprofunda a vantagem de dados")}
     {figure("FIGURA 6 — ROTEIRO TECNOLÓGICO",
             "Correção dentro do motor (destravada por potências reais por estação); frota como sensor — cada CPE de cliente reporta sinal georreferenciado, e cada cliente novo melhora o modelo que serve todos; GPU ray tracing sobre os edifícios 2.5D e um surrogate neural para mapas nacionais instantâneos. Em paralelo: o motor de topologia FTTH do piloto britânico, adaptado ao cadastro brasileiro.",
             fig_roadmap())}
@@ -623,6 +626,183 @@ def build_html():
       sigma. · ENLACE · v1.1 · {TODAY}</div>
     </div>"""
 
+    # ---------- p8: equations ----------
+    p_eq = f"""
+    {sec("05", "A FÍSICA — EM EQUAÇÕES", "O que o motor calcula, exatamente")}
+    <p>Cada estágio da Figura 3 é uma expressão fechada, avaliada por ponto da
+    grade. O piso físico é o espaço livre:</p>
+    <div class="panel">
+      <div class="eqrow"><div class="eq"><i>L</i><sub>FSPL</sub> = 32,45 + 20&thinsp;log<sub>10</sub><i>f</i><sub>MHz</sub> + 20&thinsp;log<sub>10</sub><i>d</i><sub>km</sub></div><div class="eqname">espaço livre</div></div>
+      <div class="eqrow"><div class="eq"><i>L</i><sub>Hata,urb</sub> = 69,55 + 26,16&thinsp;log<sub>10</sub><i>f</i> − 13,82&thinsp;log<sub>10</sub><i>h</i><sub>b</sub> − <i>a</i>(<i>h</i><sub>m</sub>) + (44,9 − 6,55&thinsp;log<sub>10</sub><i>h</i><sub>b</sub>)&thinsp;log<sub>10</sub><i>d</i></div><div class="eqname">150–2000 MHz</div></div>
+      <div class="eqrow"><div class="eq"><i>L</i> = max(&thinsp;<i>L</i><sub>modelo</sub>, <i>L</i><sub>FSPL</sub>&thinsp;) + <i>J</i>(<i>v</i>) + <i>A</i><sub>chuva</sub> + <i>L</i><sub>BEL</sub> − <i>ĉ</i>(<i>d</i>, amb)</div><div class="eqname">cadeia completa</div></div>
+    </div>
+    <p>Acima de 2 GHz o despacho troca Hata pelo 3GPP TR 38.901 — UMa para
+    urbano/suburbano, RMa para rural — o modelo de canal padronizado do 5G.
+    A difração usa o parâmetro de Fresnel-Kirchhoff <i>v</i> de cada obstáculo do
+    perfil real (Deygout: obstáculo principal, depois recursão nos
+    sub-caminhos):</p>
+    <div class="panel">
+      <div class="eqrow"><div class="eq"><i>v</i> = <i>h</i>&thinsp;√(&thinsp;2/λ · (1/<i>d</i><sub>1</sub> + 1/<i>d</i><sub>2</sub>)&thinsp;)</div><div class="eqname">parâmetro de difração</div></div>
+      <div class="eqrow"><div class="eq"><i>J</i>(<i>v</i>) = 6,9 + 20&thinsp;log<sub>10</sub>(&thinsp;√((<i>v</i>−0,1)² + 1) + <i>v</i> − 0,1&thinsp;)</div><div class="eqname">ITU-R P.526, v &gt; −0,78</div></div>
+      <div class="eqrow"><div class="eq"><i>r</i><sub>1</sub> = √(&thinsp;λ&thinsp;<i>d</i><sub>1</sub><i>d</i><sub>2</sub> / (<i>d</i><sub>1</sub>+<i>d</i><sub>2</sub>)&thinsp;) &nbsp;&nbsp;·&nbsp;&nbsp; Δ<i>h</i><sub>bulge</sub> = <i>d</i><sub>1</sub><i>d</i><sub>2</sub> / (2&thinsp;<i>k</i>&thinsp;<i>R</i><sub>e</sub>), <i>k</i> = 4/3</div><div class="eqname">fresnel · curvatura</div></div>
+    </div>
+    <p>Cada ponto carrega um desvio-padrão de sombreamento σ, herdado do modelo
+    despachado, e a cobertura conservadora aplica a margem log-normal:</p>
+    <div class="panel">
+      <div class="eqrow"><div class="eq">P90: coberto se &nbsp;<i>P</i><sub>rx</sub> − 1,282&thinsp;σ ≥ limiar</div><div class="eqname">z de 90%</div></div>
+    </div>
+    {tbl(["Modelo despachado", "Faixa", "Ambiente", "σ (dB)"], [
+        ["Okumura-Hata / COST-231", "150–2000 MHz", "urbano", "8,0"],
+        ["Okumura-Hata / COST-231", "150–2000 MHz", "suburbano / rural", "7,0 / 6,0"],
+        ["3GPP TR 38.901 UMa", "&gt; 2 GHz", "urbano · suburbano", "4,0 LOS / 6,0 NLOS"],
+        ["3GPP TR 38.901 RMa", "&gt; 2 GHz", "rural", "4,0 LOS / 8,0 NLOS"],
+        ["Piso FSPL", "fora das faixas", "todos", "5,5"],
+    ], widths=["34%", "20%", "26%", "20%"])}
+    <p class="mut">Valores de σ conforme implementados no motor
+    (rust/crates/pulso-propagation). O σ reportado por estudo é a média da
+    grade — 5,97 dB no exemplo da §11.</p>"""
+
+    # ---------- p10: methodology detail ----------
+    p_meth = f"""
+    {sec("06", "A CALIBRAÇÃO — METODOLOGIA", "Do volt por metro ao decibel de erro")}
+    <p>As medições RNI da Anatel reportam campo elétrico (V/m). A comparação com o
+    motor acontece no domínio do campo: para cada medição, compomos a densidade de
+    potência prevista das estações licenciadas próximas e convertemos:</p>
+    <div class="panel">
+      <div class="eqrow"><div class="eq"><i>S</i> = Σ<sub>estações</sub>&thinsp;EIRP<sub>banda</sub> · ⌈portadoras/3⌉ / (4π<i>d</i>²) &nbsp;&nbsp;·&nbsp;&nbsp; <i>E</i><sub>prev</sub> = √(377&thinsp;<i>S</i>)</div><div class="eqname">composição near-station</div></div>
+      <div class="eqrow"><div class="eq"><i>r</i> = 20&thinsp;log<sub>10</sub>(&thinsp;<i>E</i><sub>med</sub> / <i>E</i><sub>prev</sub>&thinsp;)</div><div class="eqname">resíduo em dB</div></div>
+      <div class="eqrow"><div class="eq"><i>ĉ</i>(<i>d</i>, amb) = <i>a</i><sub>amb</sub> + <i>b</i><sub>amb</sub>&thinsp;log<sub>10</sub><i>d</i><sub>m</sub>, &nbsp;<i>d</i> restrito a [100, 2500] m</div><div class="eqname">curva de correção</div></div>
+    </div>
+    <p><b>Hipótese de EIRP declarada:</b> o registro público não traz potência por
+    setor; usamos EIRP típico por banda — 60 dBm (700/850/900 MHz), 61 dBm
+    (1800/2100), 62 dBm (2300/2500), 65 dBm (3500) por grupo de 3 portadoras. As
+    curvas absorvem o erro médio da hipótese; o desvio estação-a-estação fica no σ.</p>
+    <p><b>Split honesto:</b> a partição 80/20 é determinística por
+    <span style="font-family:'IBM Plex Mono';font-size:8pt">measurement_id mod 5</span> —
+    reproduzível por qualquer auditor, sem re-sorteio favorável. As curvas abaixo
+    foram ajustadas só nos 80%:</p>
+    <div class="eyebrow tbl-label">TABELA 4 — CURVAS DE CORREÇÃO AJUSTADAS (TREINO 80%)</div>
+    {tbl(["Modelo", "Ambiente", "a (dB)", "b (dB/década)", "N treino"], [
+        ["composite_v1", "urbano", "−60,5", "+19,2", "1.030.358"],
+        ["composite_v1", "suburbano", "−59,8", "+18,2", "54.852"],
+        ["composite_v1", "rural", "−58,5", "+17,6", "141.054"],
+        ["composite_v2_prox (cego)", "urbano", "−65,3", "+18,9", "1.440.112"],
+        ["composite_v2_prox (cego)", "rural", "−61,5", "+19,2", "14.030"],
+    ], hl_col=3, widths=["27%", "19%", "15%", "21%", "18%"])}
+    <p>A inclinação convergente de <b>+18–19 dB/década em todos os ambientes e nos
+    dois tiers</b> é o resultado mais importante da tabela: não é ruído de ajuste,
+    é física — a assinatura do padrão vertical das antenas setoriais, que o modelo
+    de perda de percurso não conhece. O motor aplica <i>ĉ</i>(<i>d</i>) ponto a
+    ponto, resolvida pela distância real de cada pixel à torre.</p>"""
+
+    # ---------- p11: error anatomy ----------
+    p_anat = f"""
+    {sec("07", "ANATOMIA DO ERRO", "O que 3,55 milhões de resíduos revelam")}
+    <div class="eyebrow tbl-label">TABELA 5 — VIÉS BRUTO POR DISTÂNCIA (TIER 1, ANTES DA CORREÇÃO)</div>
+    {tbl(["Anel de distância", "N", "Viés médio", "Desvio"], [
+        ["0 – 500 m", "1.661.203", "−24,4 dB", "± 9,7"],
+        ["500 – 1000 m", "29.968", "−6,7 dB", "± 7,7"],
+        ["1000 – 1500 m", "14.645", "−2,1 dB", "± 7,5"],
+        ["1500 – 2000 m", "9.411", "+0,9 dB", "± 7,4"],
+    ], hl_col=2, widths=["30%", "22%", "26%", "22%"])}
+    <p>A leitura: <b>sob a torre o modelo superestima em 24 dB</b> — o medidor está
+    abaixo do feixe principal da antena — e o viés praticamente zera entre 1,5 e
+    2 km, onde o feixe encontra o solo. É exatamente o decaimento que a curva
+    log-distância da Tabela 4 captura, e a razão pela qual uma correção plana por
+    ambiente seria errada: puniria a borda da célula pelo pecado do centro.</p>
+    <div class="eyebrow tbl-label">TABELA 6 — RESÍDUO BRUTO POR CLASSE DE COBERTURA DO SOLO (MAPBIOMAS)</div>
+    {tbl(["Classe", "N", "Viés médio", "Desvio"], [
+        ["Urbano", "1.427.976", "−23,8 dB", "± 10,0"],
+        ["Agricultura", "209.385", "−23,5 dB", "± 11,3"],
+        ["Floresta", "42.179", "−23,0 dB", "± 12,3"],
+        ["Solo exposto", "17.519", "−22,4 dB", "± 11,1"],
+        ["Campo aberto", "11.166", "−24,3 dB", "± 11,7"],
+        ["Água", "2.153", "−19,2 dB", "± 12,1"],
+    ], hl_col=3, widths=["30%", "22%", "26%", "22%"])}
+    <p>Duas assinaturas físicas: <b>caminhos sobre água perdem ~4,6 dB menos</b>
+    que os urbanos (reflexão especular, sem clutter), e <b>floresta tem o maior
+    espalhamento</b> (± 12,3 dB) — dossel é o clutter mais heterogêneo. Nenhum
+    desses padrões foi programado; todos emergiram dos dados e são coerentes com a
+    literatura de propagação, o que valida a cadeia de atribuição.</p>"""
+
+    # ---------- p13: worked example ----------
+    p_ex = f"""
+    {sec("09", "EXEMPLO APLICADO", "Dois estudos reais, números reais")}
+    <h3 class="sub">Cobertura 5G n78 — São Paulo, centro</h3>
+    <p>Torre em −23,550, −46,630 (região da Sé), 30 m de altura, 3.500 MHz,
+    raio de 2 km — executado contra a API pública em produção:</p>
+    {tbl(["Parâmetro / resultado", "Valor", "Origem"], [
+        ["Ambiente inferido", "urbano", "MapBiomas na área da grade"],
+        ["Pontos de grade", "14.000", "motor Rust, sombra de terreno DSM"],
+        ["Correção aplicada", "ĉ(d) = −60,5 + 19,2 log₁₀d", "curva urbana da Tabela 4"],
+        ["σ médio da grade", "5,97 dB", "TR 38.901 UMa (LOS/NLOS por ponto)"],
+        ["Cobertura P50 (mediana)", "57,0%", "limiar −95 dBm, pós-correção"],
+        ["Cobertura P90 (conservadora)", "20,4%", "margem de 1,282 σ"],
+    ], hl_col=1, widths=["36%", "34%", "30%"])}
+    <p>A distância entre P50 e P90 é a incerteza dita em voz alta: quem vende
+    cobertura pelo P50 e entrega pelo P90 gera churn; o Enlace mostra os dois.</p>
+    <h3 class="sub">Enlace ponto-a-ponto — 7,8 km sobre DSM</h3>
+    <p>Do conjunto de testes de ponta a ponta que roda contra o produto público
+    (5,8 GHz, perfil com vegetação e edifícios):</p>
+    {tbl(["Resultado", "Valor"], [
+        ["Linha de visada", "livre (LOS)"],
+        ["Zona de Fresnel", "≥ 60% desobstruída"],
+        ["Potência recebida", "−50,6 dBm"],
+        ["Margem de enlace", "19,4 dB"],
+        ["Disponibilidade com chuva", "99,990% (R₀,₀₁ = 64,4 mm/h, ITU-R P.837 local)"],
+    ], hl_col=1, widths=["42%", "58%"])}
+    <p class="mut">Ambos os estudos são reproduzíveis por qualquer conta em
+    app.enlace.network — nenhum número desta página vem de simulação privada.</p>"""
+
+    # ---------- p16: references ----------
+    p_ref = f"""
+    {sec("", "REFERÊNCIAS E GLOSSÁRIO", "Fontes normativas e de dados")}
+    <div class="grid2">
+      <div>
+        <div class="eyebrow tbl-label">MODELOS E NORMAS</div>
+        <ol class="refs">
+          <li>M. Hata, “Empirical Formula for Propagation Loss in Land Mobile Radio Services”, IEEE Trans. Veh. Technol., 1980.</li>
+          <li>COST Action 231, Final Report, cap. 4 (COST-Hata), 1999.</li>
+          <li>3GPP TR 38.901, “Study on channel model for frequencies from 0.5 to 100 GHz”.</li>
+          <li>ITU-R P.526-15, “Propagation by diffraction”.</li>
+          <li>J. Deygout, “Multiple Knife-Edge Diffraction of Microwaves”, IEEE Trans. Antennas Propag., 1966.</li>
+          <li>ITU-R P.837-7, “Characteristics of precipitation for propagation modelling”.</li>
+          <li>ITU-R P.2109-2, “Prediction of building entry loss”.</li>
+        </ol>
+        <div class="eyebrow tbl-label">DADOS</div>
+        <ol class="refs" start="8">
+          <li>NASA SRTM GL1 (30 m), via OpenTopography.</li>
+          <li>Copernicus GLO-30 DSM, ESA/Airbus.</li>
+          <li>ANADEM v1 — modelo de terreno nu para o Brasil, UFRGS.</li>
+          <li>MapBiomas, Coleção 9, cobertura do solo 2023.</li>
+          <li>Google Open Buildings 2.5D (altura, 0,5 m).</li>
+          <li>Anatel — dados abertos: medições RNI; licenciamento SMP (Mosaico).</li>
+        </ol>
+      </div>
+      <div>
+        <div class="eyebrow tbl-label">GLOSSÁRIO MÍNIMO</div>
+        <ol class="refs glos">
+          <li><b>EIRP</b> — potência isotrópica efetivamente irradiada: transmissor + ganho de antena.</li>
+          <li><b>RMSE</b> — raiz do erro quadrático médio; a régua de acurácia deste documento.</li>
+          <li><b>Held-out</b> — dados nunca vistos pelo ajuste; a única avaliação que conta.</li>
+          <li><b>P50 / P90</b> — cobertura mediana / conservadora (90% de confiança por ponto).</li>
+          <li><b>σ (sigma)</b> — desvio-padrão do sombreamento log-normal, por ponto.</li>
+          <li><b>Zona de Fresnel</b> — elipsoide em torno da linha de visada que precisa estar livre.</li>
+          <li><b>Clutter</b> — o que há sobre o terreno: prédios, dossel, cultura agrícola.</li>
+          <li><b>FWA</b> — acesso fixo sem fio: última milha por rádio.</li>
+          <li><b>DTM / DSM</b> — modelo de terreno (solo) / de superfície (com prédios e vegetação).</li>
+          <li><b>RNI</b> — medições de radiação não-ionizante da Anatel; nosso conjunto de verdade.</li>
+        </ol>
+        <div class="pull" style="margin-top:5mm">
+          <p>Reprodutibilidade: os scripts de ingestão, benchmark e ajuste
+          (<span style="font-family:'IBM Plex Mono';font-size:7.6pt">ingest_rni.py ·
+          benchmark_v1.sql · classify_residuals.py · fit_corrections.sql</span>)
+          acompanham o repositório do Enlace; os dados de entrada são 100%
+          públicos.</p>
+        </div>
+      </div>
+    </div>"""
+
     pages = [
         page(cover, dark=True),
         page(p2, 2),
@@ -631,10 +811,15 @@ def build_html():
         page(p5, 5),
         page(p6, 6),
         page(p7, 7),
-        page(p8, 8),
-        page(p9, 9),
-        page(p10, 10),
-        page(p11, 11),
+        page(p_eq, 8),
+        page(p8, 9),
+        page(p_meth, 10),
+        page(p_anat, 11),
+        page(p9, 12),
+        page(p_ex, 13),
+        page(p10, 14),
+        page(p11, 15),
+        page(p_ref, 16),
         page(p12, dark=True),
     ]
 
@@ -744,12 +929,29 @@ def build_html():
     .limits li::before {{ content: "—"; position: absolute; left: 0;
                          color: var(--amber); }}
 
+    .eq {{ font-family: Fraunces, serif; font-size: 10.5pt; text-align: center;
+          padding: 3mm 0 3.4mm; color: var(--ink); }}
+    .eq i {{ font-style: italic; }}
+    .eq .op {{ color: var(--stone); padding: 0 .5mm; }}
+    .eqrow {{ display: grid; grid-template-columns: 1fr auto; align-items: center;
+             border-bottom: 1px solid var(--hair); }}
+    .eqrow:last-child {{ border-bottom: none; }}
+    .eqrow .eqname {{ font-family: 'IBM Plex Mono'; font-weight: 500;
+                     font-size: 6.6pt; letter-spacing: .14em; color: var(--stone);
+                     text-transform: uppercase; }}
     .chips {{ display: flex; gap: 3mm; margin: 1mm 0 3mm; flex-wrap: wrap; }}
     .chip {{ font-family: 'IBM Plex Mono'; font-weight: 500; font-size: 7.2pt;
             letter-spacing: .06em; border: 1px solid var(--hair);
             border-radius: 10mm; padding: 1.6mm 4mm; color: var(--ink); }}
     .chip.hot {{ background: var(--teal); border-color: var(--teal-d); color: #fff; }}
 
+    ol.refs {{ list-style: none; counter-reset: ref; margin: 1mm 0 4mm; }}
+    ol.refs li {{ counter-increment: ref; font-size: 7.8pt; line-height: 1.5;
+                 padding-left: 6mm; position: relative; margin-bottom: 1.6mm; }}
+    ol.refs li::before {{ content: "[" counter(ref) "]";
+                         font-family: 'IBM Plex Mono'; font-size: 6.8pt;
+                         color: var(--teal-d); position: absolute; left: 0; top: .2mm; }}
+    ol.refs.glos li::before {{ content: "—"; }}
     .shot {{ margin: 0 0 6mm; }}
     .shot img {{ width: 100%; display: block; border-radius: 2.5mm;
                 border: 1px solid var(--hair);

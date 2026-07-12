@@ -28,7 +28,13 @@ Rust suites green) and UNCOMMITTED on branch `pilot-green-finishing-pass`**.
    terrain diffraction (P.526 knife edge — the old Lee quadratic exploded and
    was fixed), per-point sigma → P50/P90 coverage, 3 tile caches
    (SRTM/DSM/GROUND _TILE_DIR envs), `surface` + `environment` proto fields.
-3. **API** (`python/api/routers/design.py`): profile with Fresnel
+3. **API** (`python/api/routers/design.py`): profile with Fresnel — and, as of
+   2026-07-12, coverage applies the **distance-resolved correction curve**
+   a+b·log10(d) per grid point (haversine from tower, clamped 100-2500 m,
+   `calibration.get_correction_curves()` reads rf_correction_curves; flat-bias
+   fallback). Also fixed: calibrated P90 was not recomputed (P90 > P50 bug).
+   SP example post-fix: P50 57.0% / P90 20.4% (was 4.4%/25.75% inconsistent).
+   Original list: profile with Fresnel
    `link_analysis` (+ Open Buildings rooftops via `buildings=true`),
    `/elevation` (all surfaces + clutter + building height), coverage with
    MapBiomas-inferred environment + P90 + `calibration_applied`, linkbudget
@@ -145,7 +151,11 @@ Rust suites green) and UNCOMMITTED on branch `pilot-green-finishing-pass`**.
    (pt-BR, only verified numbers) → `outputs/prospectus/` AND published at
    `https://enlace.network/prospectos/enlace-prospecto-{01..09}-*.pdf`
    (site `public/prospectos/`; rebuild site to update).
-   **Whitepaper (2026-07-12, designed edition)**: `scripts/whitepaper_html.py`
+   **Whitepaper (2026-07-12, deep edition, 17 pp)**: added equations page,
+   methodology page (EIRP table, 80/20 split, fitted a/b coefficients),
+   error-anatomy page (distance-bias + clutter tables from rf_residuals),
+   worked-example page (live API numbers), references+glossary.
+   `scripts/whitepaper_html.py`
    (HTML -> Chromium PDF via Playwright; Fraunces/Inter/IBM Plex Mono in
    `assets/fonts/`, petrol cover, 6 SVG diagrams, 12 hand-paginated pages),
    LIVE at `enlace.network/whitepaper/enlace-rf-whitepaper.pdf` (linked from

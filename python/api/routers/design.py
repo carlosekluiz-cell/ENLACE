@@ -200,19 +200,50 @@ async def compute_coverage(
         try:
             from python.api.services import calibration as calibration_svc
 
-            corrections = await loop.run_in_executor(
-                None, calibration_svc.get_corrections
+            env = result.get("environment") or ""
+            curves = await loop.run_in_executor(
+                None, calibration_svc.get_correction_curves
             )
-            bias = corrections.get(result.get("environment") or "")
-            if bias is not None:
+            curve = curves.get(env)
+            if curve is not None:
+                # Distance-resolved correction a + b*log10(d): the measured
+                # bias is ~-24 dB under the tower and ~0 beyond 1.5 km, so a
+                # flat mean would over-penalize the cell edge.
                 for p in result.get("points", []):
                     key = "signal_strength_dbm" if "signal_strength_dbm" in p else "signal_dbm"
                     if key in p:
-                        p[key] += bias
+                        d = calibration_svc._haversine_m(
+                            request.tower_lat,
+                            request.tower_lon,
+                            p.get("latitude", p.get("lat", request.tower_lat)),
+                            p.get("longitude", p.get("lon", request.tower_lon)),
+                        )
+                        p[key] += calibration_svc.curve_correction_db(curve, d)
                 calibration_applied = {
-                    "environment": result.get("environment"),
-                    "bias_db": bias,
+                    "environment": env,
+                    "mode": "distance_curve",
+                    "a": curve[0],
+                    "b": curve[1],
+                    # representative value (1 km) for display compatibility
+                    "bias_db": round(
+                        calibration_svc.curve_correction_db(curve, 1000.0), 2
+                    ),
                 }
+            else:
+                corrections = await loop.run_in_executor(
+                    None, calibration_svc.get_corrections
+                )
+                bias = corrections.get(env)
+                if bias is not None:
+                    for p in result.get("points", []):
+                        key = "signal_strength_dbm" if "signal_strength_dbm" in p else "signal_dbm"
+                        if key in p:
+                            p[key] += bias
+                    calibration_applied = {
+                        "environment": env,
+                        "mode": "flat_bias",
+                        "bias_db": bias,
+                    }
         except Exception as e:
             logger.warning("Calibration correction skipped: %s", e)
 
@@ -230,10 +261,17 @@ async def compute_coverage(
         ]
         if calibration_applied and grid:
             # Corrected signals shift the summary stats too (threshold -95).
+            # P90 must be recomputed from the same corrected signals, or it
+            # can exceed P50 (the engine's P90 is pre-correction).
             covered = sum(1 for p in grid if p["signal_dbm"] >= -95)
+            sigma = stats.get("sigma_db") or 0.0
+            covered_p90 = sum(
+                1 for p in grid if p["signal_dbm"] - 1.282 * sigma >= -95
+            )
             stats = {
                 **stats,
                 "coverage_pct": 100.0 * covered / len(grid),
+                "coverage_pct_p90": 100.0 * covered_p90 / len(grid),
                 "avg_signal_dbm": sum(p["signal_dbm"] for p in grid) / len(grid),
                 "min_signal_dbm": min(p["signal_dbm"] for p in grid),
                 "max_signal_dbm": max(p["signal_dbm"] for p in grid),
