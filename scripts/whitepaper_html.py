@@ -286,9 +286,10 @@ def build_html():
       <div class="covermain">
         <div class="eyebrow" style="color:#5FC9BC">WHITEPAPER · TÉCNICO E DE NEGÓCIO · BRASIL</div>
         <h1>Propagação de RF<br/>calibrada em<br/>escala nacional</h1>
-        <p class="coverlead">O único planejador de rádio do mercado brasileiro com erro
-        medido, publicado e reproduzível — calibrado e avaliado out-of-sample contra
-        3,55&nbsp;milhões de medições de campo do próprio regulador.</p>
+        <p class="coverlead">Enlaces ponto-a-ponto, FWA, 4G e 5G: o único planejador de
+        redes sem fio do mercado brasileiro com erro medido, publicado e
+        reproduzível — calibrado e avaliado out-of-sample contra 3,55&nbsp;milhões
+        de medições de campo do próprio regulador.</p>
       </div>
       <div class="coverkpis">
         <div><b>3,55 M</b><span>medições de campo na avaliação</span></div>
@@ -306,9 +307,10 @@ def build_html():
     # ---------- p2: sumário executivo ----------
     p2 = f"""
     {sec("01", "SUMÁRIO EXECUTIVO", "A pergunta que decide redes")}
-    <p class="lead">O Enlace responde, para qualquer coordenada do Brasil, a pergunta
-    que decide investimentos de rede sem fio: <em>“se eu instalar um rádio aqui, onde
-    o sinal chega — e com que confiança?”</em></p>
+    <p class="lead">Do enlace do WISP ao setor 5G: o Enlace responde, para qualquer
+    coordenada do Brasil, a pergunta que decide qualquer investimento em rede sem
+    fio: <em>“se eu transmitir daqui, onde o sinal chega — e com que
+    confiança?”</em></p>
     <div class="threefacts">
       <div class="fact"><div class="factnum">I</div>
         <h3>Erro medido, não prometido</h3>
@@ -350,7 +352,7 @@ def build_html():
 
     # ---------- p3: problema ----------
     p3 = f"""
-    {sec("02", "O PROBLEMA", "Planejar rádio no Brasil é caro, lento e não auditável")}
+    {sec("02", "O PROBLEMA", "Planejar rede sem fio no Brasil é caro, lento e não auditável")}
     <p>Toda rede sem fio começa com uma previsão de propagação. Errar essa previsão
     custa caro em qualquer escala:</p>
     <div class="grid2">
@@ -374,6 +376,21 @@ def build_html():
       providencie os próprios dados de terreno e clutter — e, criticamente,
       <b>não declaram o erro de suas previsões no Brasil</b>.</p>
       <p class="punch">A previsão sem barra de erro é opinião com gráfico.</p>
+    </div>
+    <h3 class="sub">O que este documento cobre — e onde ele se encaixa</h3>
+    <div class="grid2">
+      <div class="card teal"><div class="eyebrow">ESTE WHITEPAPER — REDES SEM FIO</div>
+        <p>Enlaces ponto-a-ponto (5,8 GHz e licenciados), FWA, cobertura celular
+        4G e <b>5G</b> (TR 38.901, o modelo de canal padronizado do 5G, vale de
+        0,5 a 100 GHz). Fibra não tem problema de propagação — luz em vidro chega
+        ou o cabo foi rompido; planejar fibra é problema de topologia e custo, e
+        vive em outro produto da plataforma.</p></div>
+      <div class="card"><div class="eyebrow">O RESTO DA PLATAFORMA ENLACE</div>
+        <p><b>FTTH / fibra:</b> piloto de conversão de rede completa no Reino
+        Unido, em produção. <b>Telemetria de frota:</b> agente leve em CPEs, hoje
+        servindo auditoria em api.enlace.network. <b>Inteligência de mercado:</b>
+        módulos de fibra, backhaul e concorrência para ISPs. Cada um terá seu
+        próprio material.</p></div>
     </div>"""
 
     # ---------- p4: plataforma ----------
@@ -438,8 +455,9 @@ def build_html():
             fig_fisica())}
     <div class="grid2">
       <div class="card"><div class="eyebrow">PERDA-BASE POR AMBIENTE</div>
-        <p>Hata/COST-231 e 3GPP TR 38.901 (RMa/UMa), com o espaço livre como piso
-        físico — o modelo nunca prevê sinal melhor que o vácuo.</p></div>
+        <p>Hata/COST-231 e 3GPP TR 38.901 (RMa/UMa) — o modelo de canal oficial do
+        5G — com o espaço livre como piso físico: o modelo nunca prevê sinal
+        melhor que o vácuo.</p></div>
       <div class="card"><div class="eyebrow">DIFRAÇÃO DE TERRENO</div>
         <p>Método de Deygout com gume de faca ITU-R P.526 sobre até 200 amostras de
         perfil, em qualquer das três superfícies.</p></div>
@@ -451,6 +469,13 @@ def build_html():
         <p>Cada ponto carrega um sigma de sombreamento; a cobertura sai em P50
         (mediana) e P90 (conservadora) — no P90, 9 em 10 pontos previstos cobertos
         devem ter sinal de fato.</p></div>
+    </div>
+    <div class="pull">
+      <p><b>E o 5G em 3,5 GHz (n78)?</b> Suportado pela física — TR 38.901 cobre a
+      banda, e os edifícios 2.5D importam ainda mais nela. Honestidade de escopo:
+      as correções calibradas foram medidas nas bandas 700–2500 MHz; em 3,5 GHz
+      aplicamos a física com o sigma declarado, e a telemetria de piloto (§9)
+      trará a calibração medida também para essa banda.</p>
     </div>"""
 
     # ---------- p8: calibração ----------
